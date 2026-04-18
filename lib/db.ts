@@ -9,16 +9,16 @@ import type { EmployeeRecord } from "./types";
  * For now we return the local fixture and pretend it was awaited.
  */
 export async function getEmployeeRecord(
-  employeeId: string
+  employeeId: string,
 ): Promise<EmployeeRecord> {
   // Artificial latency to mimic a real query (removed in prod).
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  if (employeeId !== employeeData.employee_id) {
+  if (employeeId !== employeeData.personal.employee_id) {
     throw new Error(`Employee ${employeeId} not found`);
   }
 
   return employeeData as EmployeeRecord;
 }
 
-export const DEFAULT_EMPLOYEE_ID = employeeData.employee_id;
+export const DEFAULT_EMPLOYEE_ID = employeeData.personal.employee_id;
