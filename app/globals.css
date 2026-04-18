@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent: #5b21b6;
+}
+
+html,
+body {
+  background: #efece6;
+  color: #17150f;
+  font-family: "Inter Tight", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Small utility — striped photo placeholder (Tailwind doesn't do patterns well) */
+.photo-stripes {
+  background: repeating-linear-gradient(
+    135deg,
+    #f1ede3,
+    #f1ede3 6px,
+    #e9e4d7 6px,
+    #e9e4d7 12px
+  );
+}
+
+/* Ruled table hover */
+.ruled-row:hover {
+  background: #faf8f2;
+}
+
+@media print {
+  html,
+  body {
+    background: white;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .page-sheet {
+    box-shadow: none !important;
+    page-break-after: always;
+  }
+  .page-sheet:last-of-type {
+    page-break-after: auto;
+  }
+  @page {
+    size: letter;
+    margin: 0;
+  }
+}

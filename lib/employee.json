@@ -1,0 +1,234 @@
+{
+  "org": {
+    "header_lines_bn": [
+      "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার",
+      "শিল্প মন্ত্রণালয়",
+      "বাংলাদেশ স্ট্যান্ডার্ডস এন্ড টেস্টিং ইনস্টিটিউশন"
+    ],
+    "address_bn": "মান ভবন, ১১৬/ক, তেজগাঁও শিল্প এলাকা, ঢাকা-১২০৮",
+    "website": "www.bsti.gov.bd",
+    "email": "dg@bsti.gov.bd",
+    "hotline": "Hotline: 16119"
+  },
+  "personal": {
+    "employee_id": "20105010089",
+    "name": { "bn": "মোঃ সাহেদ রেজা", "en": "Md. Shahed Reza, PhD" },
+    "role_en": "Assistant Director — Chemistry Division",
+    "father_name": { "bn": "মোঃ আব্দুর রহমান", "en": "Md. Abdur Rahman" },
+    "mother_name": { "bn": "মোছাঃ রাবেয়া বেগম", "en": "Mst. Rabeya Begum" },
+    "date_of_birth": "12-07-1981",
+    "blood_group": "B⁺",
+    "gender": "Male",
+    "marital_status": "Married",
+    "nid": "19814xxxxxxxxxxxx",
+    "passport_no": "BP0123456",
+    "mobile_home": "+880 17xx-xxxxxx",
+    "mobile_office": "+880 18xx-xxxxxx",
+    "phone": "+880 2-8870-xxxx",
+    "email": "md.shahedreza@gmail.com"
+  },
+  "emergency_contact": {
+    "name": "Mrs. Afroza Reza",
+    "relation": "Spouse",
+    "phone": "+880 2-550-xxxx",
+    "mobile": "+880 17xx-xxxxxx"
+  },
+  "current_job": {
+    "designation_bn": "সহকারী পরিচালক (রসায়ন)",
+    "designation_en": "Assistant Director (Chemical)",
+    "office_bn": "প্রধান কার্যালয়, বিএসটিআই, ঢাকা",
+    "office_en": "Head Office, BSTI, Dhaka",
+    "office_address_bn": "মান ভবন, ১১৬/ক, তেজগাঁও শিল্প এলাকা, ঢাকা-১২০৮",
+    "office_address_en": "Maan Bhaban, 116/A, Tejgaon I/A, Dhaka-1208",
+    "grade": "Grade · 06",
+    "division": "Chemistry Division",
+    "initial_designation_bn": "পরীক্ষক",
+    "date_of_joining": "30-09-2010",
+    "post_retirement_leave": "11-07-2040",
+    "full_retirement": "11-07-2041"
+  },
+  "addresses": {
+    "present": {
+      "line_en": "29, 3/B, Mohammadpur, Dhaka",
+      "thana": "মোহাম্মদপুর",
+      "thana_bn": true,
+      "upazila": "ঢাকা মেট্রোপলিটন",
+      "upazila_bn": true,
+      "post_office": "Mohammadpur",
+      "post_code": "1207",
+      "district": "ঢাকা",
+      "district_bn": true
+    },
+    "permanent": {
+      "line_en": "29, 8, Bera, Pabna",
+      "thana": "Bera",
+      "upazila": "বেড়া",
+      "upazila_bn": true,
+      "post_office": "Bera",
+      "post_code": "6680",
+      "district": "পাবনা",
+      "district_bn": true
+    }
+  },
+  "education": [
+    {
+      "sl": 1,
+      "degree_primary": "Ph.D.",
+      "is_bn": false,
+      "institution": "University of Dhaka",
+      "subject": "3D Genome Organisation Driving Gene Fusions in Leukaemia",
+      "year": "2022",
+      "result": "Successfuly defended",
+      "scale": null
+    },
+    {
+      "sl": 2,
+      "degree_primary": "এম.এস-সি.",
+      "degree_secondary": "M.Sc.",
+      "is_bn": true,
+      "institution": "University of Dhaka",
+      "subject": "Chemistry",
+      "year": "2004",
+      "result": "3.87",
+      "scale": "4.00"
+    },
+    {
+      "sl": 3,
+      "degree_primary": "বি.এস-সি.",
+      "degree_secondary": "B.Sc.",
+      "is_bn": true,
+      "institution": "University of Dhaka",
+      "subject": "Chemistry",
+      "year": "2003",
+      "result": "Second Class",
+      "scale": null
+    },
+    {
+      "sl": 4,
+      "degree_primary": "এইচ.এস.সি.",
+      "degree_secondary": "HSC",
+      "is_bn": true,
+      "institution": "Cantonment Public School & College, Rangpur",
+      "subject": "Science",
+      "year": "1998",
+      "result": "4.90",
+      "scale": "5.00"
+    },
+    {
+      "sl": 5,
+      "degree_primary": "এস.এস.সি.",
+      "degree_secondary": "SSC",
+      "is_bn": true,
+      "institution": "Cantonment Public School & College, Rangpur",
+      "subject": "Science",
+      "year": "1996",
+      "result": "First Division",
+      "scale": null
+    }
+  ],
+  "postings": [
+    {
+      "sl": 1,
+      "designation_bn": "পরীক্ষক",
+      "designation_en": "Examiner",
+      "office": "BSTI, Dhaka",
+      "start": "30-09-2010",
+      "end": "31-05-2015",
+      "order_no": "বিএসটিআই/প্রশাসন-৮৯৩/২০০৯/১৭৪৪",
+      "order_date": "Dated 28-09-2010"
+    },
+    {
+      "sl": 2,
+      "designation_bn": "ঊর্ধ্বতন পরীক্ষক",
+      "designation_en": "Senior Examiner",
+      "office": "BSTI, Dhaka",
+      "start": "01-06-2015",
+      "end": "21-09-2020",
+      "order_no": "৩৬.০৫.০১৮.০১.০১.৯৮০.২০১০/১০১",
+      "order_date": "Dated 21-04-2016"
+    },
+    {
+      "sl": 3,
+      "designation_bn": "সহকারী পরিচালক",
+      "designation_en": "Assistant Director",
+      "office": "BSTI, Dhaka",
+      "start": "22-09-2020",
+      "end": "Present",
+      "order_no": "৩৬.০৫.০০০০.১০১.১২.০০১.২০/১৪৬৬(৭)",
+      "order_date": "Dated 22-09-2020"
+    }
+  ],
+  "promotions": [
+    {
+      "sl": 1,
+      "designation_bn": "ঊর্ধ্বতন পরীক্ষক",
+      "designation_en": "Senior Examiner",
+      "joining_date": "01-06-2015",
+      "order_no": "৩৬.০৫.০১৮.০১.০১.৯৮০.২০১০/১০১",
+      "order_date": "Dated 21-04-2016"
+    },
+    {
+      "sl": 2,
+      "designation_bn": "সহকারী পরিচালক",
+      "designation_en": "Assistant Director",
+      "joining_date": "22-09-2020",
+      "order_no": "৩৬.০৫.০০০০.১০১.১২.০০১.২০/১৪৬৬(৭)",
+      "order_date": "Dated 22-09-2020"
+    }
+  ],
+  "trainings": [
+    {
+      "sl": 1,
+      "course_name": "Lead Assessor Training",
+      "course_subtitle": "ISO/IEC 17025:2005",
+      "institution": "Bangladesh Accreditation Board (BAB)",
+      "duration": "01-02-2015 to 05-02-2015",
+      "result": "Completed"
+    },
+    {
+      "sl": 2,
+      "course_name": "Lead Assessor Training",
+      "course_subtitle": "ISO/IEC 17043:2010",
+      "institution": "Bangladesh Accreditation Board (BAB)",
+      "duration": "23-11-2014 to 26-11-2014",
+      "result": "Completed"
+    }
+  ],
+  "foreign_trainings": [
+    {
+      "sl": 1,
+      "course_name": "Operational Training",
+      "course_subtitle": "LCMS/MS, GC-MS, HPLC and AAS",
+      "country": "Singapore",
+      "institution": "Shimadzu Asia Pacific",
+      "duration": "09-08-2023 to 14-08-2023"
+    },
+    {
+      "sl": 2,
+      "course_name": "Chemical Analysis",
+      "course_subtitle": "Pesticide Residue of Food",
+      "country": "India",
+      "institution": "Export Inspection Agency — Kochi, Kerala",
+      "duration": "27-02-2012 to 09-03-2012"
+    }
+  ],
+  "publications": [
+    {
+      "sl": 1,
+      "type": "Scientific",
+      "title": "Preparation and Characterization of Vitamin B12 Model Complexes",
+      "publisher": "Dhaka University Journal of Science",
+      "date": "01-01-2011"
+    }
+  ],
+  "awards": [
+    {
+      "sl": 1,
+      "title": "Special Increment for Extraordinary Work",
+      "type": "Official / Inter-Office",
+      "country": "Bangladesh",
+      "org": "BSTI",
+      "date": "01-01-2024"
+    }
+  ]
+}
