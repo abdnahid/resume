@@ -60,7 +60,7 @@ export default async function Page() {
       <div className="no-print font-mono text-[10px] uppercase tracking-[0.16em] text-ink-4">
         Designed and Developed by{" "}
         <a
-          href="https://github.com/m-r-zaman"
+          href="https://github.com/abdnahid"
           target="_blank"
           rel="noopener noreferrer"
         >
