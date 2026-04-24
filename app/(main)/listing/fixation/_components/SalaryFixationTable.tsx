@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowRight, PlusIcon } from "lucide-react";
+import { DateRangePopover } from "@/app/(main)/_components/DateScape/DateRangePopover";
+import { ArrowRight, PlusIcon } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -283,20 +284,6 @@ const GradeIcon = () => (
   </svg>
 );
 
-const CalendarIcon = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    className="w-4 h-4 text-slate-400 shrink-0"
-  >
-    <rect x="2" y="3" width="12" height="11" rx="1.5" />
-    <path d="M5 2v2M11 2v2M2 7h12" />
-  </svg>
-);
-
 const EditIcon = () => (
   <svg
     viewBox="0 0 16 16"
@@ -568,109 +555,6 @@ function GradeFilterDropdown({
   );
 }
 
-// ─── Date Range Dropdown ──────────────────────────────────────────────────────
-
-function DateRangeDropdown({
-  fromDate,
-  toDate,
-  onFromChange,
-  onToChange,
-  onClear,
-}: {
-  fromDate: string;
-  toDate: string;
-  onFromChange: (v: string) => void;
-  onToChange: (v: string) => void;
-  onClear: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useClickOutside(close);
-
-  const hasFilter = fromDate || toDate;
-  const fmt = (d: string) => d; // already yyyy-mm-dd for <input type=date>
-  const label =
-    fromDate && toDate
-      ? `${fromDate} → ${toDate}`
-      : fromDate
-        ? `From ${fromDate}`
-        : toDate
-          ? `Until ${toDate}`
-          : "Validity";
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-2 h-9 pl-3 pr-2.5 rounded-lg border bg-white text-sm transition-all duration-150 cursor-pointer min-w-36 ${
-          hasFilter
-            ? "border-slate-900 text-slate-900"
-            : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-        }`}
-      >
-        <CalendarIcon />
-        <span className="flex-1 text-left truncate max-w-36">{label}</span>
-        {hasFilter ? (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              onClear();
-            }}
-            onKeyDown={(e) =>
-              e.key === "Enter" && (e.stopPropagation(), onClear())
-            }
-            className="text-slate-400 hover:text-slate-700 cursor-pointer"
-          >
-            <XIcon />
-          </span>
-        ) : (
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-          />
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute z-50 top-full mt-1.5 left-0 w-64 bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-100 p-4">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-            Validity date range
-          </p>
-          <div className="space-y-2.5">
-            <div>
-              <label className="text-xs text-slate-500 mb-1 block">From</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => onFromChange(e.target.value)}
-                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white outline-none focus:border-slate-400 transition-colors"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-slate-500 mb-1 block">To</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => onToChange(e.target.value)}
-                className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 bg-white outline-none focus:border-slate-400 transition-colors"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="w-full mt-1 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-700 transition-colors cursor-pointer"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function SalaryFixationTable() {
@@ -679,8 +563,8 @@ export default function SalaryFixationTable() {
   const [gradeExact, setGradeExact] = useState("");
   const [gradeFrom, setGradeFrom] = useState("");
   const [gradeTo, setGradeTo] = useState("");
-  const [validFrom, setValidFrom] = useState("");
-  const [validTo, setValidTo] = useState("");
+  const [validFrom, setValidFrom] = useState<Date | undefined>(undefined);
+  const [validTo, setValidTo] = useState<Date | undefined>(undefined);
 
   const clearGrade = () => {
     setGradeExact("");
@@ -703,16 +587,13 @@ export default function SalaryFixationTable() {
       : (!gradeFrom || g >= Number(gradeFrom)) &&
         (!gradeTo || g <= Number(gradeTo));
 
-    // validity overlap: record's [validFrom..validThru] overlaps filter [validFrom..validTo]
+    // validity overlap: record's [validFrom..validThru] overlaps filter range
     const recFrom = parseDate(r.validFrom);
     const recTo = parseDate(r.validThru);
-    const filterFrom = validFrom ? new Date(validFrom) : null;
-    const filterTo = validTo ? new Date(validTo) : null;
     const matchValidity =
-      (!filterFrom && !filterTo) ||
+      (!validFrom && !validTo) ||
       (recFrom && recTo
-        ? (!filterFrom || recTo >= filterFrom) &&
-          (!filterTo || recFrom <= filterTo)
+        ? (!validFrom || recTo >= validFrom) && (!validTo || recFrom <= validTo)
         : false);
 
     return matchSearch && matchOffice && matchGrade && matchValidity;
@@ -789,15 +670,14 @@ export default function SalaryFixationTable() {
           />
 
           {/* Validity */}
-          <DateRangeDropdown
-            fromDate={validFrom}
-            toDate={validTo}
-            onFromChange={setValidFrom}
-            onToChange={setValidTo}
-            onClear={() => {
-              setValidFrom("");
-              setValidTo("");
-            }}
+          <DateRangePopover
+            name="validity-filter"
+            startDate={validFrom}
+            endDate={validTo}
+            getStartDate={(d) => setValidFrom(d ? new Date(d) : undefined)}
+            getEndDate={(d) => setValidTo(d ? new Date(d) : undefined)}
+            lang="en-GB"
+            width="w-64"
           />
         </div>
 
@@ -808,11 +688,11 @@ export default function SalaryFixationTable() {
               <colgroup>
                 <col className="w-32" />
                 <col />
-                <col className="w-20" />
+                <col className="w-5" />
                 <col className="w-32" />
-                <col className="w-60" />
-                <col className="w-12" />
-                <col className="w-12" />
+                <col className="w-65" />
+                <col className="w-10" />
+                <col className="w-10" />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">

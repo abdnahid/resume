@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume *)"
+      "Bash(dir C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume *)",
+      "Bash(npx --yes shadcn add popover label --overwrite)"
     ]
   }
 }

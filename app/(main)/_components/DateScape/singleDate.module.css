@@ -1,0 +1,7 @@
+.dayItems button {
+  @apply w-full rounded-full hover:bg-theme-dark hover:text-white transition-all duration-300 cursor-pointer font-semibold p-2 text-center text-sm;
+}
+
+.dayItems span {
+  @apply font-semibold text-theme-dark opacity-75 mb-3 text-sm;
+}

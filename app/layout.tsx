@@ -7,6 +7,7 @@ import {
   Noto_Serif_Bengali,
   JetBrains_Mono,
 } from "next/font/google";
+import { cn } from "@/lib/utils";
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -58,7 +59,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${newsreader.variable} ${interTight.variable} ${hindSiliguri.variable} ${notoSerifBengali.variable} ${jetbrainsMono.variable}`}
+      className={cn(
+        newsreader.variable,
+        interTight.variable,
+        hindSiliguri.variable,
+        notoSerifBengali.variable,
+        jetbrainsMono.variable,
+      )}
     >
       <body>{children}</body>
     </html>
