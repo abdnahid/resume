@@ -1,9 +1,32 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  --accent: #5b21b6;
+@theme {
+  /* ── Colors ──────────────────────────────────────────────────────────── */
+  --color-ink:          #17150f;
+  --color-ink-2:        #3a3835;
+  --color-ink-3:        #6b6660;
+  --color-ink-4:        #a39d93;
+  --color-paper:        #fdfcf8;
+  --color-theme:        #f59e0b;
+  --color-rule:         #e5e2da;
+  --color-rule-strong:  #cfcac1;
+  --color-accent:       #5b21b6;
+  --color-accent-soft:  #f1ebfa;
+  --color-accent-line:  #c7b2e3;
+
+  /* ── Font families ───────────────────────────────────────────────────── */
+  /* next/font injects the actual loaded font into these same CSS variables
+     on the <html> element via a class, overriding these fallback stacks. */
+  --font-display:   "Newsreader", Georgia, serif;
+  --font-body:      "Inter Tight", system-ui, sans-serif;
+  --font-bn:        "Hind Siliguri", system-ui, sans-serif;
+  --font-bn-serif:  "Noto Serif Bengali", Georgia, serif;
+  --font-mono:      "JetBrains Mono", ui-monospace, monospace;
+
+  /* ── Letter spacing ──────────────────────────────────────────────────── */
+  --tracking-tracked-sm: 0.14em;
+  --tracking-tracked:    0.2em;
+  --tracking-tracked-lg: 0.28em;
 }
 
 html,
@@ -15,7 +38,6 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Small utility — striped photo placeholder (Tailwind doesn't do patterns well) */
 .photo-stripes {
   background: repeating-linear-gradient(
     135deg,
@@ -26,7 +48,6 @@ body {
   );
 }
 
-/* Ruled table hover */
 .ruled-row:hover {
   background: #faf8f2;
 }
