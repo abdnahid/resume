@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(dir C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume *)",
-      "Bash(npx --yes shadcn add popover label --overwrite)"
+      "Bash(npx --yes shadcn add popover label --overwrite)",
+      "Bash(npx tsc *)",
+      "Bash(dir *)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(echo \"VALIDATE_EXIT=$?\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; npx prisma validate 2>&1; Write-Host \"Exit: $LASTEXITCODE\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; npx prisma generate 2>&1; Write-Host \"Exit: $LASTEXITCODE\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; npx prisma db push 2>&1; Write-Host \"Exit: $LASTEXITCODE\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; \\(Get-ChildItem node_modules/@prisma -Directory\\).Name)",
+      "PowerShell(npm install *)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; \\(Get-ChildItem node_modules -Directory\\).Name | Where-Object { $_ -eq \"dotenv\" })",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; npx tsc --noEmit 2>&1; Write-Host \"Exit: $LASTEXITCODE\")"
     ]
   }
 }

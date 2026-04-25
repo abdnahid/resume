@@ -1,9 +1,9 @@
-import type { EmployeeRecord } from "@/lib/types";
+import type { WorkHistoryRow } from "@/lib/types";
 import SectionHead from "./SectionHead";
 import DataTable, { Cell, Mono, Muted, SLCell } from "./DataTable";
 
 type Props = {
-  rows: EmployeeRecord["postings"];
+  rows: WorkHistoryRow[];
 };
 
 export default function PostingSection({ rows }: Props) {

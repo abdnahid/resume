@@ -1,12 +1,17 @@
-import React from "react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getEmployees } from "@/lib/db";
 import EmployeeTable from "./_components/EmployeeTable";
 
-const ListingPage = () => {
+export default async function ListingPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const role = (session?.user as { role?: string })?.role ?? "employee";
+
+  const employees = await getEmployees();
+
   return (
     <div>
-      <EmployeeTable />
+      <EmployeeTable employees={employees} role={role} />
     </div>
   );
-};
-
-export default ListingPage;
+}

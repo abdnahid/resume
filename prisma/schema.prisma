@@ -1,0 +1,369 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  superadmin
+  officeadmin
+  data_entry
+  employee
+}
+
+enum OfficeType {
+  head
+  divisional
+  district
+  regional
+  dmi
+}
+
+enum EmployeeStatus {
+  active
+  retired
+  prl
+  inactive
+}
+
+enum SalaryStatus {
+  active
+  expired
+  not_found
+  inactive
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum MaritalStatus {
+  single
+  married
+  divorced
+  widowed
+}
+
+enum BloodGroup {
+  A_pos
+  A_neg
+  B_pos
+  B_neg
+  AB_pos
+  AB_neg
+  O_pos
+  O_neg
+}
+
+// ─── better-auth tables ───────────────────────────────────────────────────────
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  username      String    @unique
+  role          Role      @default(employee)
+
+  sessions  Session[]
+  accounts  Account[]
+  employee  Employee?
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+}
+
+// ─── Office ───────────────────────────────────────────────────────────────────
+
+model Office {
+  id         Int        @id
+  type       OfficeType
+  nameEn     String
+  nameBn     String
+  officeHead String
+  addressEn  String
+  addressBn  String
+  phone      String?
+  email      String?
+
+  employees Employee[]
+}
+
+// ─── Address ──────────────────────────────────────────────────────────────────
+
+model Address {
+  id           Int    @id @default(autoincrement())
+  village      String?
+  postOffice   String?
+  upazila      String?
+  district     String?
+  division     String?
+
+  presentOf  Employee? @relation("PresentAddress")
+  permanentOf Employee? @relation("PermanentAddress")
+}
+
+// ─── Employee ─────────────────────────────────────────────────────────────────
+
+model Employee {
+  id     String         @id
+  status EmployeeStatus @default(active)
+
+  // Identity
+  nameEn       String
+  nameBn       String
+  fatherNameEn String
+  fatherNameBn String
+  motherNameEn String
+  motherNameBn String
+  dateOfBirth  String
+  gender       Gender
+  maritalStatus MaritalStatus
+  bloodGroup   BloodGroup?
+  nid          String?
+  passportNo   String?
+  photoLabel   String?
+  wing         String?
+
+  // Contact
+  email        String?
+  mobileHome   String?
+  mobileOffice String?
+  phone        String?
+
+  // Emergency contact (embedded)
+  emergencyName     String?
+  emergencyRelation String?
+  emergencyPhone    String?
+  emergencyMobile   String?
+
+  // Current job
+  designationEn         String
+  designationBn         String
+  grade                 String
+  division              String?
+  initialDesignationBn  String?
+  dateOfJoining         String?
+  postRetirementLeave   String?
+  fullRetirement        String?
+
+  // Relations
+  officeId          Int
+  office            Office  @relation(fields: [officeId], references: [id])
+
+  presentAddressId  Int?    @unique
+  presentAddress    Address? @relation("PresentAddress", fields: [presentAddressId], references: [id])
+
+  permanentAddressId Int?   @unique
+  permanentAddress   Address? @relation("PermanentAddress", fields: [permanentAddressId], references: [id])
+
+  userId String  @unique
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Sub-tables
+  fixation       SalaryFixation?
+  salaryHistory  SalaryHistory[]
+  salaryProcesses SalaryProcess[]
+  workHistory    WorkHistory[]
+  educations     Education[]
+  promotions     Promotion[]
+  trainings      Training[]
+  foreignTrainings ForeignTraining[]
+  publications   Publication[]
+  awards         Award[]
+}
+
+// ─── Salary Fixation ─────────────────────────────────────────────────────────
+
+model SalaryFixation {
+  id           Int          @id @default(autoincrement())
+  grade        Int
+  basicSalary  Int
+  validFrom    String
+  validThru    String
+  salaryStatus SalaryStatus @default(active)
+
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Salary History ───────────────────────────────────────────────────────────
+
+model SalaryHistory {
+  id    Int @id @default(autoincrement())
+  sl    Int
+  grade Int
+  basic Int
+  month String
+  year  String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Salary Process ───────────────────────────────────────────────────────────
+
+model SalaryProcess {
+  id        Int    @id @default(autoincrement())
+  netSalary Int
+  issueDate String
+  month     String
+  year      String
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month, year])
+}
+
+// ─── Work History ─────────────────────────────────────────────────────────────
+
+model WorkHistory {
+  id             Int    @id @default(autoincrement())
+  sl             Int
+  designationBn  String
+  designationEn  String
+  grade          String
+  office         String
+  start          String
+  end            String
+  orderNo        String?
+  orderDate      String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Education ────────────────────────────────────────────────────────────────
+
+model Education {
+  id          Int    @id @default(autoincrement())
+  sl          Int
+  degree      String
+  subject     String?
+  institution String
+  board       String?
+  passingYear String
+  result      String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Promotion ────────────────────────────────────────────────────────────────
+
+model Promotion {
+  id              Int    @id @default(autoincrement())
+  sl              Int
+  designationBn   String
+  designationEn   String
+  grade           String
+  effectiveDate   String
+  orderNo         String?
+  orderDate       String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Training ─────────────────────────────────────────────────────────────────
+
+model Training {
+  id           Int    @id @default(autoincrement())
+  sl           Int
+  title        String
+  institution  String?
+  duration     String?
+  year         String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Foreign Training ─────────────────────────────────────────────────────────
+
+model ForeignTraining {
+  id          Int    @id @default(autoincrement())
+  sl          Int
+  title       String
+  country     String?
+  institution String?
+  duration    String?
+  year        String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Publication ──────────────────────────────────────────────────────────────
+
+model Publication {
+  id        Int    @id @default(autoincrement())
+  sl        Int
+  title     String
+  publisher String?
+  year      String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Award ────────────────────────────────────────────────────────────────────
+
+model Award {
+  id           Int    @id @default(autoincrement())
+  sl           Int
+  title        String
+  awardedBy    String?
+  year         String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}

@@ -1,10 +1,10 @@
-import type { EmployeeRecord } from "@/lib/types";
+import type { Employee } from "@/lib/types";
 import SectionHead from "./SectionHead";
 import Image from "next/image";
 
 type Props = {
-  personal: EmployeeRecord["personal"];
-  emergency: EmployeeRecord["emergency_contact"];
+  personal: Employee;
+  emergency: Employee["emergency_contact"];
 };
 
 export default function PersonalSection({ personal, emergency }: Props) {
@@ -28,7 +28,7 @@ export default function PersonalSection({ personal, emergency }: Props) {
             nameBn={personal.name.bn}
             nameEn={personal.name.en}
             role={personal.role_en}
-            employee_id={personal.employee_id}
+            employee_id={personal.id}
           />
 
           <div className="grid grid-cols-3 gap-x-[22px] gap-y-2.5">
@@ -67,7 +67,7 @@ export default function PersonalSection({ personal, emergency }: Props) {
   );
 }
 
-function PhotoSlot({ label }: { label: string }) {
+function PhotoSlot({ label }: { label?: string }) {
   return (
     <div className="photo-stripes relative grid h-[170px] w-[140px] place-items-center border border-rule-strong text-center font-mono text-[7.5pt] uppercase leading-snug tracking-[0.18em] text-ink-3">
       <Image
@@ -204,7 +204,7 @@ function ContactStrip({
 function EmergencyBand({
   emergency,
 }: {
-  emergency: EmployeeRecord["emergency_contact"];
+  emergency: Employee["emergency_contact"];
 }) {
   return (
     <div className="mt-4 grid grid-cols-[auto_1fr_1fr] grid-rows-2 items-center gap-[18px] rounded-[2px] border border-accent-line bg-gradient-to-b from-accent-soft to-transparent px-3.5 py-2.5">
