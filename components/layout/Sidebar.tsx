@@ -2,16 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, DollarSign, FileText, Banknote } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon } from "lucide-react";
 
-type NavItem = { label: string; href: string; icon: React.ElementType; roles?: string[] };
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  roles?: string[];
+};
 type NavGroup = { title: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
   {
     title: "Management",
     items: [
-      { label: "Employees",        href: "/listing",           icon: Users    },
+      { label: "Employees", href: "/listing", icon: Users },
       {
         label: "Salary Fixation",
         href: "/listing/fixation",
@@ -19,6 +24,7 @@ const NAV: NavGroup[] = [
         roles: ["superadmin", "officeadmin"],
       },
       { label: "Processed Salary", href: "/listing/salary", icon: Banknote },
+      { label: "Bank Advice", href: "/listing/bank-advice", icon: FileIcon },
     ],
   },
   {
@@ -49,7 +55,7 @@ export default function Sidebar({ role }: { role: string }) {
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {NAV.map((group) => {
           const visibleItems = group.items.filter(
-            (item) => !item.roles || item.roles.includes(role)
+            (item) => !item.roles || item.roles.includes(role),
           );
           if (visibleItems.length === 0) return null;
 

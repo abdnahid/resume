@@ -155,7 +155,7 @@ function ParentCard({
 }) {
   return (
     <div className="border-t border-rule pt-2">
-      <div className="mb-1 font-mono text-[7pt] uppercase tracking-[0.2em] text-accent">
+      <div className="mb-1 font-mono text-[7pt] uppercase tracking-tracked text-accent">
         {tag}
       </div>
       <div className="font-bn-serif text-[11pt] font-medium leading-snug">
@@ -189,7 +189,7 @@ function ContactStrip({
     <div className="mt-3.5 grid grid-cols-2 gap-px border border-rule bg-rule">
       {cells.map(([k, v]) => (
         <div key={k} className="bg-paper px-2.5 pb-1.5 pt-2.5">
-          <div className="mb-0.5 font-mono text-[6.5pt] uppercase tracking-[0.2em] text-ink-3">
+          <div className="mb-0.5 font-mono text-[6.5pt] uppercase tracking-tracked text-ink-3">
             {k}
           </div>
           <div className="font-mono text-[9pt] tracking-[0.01em] text-ink">
@@ -207,7 +207,7 @@ function EmergencyBand({
   emergency: Employee["emergency_contact"];
 }) {
   return (
-    <div className="mt-4 grid grid-cols-[auto_1fr_1fr] grid-rows-2 items-center gap-[18px] rounded-[2px] border border-accent-line bg-gradient-to-b from-accent-soft to-transparent px-3.5 py-2.5">
+    <div className="mt-4 grid grid-cols-[auto_1fr_1fr] grid-rows-2 items-center gap-[18px] rounded-[2px] border border-accent-line bg-linear-to-b from-accent-soft to-transparent px-3.5 py-2.5">
       <div className="flex items-center row-span-2 gap-2 border-r border-accent-line pr-3.5 font-mono text-[7pt] uppercase tracking-[0.22em] text-accent">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
         Emergency Contact

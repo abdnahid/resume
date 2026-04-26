@@ -33,6 +33,23 @@ const FIXATION_DATA: Record<string, {
   "20180060003": { grade: 16, basicSalary: 9300,  validFrom: "01-01-2023", validThru: "12-31-2026", salaryStatus: "active"   }, // active
 };
 
+// ─── Bank account numbers ─────────────────────────────────────────────────────
+
+const BANK_ACCOUNT_MAP: Record<string, string> = {
+  "20220010021": "4404001031001",
+  "19953010010": "4404001031002",
+  "20020030007": "4404001031003",
+  "20105010089": "4404001031004",
+  "20101030016": "4404001031005",
+  "20051030005": "4404001031006",
+  "20051030006": "4404001031007",
+  "20101030015": "4404001031008",
+  "20220010022": "4404001031009",
+  "20220010023": "4404001031010",
+  "20150040012": "4404001031011",
+  "20180060003": "4404001031012",
+};
+
 // ─── Role assignment ──────────────────────────────────────────────────────────
 
 const ROLE_MAP: Record<string, string> = {
@@ -194,6 +211,7 @@ async function main() {
         bloodGroup: mapBloodGroup(emp.blood_group) as any,
         nid: emp.nid ?? null,
         passportNo: emp.passport_no ?? null,
+        bankAccountNo: BANK_ACCOUNT_MAP[emp.id as string] ?? null,
         email: emp.email ?? null,
         mobileHome: emp.mobile_home ?? null,
         mobileOffice: emp.mobile_office ?? null,

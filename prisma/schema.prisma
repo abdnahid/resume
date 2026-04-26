@@ -167,10 +167,11 @@ model Employee {
   gender       Gender
   maritalStatus MaritalStatus
   bloodGroup   BloodGroup?
-  nid          String?
-  passportNo   String?
-  photoLabel   String?
-  wing         String?
+  nid           String?
+  passportNo    String?
+  bankAccountNo String?
+  photoLabel    String?
+  wing          String?
 
   // Contact
   email        String?
@@ -366,4 +367,22 @@ model Award {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Bank Advice ──────────────────────────────────────────────────────────────
+
+model BankAdvice {
+  id            Int      @id @default(autoincrement())
+  memoNo        String
+  month         String
+  year          String
+  chequeNo      String
+  chequeDate    String
+  depositDate   String
+  totalAmount   Int
+  totalInWords  String
+  employeeCount Int
+  createdAt     DateTime @default(now())
+
+  @@unique([month, year])
 }

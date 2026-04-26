@@ -6,9 +6,10 @@ interface FakeInputProps {
   value?: string;
   onClear: () => void;
   fieldTitle?: string;
+  placeholder?: string;
 }
 
-export function FakeInput({ value, onClear, fieldTitle }: FakeInputProps) {
+export function FakeInput({ value, onClear, fieldTitle, placeholder = "Select date" }: FakeInputProps) {
   return (
     <div className="w-full space-y-1">
       {fieldTitle && (
@@ -21,7 +22,7 @@ export function FakeInput({ value, onClear, fieldTitle }: FakeInputProps) {
         <span
           className={`flex-1 truncate text-left ${!value ? "text-muted-foreground" : ""}`}
         >
-          {value || "Validity Range"}
+          {value || placeholder}
         </span>
         {value && (
           <button

@@ -10,9 +10,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  plugins: [
-    username(),
-  ],
+  plugins: [username()],
   user: {
     additionalFields: {
       role: {

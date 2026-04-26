@@ -81,6 +81,7 @@ export function DateRangePopover({
             getEndDate(undefined);
           }}
           fieldTitle={fieldTitle}
+          placeholder="Validity Range"
         />
       </PopoverTrigger>
       <PopoverContent

@@ -4,6 +4,9 @@ import type {
   EmployeeRecord,
   OrgInfo,
   SalaryProcessRecord,
+  SalaryProcessMonth,
+  BankAdviceRecord,
+  BankAdviceEntry,
   FixationRecord,
   SalaryStatus,
   AddressBlock,
@@ -33,11 +36,11 @@ import type {
 
 // ─── Fixed organisational info (head office) ──────────────────────────────────
 
-const ORG: OrgInfo = {
+export const ORG: OrgInfo = {
   header_lines_bn: [
     "গণপ্রজাতন্ত্রী বাংলাদেশ সরকার",
-    "বাংলাদেশ স্ট্যান্ডার্ডস অ্যান্ড টেস্টিং ইনস্টিটিউশন (বিএসটিআই)",
     "শিল্প মন্ত্রণালয়",
+    "বাংলাদেশ স্ট্যান্ডার্ডস অ্যান্ড টেস্টিং ইনস্টিটিউশন",
   ],
   address_bn: "মান ভবন, ১১৬/ক, তেজগাঁও শিল্প এলাকা, ঢাকা-১২০৮",
   website: "www.bsti.gov.bd",
@@ -69,15 +72,22 @@ const EMPTY_ADDRESS: AddressBlock = {
 // ─── Blood group display mapping ──────────────────────────────────────────────
 
 const BLOOD_GROUP: Record<string, string> = {
-  A_pos: "A+", A_neg: "A-",
-  B_pos: "B+", B_neg: "B-",
-  AB_pos: "AB+", AB_neg: "AB-",
-  O_pos: "O+", O_neg: "O-",
+  A_pos: "A+",
+  A_neg: "A-",
+  B_pos: "B+",
+  B_neg: "B-",
+  AB_pos: "AB+",
+  AB_neg: "AB-",
+  O_pos: "O+",
+  O_neg: "O-",
 };
 
 // ─── Sub-table mappers ────────────────────────────────────────────────────────
 
-function computeFixationStatus(validThru: string, stored: string): SalaryStatus {
+function computeFixationStatus(
+  validThru: string,
+  stored: string,
+): SalaryStatus {
   if (stored === "inactive") return "inactive";
 
   // Parse MM-DD-YYYY (employees.json / seed format) or YYYY-MM-DD
@@ -119,7 +129,13 @@ function mapAddress(a: Address | null | undefined): AddressBlock {
 }
 
 function mapSalaryHistory(r: SalaryHistory): SalaryHistoryRow {
-  return { sl: r.sl, grade: r.grade, basic: r.basic, month: r.month, year: r.year };
+  return {
+    sl: r.sl,
+    grade: r.grade,
+    basic: r.basic,
+    month: r.month,
+    year: r.year,
+  };
 }
 
 function mapWorkHistory(r: WorkHistory): WorkHistoryRow {
@@ -237,7 +253,7 @@ function mapEmployee(
     awards: Award[];
     presentAddress: Address | null;
     permanentAddress: Address | null;
-  }
+  },
 ): Employee {
   return {
     id: emp.id,
@@ -246,7 +262,9 @@ function mapEmployee(
     father_name: { bn: emp.fatherNameBn, en: emp.fatherNameEn },
     mother_name: { bn: emp.motherNameBn, en: emp.motherNameEn },
     date_of_birth: emp.dateOfBirth,
-    blood_group: emp.bloodGroup ? (BLOOD_GROUP[emp.bloodGroup] ?? emp.bloodGroup) : "",
+    blood_group: emp.bloodGroup
+      ? (BLOOD_GROUP[emp.bloodGroup] ?? emp.bloodGroup)
+      : "",
     gender: emp.gender,
     marital_status: emp.maritalStatus,
     nid: emp.nid ?? "",
@@ -288,7 +306,9 @@ function mapEmployee(
     education: full ? full.educations.map(mapEducation) : [],
     promotions: full ? full.promotions.map(mapPromotion) : [],
     trainings: full ? full.trainings.map(mapTraining) : [],
-    foreign_trainings: full ? full.foreignTrainings.map(mapForeignTraining) : [],
+    foreign_trainings: full
+      ? full.foreignTrainings.map(mapForeignTraining)
+      : [],
     publications: full ? full.publications.map(mapPublication) : [],
     awards: full ? full.awards.map(mapAward) : [],
   };
@@ -345,9 +365,11 @@ export async function getSalaryProcessRecords(filter?: {
   employeeId?: string;
 }): Promise<SalaryProcessRecord[]> {
   const where =
-    filter?.officeId !== undefined   ? { employee: { officeId: filter.officeId } } :
-    filter?.employeeId !== undefined ? { employeeId: filter.employeeId }            :
-    undefined;
+    filter?.officeId !== undefined
+      ? { employee: { officeId: filter.officeId } }
+      : filter?.employeeId !== undefined
+        ? { employeeId: filter.employeeId }
+        : undefined;
 
   const rows = await prisma.salaryProcess.findMany({
     where,
@@ -359,5 +381,102 @@ export async function getSalaryProcessRecords(filter?: {
     issue_date: r.issueDate,
     month: r.month,
     year: r.year,
+  }));
+}
+
+// ─── Salary process months (distinct month+year with employee counts) ─────────
+
+const MONTH_ORDER: Record<string, number> = {
+  January: 1,
+  February: 2,
+  March: 3,
+  April: 4,
+  May: 5,
+  June: 6,
+  July: 7,
+  August: 8,
+  September: 9,
+  October: 10,
+  November: 11,
+  December: 12,
+};
+
+export async function getSalaryProcessMonths(): Promise<SalaryProcessMonth[]> {
+  const all = await prisma.salaryProcess.findMany({
+    select: { month: true, year: true },
+  });
+  const map = new Map<string, SalaryProcessMonth>();
+  for (const r of all) {
+    const key = `${r.month}|${r.year}`;
+    const entry = map.get(key);
+    if (entry) entry.count++;
+    else map.set(key, { month: r.month, year: r.year, count: 1 });
+  }
+  return [...map.values()].sort(
+    (a, b) =>
+      Number(b.year) - Number(a.year) ||
+      MONTH_ORDER[b.month] - MONTH_ORDER[a.month],
+  );
+}
+
+// ─── Bank advice queries ──────────────────────────────────────────────────────
+
+function mapAdvice(r: {
+  id: number;
+  memoNo: string;
+  month: string;
+  year: string;
+  chequeNo: string;
+  chequeDate: string;
+  depositDate: string;
+  totalAmount: number;
+  totalInWords: string;
+  employeeCount: number;
+  createdAt: Date;
+}): BankAdviceRecord {
+  return {
+    id: r.id,
+    memoNo: r.memoNo,
+    month: r.month,
+    year: r.year,
+    chequeNo: r.chequeNo,
+    chequeDate: r.chequeDate,
+    depositDate: r.depositDate,
+    totalAmount: r.totalAmount,
+    totalInWords: r.totalInWords,
+    employeeCount: r.employeeCount,
+    createdAt: r.createdAt.toISOString(),
+  };
+}
+
+export async function getBankAdvices(): Promise<BankAdviceRecord[]> {
+  const rows = await prisma.bankAdvice.findMany({
+    orderBy: [{ year: "desc" }, { id: "desc" }],
+  });
+  return rows.map(mapAdvice);
+}
+
+export async function getBankAdviceById(
+  id: number,
+): Promise<BankAdviceRecord | null> {
+  const r = await prisma.bankAdvice.findUnique({ where: { id } });
+  return r ? mapAdvice(r) : null;
+}
+
+export async function getBankAdviceEntries(
+  month: string,
+  year: string,
+): Promise<BankAdviceEntry[]> {
+  const records = await prisma.salaryProcess.findMany({
+    where: { month, year },
+    include: { employee: true },
+    orderBy: { employee: { id: "asc" } },
+  });
+  return records.map((r, i) => ({
+    sl: i + 1,
+    name: r.employee.nameBn,
+    designation: r.employee.designationBn,
+    accountNo: r.employee.bankAccountNo ?? "",
+    salaryAllowance: r.netSalary,
   }));
 }

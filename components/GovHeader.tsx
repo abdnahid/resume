@@ -20,12 +20,12 @@ export default function GovHeader({ org }: Props) {
       </div>
 
       {/* Center: three title lines + address + links (unchanged order) */}
-      <div className="flex flex-col gap-[2px] font-bn-serif leading-[1.25] text-ink">
-        <div className="text-[14pt] font-bold tracking-[0.01em]">
+      <div className="flex flex-col gap-[2px] font-bn-serif leading-tight text-ink">
+        <div className="text-[11pt] font-bold tracking-[0.01em]">
           {org.header_lines_bn[0]}
         </div>
         <div className="text-[11pt] font-medium">{org.header_lines_bn[1]}</div>
-        <div className="text-[11pt] font-semibold tracking-[0.01em]">
+        <div className="text-[14pt] font-semibold tracking-[0.01em]">
           {org.header_lines_bn[2]}
         </div>
         <div className="mt-1 font-body text-xs font-normal tracking-[0.02em] text-ink-3">
@@ -66,7 +66,7 @@ function LinkItem({
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="text-accent">{iconByKind[kind]}</span>
+      <span className="text-primary">{iconByKind[kind]}</span>
       {label}
     </span>
   );

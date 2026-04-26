@@ -187,3 +187,31 @@ export type SalaryProcessRecord = {
   month: string;
   year: string;
 };
+
+export type SalaryProcessMonth = {
+  month: string;
+  year: string;
+  count: number;
+};
+
+export type BankAdviceRecord = {
+  id: number;
+  memoNo: string;
+  month: string;
+  year: string;
+  chequeNo: string;
+  chequeDate: string;   // dd-mm-yyyy
+  depositDate: string;  // dd-mm-yyyy
+  totalAmount: number;
+  totalInWords: string;
+  employeeCount: number;
+  createdAt: string;    // ISO string
+};
+
+export type BankAdviceEntry = {
+  sl: number;
+  name: string;
+  designation: string;
+  accountNo: string;
+  salaryAllowance: number;
+};

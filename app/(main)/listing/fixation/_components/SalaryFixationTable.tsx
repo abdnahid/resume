@@ -79,6 +79,7 @@ export default function SalaryFixationTable({
   const [gradeTo, setGradeTo] = useState("");
   const [validFrom, setValidFrom] = useState<Date | undefined>(undefined);
   const [validTo, setValidTo] = useState<Date | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
   const activeCount = employees.filter((e) => e.fixation.salaryStatus === "active").length;
@@ -115,7 +116,9 @@ export default function SalaryFixationTable({
         ? (!validFrom || recTo >= validFrom) && (!validTo || recFrom <= validTo)
         : false);
 
-    return matchSearch && matchOffice && matchGrade && matchValidity;
+    const matchStatus = !statusFilter || emp.fixation.salaryStatus === statusFilter;
+
+    return matchSearch && matchOffice && matchGrade && matchValidity && matchStatus;
   });
 
   const officeOptions: FilterSelectOption[] = OFFICES.map((o) => ({
@@ -179,6 +182,18 @@ export default function SalaryFixationTable({
             onStartChange={setValidFrom}
             onEndChange={setValidTo}
             name="validity-filter"
+          />
+          <FilterSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            placeholder="All statuses"
+            width="min-w-36"
+            options={[
+              { label: "Active",    value: "active"    },
+              { label: "Expired",   value: "expired"   },
+              { label: "Inactive",  value: "inactive"  },
+              { label: "Not Found", value: "not_found" },
+            ]}
           />
         </div>
 
