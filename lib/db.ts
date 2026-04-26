@@ -316,9 +316,18 @@ function mapEmployee(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export async function getEmployees(officeId?: number): Promise<Employee[]> {
+export async function getEmployees(filter?: {
+  officeId?: number;
+  employeeId?: string;
+}): Promise<Employee[]> {
+  const where =
+    filter?.officeId !== undefined
+      ? { officeId: filter.officeId }
+      : filter?.employeeId !== undefined
+        ? { id: filter.employeeId }
+        : undefined;
   const rows = await prisma.employee.findMany({
-    where: officeId !== undefined ? { officeId } : undefined,
+    where,
     include: { office: true, fixation: true },
     orderBy: { id: "asc" },
   });

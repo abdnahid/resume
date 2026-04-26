@@ -16,22 +16,61 @@ function effectiveStatus(validThru: string, stored: string): string {
   return "active";
 }
 
-export async function POST(req: Request) {
-  const { month, year } = await req.json();
-  if (!month || !year) {
-    return NextResponse.json({ error: "month and year are required" }, { status: 400 });
-  }
-
-  const employees = await prisma.employee.findMany({
-    include: { fixation: true },
-  });
-
+function todayIssueDate() {
   const today = new Date();
-  const issueDate = [
+  return [
     String(today.getMonth() + 1).padStart(2, "0"),
     String(today.getDate()).padStart(2, "0"),
     today.getFullYear(),
   ].join("-");
+}
+
+export async function POST(req: Request) {
+  const { month, year, employeeId } = await req.json();
+
+  if (!month || !year) {
+    return NextResponse.json({ error: "month and year are required" }, { status: 400 });
+  }
+
+  const issueDate = todayIssueDate();
+
+  // ── Single-employee mode ───────────────────────────────────────────────────
+  if (employeeId) {
+    const emp = await prisma.employee.findUnique({
+      where: { id: employeeId },
+      include: { fixation: true },
+    });
+
+    if (!emp) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+    if (!emp.fixation) {
+      return NextResponse.json(
+        { error: "No fixation record found. Set up salary fixation first." },
+        { status: 400 },
+      );
+    }
+
+    const status = effectiveStatus(emp.fixation.validThru, emp.fixation.salaryStatus);
+    if (status !== "active") {
+      const label = status === "inactive" ? "inactive" : "expired";
+      return NextResponse.json(
+        { error: `Employee fixation is ${label}. Edit fixation to process salary.` },
+        { status: 400 },
+      );
+    }
+
+    await prisma.salaryProcess.upsert({
+      where: { employeeId_month_year: { employeeId: emp.id, month, year } },
+      update: {},
+      create: { employeeId: emp.id, netSalary: emp.fixation.basicSalary, issueDate, month, year },
+    });
+
+    return NextResponse.json({ processed: 1, skipped: 0, month, year });
+  }
+
+  // ── Bulk mode ──────────────────────────────────────────────────────────────
+  const employees = await prisma.employee.findMany({ include: { fixation: true } });
 
   let processed = 0;
   let skipped = 0;
@@ -46,13 +85,7 @@ export async function POST(req: Request) {
     await prisma.salaryProcess.upsert({
       where: { employeeId_month_year: { employeeId: emp.id, month, year } },
       update: {},
-      create: {
-        employeeId: emp.id,
-        netSalary: emp.fixation.basicSalary,
-        issueDate,
-        month,
-        year,
-      },
+      create: { employeeId: emp.id, netSalary: emp.fixation.basicSalary, issueDate, month, year },
     });
     processed++;
   }

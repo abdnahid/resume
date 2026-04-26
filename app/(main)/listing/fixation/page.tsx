@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getEmployees, getSalaryProcessRecords } from "@/lib/db";
 import SalaryFixationTable from "./_components/SalaryFixationTable";
 
@@ -15,12 +16,23 @@ export default async function FixationPage() {
   const role = (session?.user as { role?: string })?.role ?? "employee";
   if (role !== "superadmin" && role !== "officeadmin") redirect("/listing");
 
+  const username = session?.user?.username ?? "";
+
+  let officeId: number | undefined;
+  if (role === "officeadmin") {
+    const emp = await prisma.employee.findUnique({
+      where: { id: username },
+      select: { officeId: true },
+    });
+    officeId = emp?.officeId ?? undefined;
+  }
+
   const [employees, salaryProcesses] = await Promise.all([
-    getEmployees(),
-    getSalaryProcessRecords(),
+    getEmployees(officeId !== undefined ? { officeId } : undefined),
+    getSalaryProcessRecords(officeId !== undefined ? { officeId } : undefined),
   ]);
 
-  // Find the globally most recent processed month
+  // Find the most recent processed month
   let lastProcessed: { month: string; year: string } | null = null;
   for (const r of salaryProcesses) {
     if (!lastProcessed) { lastProcessed = r; continue; }
@@ -30,8 +42,6 @@ export default async function FixationPage() {
   }
 
   return (
-    <div>
-      <SalaryFixationTable employees={employees} lastProcessed={lastProcessed} />
-    </div>
+    <SalaryFixationTable employees={employees} lastProcessed={lastProcessed} />
   );
 }

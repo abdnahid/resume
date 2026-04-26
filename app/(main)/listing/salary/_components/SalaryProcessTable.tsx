@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Check, Eye, Download, CalendarDays } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ChevronDown, Check, Eye, Download, CalendarDays,
+  Zap, AlertTriangle,
+} from "lucide-react";
 import {
   FilterSearch,
   FilterSelect,
   FilterSelectOption,
 } from "@/app/(main)/_components/filters";
-import type { Employee, SalaryProcessRecord } from "@/lib/types";
+import type { Employee, SalaryProcessRecord, SalaryStatus } from "@/lib/types";
 
 // ─── Month ordering ───────────────────────────────────────────────────────────
 
@@ -22,7 +26,7 @@ const ALL_MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-// ─── Period dropdown (month or year, no clear/reset option) ───────────────────
+// ─── Period dropdown ──────────────────────────────────────────────────────────
 
 function PeriodDropdown({
   value,
@@ -66,10 +70,7 @@ function PeriodDropdown({
             <button
               key={opt.value}
               type="button"
-              onClick={() => {
-                onChange(opt.value);
-                setOpen(false);
-              }}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
             >
               <span className="w-3.5 h-3.5 shrink-0 flex items-center justify-center text-emerald-600">
@@ -84,6 +85,77 @@ function PeriodDropdown({
   );
 }
 
+// ─── Process single-employee button ──────────────────────────────────────────
+
+function ProcessButton({
+  empId,
+  month,
+  year,
+}: {
+  empId: string;
+  month: string;
+  year: string;
+}) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handle() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/salary/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month, year, employeeId: empId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Processing failed");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={handle}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-medium hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+      >
+        {loading
+          ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          : <Zap size={12} />
+        }
+        Process
+      </button>
+      {error && (
+        <p className="text-[10px] text-red-500 mt-1 max-w-[160px] leading-tight">{error}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Fixation warning badge ───────────────────────────────────────────────────
+
+function FixationWarning({ status }: { status: SalaryStatus }) {
+  const labels: Partial<Record<SalaryStatus, string>> = {
+    inactive: "Inactive fixation",
+    expired: "Expired fixation",
+    not_found: "No fixation",
+  };
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-[11px] font-medium border border-amber-100 whitespace-nowrap">
+      <AlertTriangle size={11} className="shrink-0" />
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatBDT(amount: number) {
@@ -95,69 +167,85 @@ function formatBDT(amount: number) {
 type Props = {
   employees: Employee[];
   salaryProcesses: SalaryProcessRecord[];
+  role: string;
 };
 
-export default function SalaryProcessTable({ employees, salaryProcesses }: Props) {
-  // Unique years from data, newest first
-  const years = [...new Set(salaryProcesses.map((r) => r.year))].sort(
-    (a, b) => Number(b) - Number(a)
+export default function SalaryProcessTable({ employees, salaryProcesses, role }: Props) {
+  const canProcess = role === "superadmin" || role === "officeadmin";
+
+  // ── Period state ───────────────────────────────────────────────────────────
+
+  const now = new Date();
+  const currentYear = now.getFullYear().toString();
+  const currentMonthIdx = now.getMonth(); // 0-indexed
+  const currentMonthName = ALL_MONTHS[currentMonthIdx];
+
+  // Years: union of processed years + current year, newest first
+  const processedYears = [...new Set(salaryProcesses.map((r) => r.year))];
+  const years = [...new Set([...processedYears, currentYear])].sort(
+    (a, b) => Number(b) - Number(a),
   );
 
-  // Default: most recent processed month within the most recent year
-  const defaultYear = years[0] ?? "";
-  const defaultMonth = salaryProcesses
-    .filter((r) => r.year === defaultYear)
-    .reduce(
-      (latest, r) =>
-        !latest || MONTH_ORDER[r.month] > MONTH_ORDER[latest] ? r.month : latest,
-      ""
-    );
+  // Default to the most recent processed month, or the current month
+  const defaultYear = years[0];
+  const defaultMonth = (() => {
+    const best = salaryProcesses
+      .filter((r) => r.year === defaultYear)
+      .reduce(
+        (latest, r) =>
+          !latest || MONTH_ORDER[r.month] > MONTH_ORDER[latest] ? r.month : latest,
+        "",
+      );
+    return best || currentMonthName;
+  })();
 
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [search, setSearch] = useState("");
   const [office, setOffice] = useState("");
 
-  const monthOptions = ALL_MONTHS.map((m) => ({ label: m, value: m }));
+  // Month options: cap at current month when viewing the current year
+  const availableMonths =
+    selectedYear === currentYear ? ALL_MONTHS.slice(0, currentMonthIdx + 1) : ALL_MONTHS;
+  const monthOptions = availableMonths.map((m) => ({ label: m, value: m }));
   const yearOptions = years.map((y) => ({ label: y, value: y }));
 
-  // Records for the selected month+year, joined with employee data
-  const periodRecords = salaryProcesses
-    .filter((r) => r.month === selectedMonth && r.year === selectedYear)
-    .flatMap((r) => {
-      const emp = employees.find((e) => e.id === r.employee_id);
-      return emp ? [{ ...r, emp }] : [];
-    });
+  function handleYearChange(y: string) {
+    setSelectedYear(y);
+    setOffice("");
+    // If the current selected month is in the future for the new year, reset it
+    if (y === currentYear && MONTH_ORDER[selectedMonth] > currentMonthIdx + 1) {
+      setSelectedMonth(currentMonthName);
+    }
+  }
 
-  // Office options derived from employees in the selected period
-  const periodEmployeeIds = new Set(periodRecords.map((r) => r.emp.id));
+  // ── Build process map for selected period ──────────────────────────────────
+
+  const processMap = new Map<string, SalaryProcessRecord>();
+  for (const r of salaryProcesses) {
+    if (r.month === selectedMonth && r.year === selectedYear) {
+      processMap.set(r.employee_id, r);
+    }
+  }
+
+  const processedCount = employees.filter((e) => processMap.has(e.id)).length;
+
+  // ── Filters ────────────────────────────────────────────────────────────────
+
   const officeOptions: FilterSelectOption[] = [
-    ...new Set(
-      employees
-        .filter((e) => periodEmployeeIds.has(e.id))
-        .map((e) => e.current_job.office_bn)
-    ),
+    ...new Set(employees.map((e) => e.current_job.office_bn)),
   ].map((o) => ({ label: o, value: o, className: "font-bn-serif" }));
 
-  // Apply search + office filters
-  const filtered = periodRecords.filter((r) => {
+  const filtered = employees.filter((emp) => {
     const q = search.toLowerCase();
     const matchSearch =
       !q ||
-      r.emp.id.includes(q) ||
-      r.emp.name.bn.includes(q) ||
-      r.emp.name.en.toLowerCase().includes(q);
-    const matchOffice = !office || r.emp.current_job.office_bn === office;
+      emp.id.includes(q) ||
+      emp.name.bn.includes(q) ||
+      emp.name.en.toLowerCase().includes(q);
+    const matchOffice = !office || emp.current_job.office_bn === office;
     return matchSearch && matchOffice;
   });
-
-  if (years.length === 0) {
-    return (
-      <div className="min-h-screen bg-slate-50 p-6 font-sans flex items-start pt-24 justify-center">
-        <p className="text-slate-400 text-sm">No salary has been processed yet.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 font-sans">
@@ -168,7 +256,11 @@ export default function SalaryProcessTable({ employees, salaryProcesses }: Props
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Processed Salary</h1>
             <p className="text-sm text-slate-400 mt-0.5">
-              {filtered.length} record{filtered.length !== 1 ? "s" : ""} found
+              <span className="font-semibold text-slate-600">{processedCount}</span>
+              {" of "}
+              <span className="font-semibold text-slate-600">{employees.length}</span>
+              {" employees processed for "}
+              {selectedMonth} {selectedYear}
             </p>
           </div>
         </div>
@@ -176,7 +268,6 @@ export default function SalaryProcessTable({ employees, salaryProcesses }: Props
         {/* ── Period + filters ────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2.5 mb-4">
 
-          {/* Period selector — month and year independently */}
           <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
             <CalendarDays size={14} className="text-slate-400 shrink-0" />
             <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 whitespace-nowrap">
@@ -191,30 +282,30 @@ export default function SalaryProcessTable({ employees, salaryProcesses }: Props
             />
             <PeriodDropdown
               value={selectedYear}
-              onChange={(y) => { setSelectedYear(y); setOffice(""); }}
+              onChange={handleYearChange}
               options={yearOptions}
               minWidth="min-w-20"
             />
           </div>
 
-          {/* Spacer */}
           <div className="flex-1 min-w-0" />
 
-          {/* Filters */}
           <FilterSearch
             value={search}
             onChange={setSearch}
             placeholder="Search by ID or name…"
             className="min-w-56"
           />
-          <FilterSelect
-            value={office}
-            onChange={setOffice}
-            options={officeOptions}
-            placeholder="All offices"
-            optionClassName="font-bn-serif"
-            width="min-w-60"
-          />
+          {officeOptions.length > 1 && (
+            <FilterSelect
+              value={office}
+              onChange={setOffice}
+              options={officeOptions}
+              placeholder="All offices"
+              optionClassName="font-bn-serif"
+              width="min-w-60"
+            />
+          )}
         </div>
 
         {/* ── Table ──────────────────────────────────────────────────────── */}
@@ -227,103 +318,120 @@ export default function SalaryProcessTable({ employees, salaryProcesses }: Props
                 <col className="w-56" />
                 <col className="w-32" />
                 <col className="w-32" />
-                <col className="w-24" />
+                <col className="w-36" />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {["ID", "Employee", "Office", "Net Salary", "Issue Date", "Actions"].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 whitespace-nowrap"
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
+                  {["ID", "Employee", "Office", "Net Salary", "Issue Date", "Actions"].map((h) => (
+                    <th
+                      key={h}
+                      className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.length > 0 ? (
-                  filtered.map((r) => (
-                    <tr
-                      key={r.emp.id}
-                      className="hover:bg-slate-50/70 transition-colors"
-                    >
-                      {/* ID */}
-                      <td className="px-4 py-4 align-top">
-                        <span className="font-mono text-xs text-slate-400 tracking-tight">
-                          {r.emp.id}
-                        </span>
-                      </td>
+                  filtered.map((emp) => {
+                    const record = processMap.get(emp.id);
+                    const isProcessed = !!record;
+                    const fixStatus = emp.fixation.salaryStatus;
 
-                      {/* Employee */}
-                      <td className="px-4 py-4 align-top">
-                        <p className="font-medium text-slate-800 leading-snug font-bn-serif text-base">
-                          {r.emp.name.bn}
-                        </p>
-                        <p className="text-sm text-slate-400 mt-0.5 font-bn-serif">
-                          {r.emp.current_job.designation_bn}
-                        </p>
-                      </td>
+                    return (
+                      <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors">
 
-                      {/* Office */}
-                      <td className="px-4 py-4 align-top">
-                        <p className="text-sm text-slate-600 font-bn-serif leading-snug">
-                          {r.emp.current_job.office_bn}
-                        </p>
-                      </td>
+                        {/* ID */}
+                        <td className="px-4 py-4 align-top">
+                          <span className="font-mono text-xs text-slate-400 tracking-tight">
+                            {emp.id}
+                          </span>
+                        </td>
 
-                      {/* Net Salary */}
-                      <td className="px-4 py-4 align-top">
-                        <span className="text-sm font-semibold text-slate-800 tabular-nums">
-                          {formatBDT(r.net_salary)}
-                        </span>
-                      </td>
+                        {/* Employee */}
+                        <td className="px-4 py-4 align-top">
+                          <p className="font-medium text-slate-800 leading-snug font-bn-serif text-base">
+                            {emp.name.bn}
+                          </p>
+                          <p className="text-sm text-slate-400 mt-0.5 font-bn-serif">
+                            {emp.current_job.designation_bn}
+                          </p>
+                        </td>
 
-                      {/* Issue Date */}
-                      <td className="px-4 py-4 align-top">
-                        <span className="font-mono text-sm text-slate-500 tabular-nums">
-                          {r.issue_date}
-                        </span>
-                      </td>
+                        {/* Office */}
+                        <td className="px-4 py-4 align-top">
+                          <p className="text-sm text-slate-600 font-bn-serif leading-snug">
+                            {emp.current_job.office_bn}
+                          </p>
+                        </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            title="View Slip"
-                            onClick={() =>
-                              console.log("View slip:", r.emp.id, selectedMonth, selectedYear)
-                            }
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
-                          >
-                            <Eye size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            title="Download"
-                            onClick={() =>
-                              console.log("Download slip:", r.emp.id, selectedMonth, selectedYear)
-                            }
-                            className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
-                          >
-                            <Download size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        {/* Net Salary */}
+                        <td className="px-4 py-4 align-top">
+                          {isProcessed ? (
+                            <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                              {formatBDT(record!.net_salary)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-sm">—</span>
+                          )}
+                        </td>
+
+                        {/* Issue Date */}
+                        <td className="px-4 py-4 align-top">
+                          {isProcessed ? (
+                            <span className="font-mono text-sm text-slate-500 tabular-nums">
+                              {record!.issue_date}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-sm">—</span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-4 align-top">
+                          {isProcessed ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                title="View Slip"
+                                onClick={() =>
+                                  console.log("View slip:", emp.id, selectedMonth, selectedYear)
+                                }
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Download"
+                                onClick={() =>
+                                  console.log("Download slip:", emp.id, selectedMonth, selectedYear)
+                                }
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
+                              >
+                                <Download size={14} />
+                              </button>
+                            </div>
+                          ) : canProcess ? (
+                            fixStatus === "active" ? (
+                              <ProcessButton
+                                empId={emp.id}
+                                month={selectedMonth}
+                                year={selectedYear}
+                              />
+                            ) : (
+                              <FixationWarning status={fixStatus} />
+                            )
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="text-center text-slate-400 text-sm py-16"
-                    >
-                      {periodRecords.length === 0
-                        ? `No salary processed for ${selectedMonth} ${selectedYear}.`
-                        : "No records match your filters."}
+                    <td colSpan={6} className="text-center text-slate-400 text-sm py-16">
+                      No records match your filters.
                     </td>
                   </tr>
                 )}

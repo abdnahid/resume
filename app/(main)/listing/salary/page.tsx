@@ -26,13 +26,15 @@ export default async function SalaryPage() {
   // superadmin: filter stays undefined → all records
 
   const [employees, salaryProcesses] = await Promise.all([
-    getEmployees(filter?.officeId),
+    getEmployees(filter),
     getSalaryProcessRecords(filter),
   ]);
 
   return (
-    <div>
-      <SalaryProcessTable employees={employees} salaryProcesses={salaryProcesses} />
-    </div>
+    <SalaryProcessTable
+      employees={employees}
+      salaryProcesses={salaryProcesses}
+      role={role}
+    />
   );
 }
