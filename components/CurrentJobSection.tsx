@@ -35,7 +35,7 @@ export default function CurrentJobSection({ job }: Props) {
             {job.office_address_en}
           </p>
           <div className="mt-2.5 flex items-center gap-4 font-mono text-[7.5pt] uppercase tracking-[0.12em] text-ink-3">
-            <span className="rounded-full border border-accent px-2 py-0.5 tracking-[0.16em] text-accent">
+            <span className="rounded-full border border-accent px-2 py-0.5 tracking-[0.16em] text-primary">
               {job.grade}
             </span>
             <span>{job.division}</span>

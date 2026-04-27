@@ -9,7 +9,11 @@ type Props = {
 export default function PostingSection({ rows }: Props) {
   return (
     <section className="mt-[26px]">
-      <SectionHead number="05" title="Posting Information" tag="Service record" />
+      <SectionHead
+        number="05"
+        title="Posting Information"
+        tag="Service record"
+      />
       <DataTable
         columns={[
           { header: "SL", width: "26px" },
@@ -32,7 +36,7 @@ export default function PostingSection({ rows }: Props) {
             <Cell>
               <span className="font-mono text-[8pt] tracking-[0.02em] text-ink">
                 <span>{row.start}</span>
-                <span className="mx-1 text-accent">→</span>
+                <span className="mx-1 text-primary">→</span>
                 <span>{row.end}</span>
               </span>
             </Cell>

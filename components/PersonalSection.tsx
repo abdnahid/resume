@@ -101,7 +101,7 @@ function NameLockup({
       <p className="mt-1 font-display text-[18pt] font-normal leading-[1.1] tracking-[-0.01em]">
         {nameEn}
       </p>
-      <p className="mt-1.5 font-display text-[11pt] italic text-accent">
+      <p className="mt-1.5 font-display text-[11pt] italic text-primary">
         {role}
       </p>
       <p className="mt-1.5 font-display font-semibold">
@@ -155,7 +155,7 @@ function ParentCard({
 }) {
   return (
     <div className="border-t border-rule pt-2">
-      <div className="mb-1 font-mono text-[7pt] uppercase tracking-tracked text-accent">
+      <div className="mb-1 font-mono text-[7pt] uppercase tracking-tracked text-primary">
         {tag}
       </div>
       <div className="font-bn-serif text-[11pt] font-medium leading-snug">
@@ -208,7 +208,7 @@ function EmergencyBand({
 }) {
   return (
     <div className="mt-4 grid grid-cols-[auto_1fr_1fr] grid-rows-2 items-center gap-[18px] rounded-[2px] border border-accent-line bg-linear-to-b from-accent-soft to-transparent px-3.5 py-2.5">
-      <div className="flex items-center row-span-2 gap-2 border-r border-accent-line pr-3.5 font-mono text-[7pt] uppercase tracking-[0.22em] text-accent">
+      <div className="flex items-center row-span-2 gap-2 border-r border-accent-line pr-3.5 font-mono text-[7pt] uppercase tracking-[0.22em] text-primary">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" />
         Emergency Contact
       </div>

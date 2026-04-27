@@ -21,10 +21,10 @@ export default function AddressSection({ addresses }: Props) {
 function AddressCard({ tag, data }: { tag: string; data: AddressBlock }) {
   return (
     <div className="relative border border-rule bg-white px-4 py-3.5">
-      <span className="absolute -top-[9px] left-3.5 bg-paper px-2 font-mono text-[7pt] uppercase tracking-[0.22em] text-accent">
+      <span className="absolute top-[-9px] left-3.5 bg-paper px-2 font-mono text-[7pt] uppercase tracking-[0.22em] text-primary">
         {tag}
       </span>
-      <div className="mb-2 font-bn text-[10.5pt] leading-[1.5] text-ink">
+      <div className="mb-2 font-bn text-[10.5pt] leading-normal text-ink">
         {data.line_en}
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
@@ -41,7 +41,7 @@ function AddressCard({ tag, data }: { tag: string; data: AddressBlock }) {
 function Pair({ k, v, bn }: { k: string; v: string; bn?: boolean }) {
   return (
     <>
-      <div className="font-mono text-[7pt] uppercase tracking-[0.14em] text-ink-3">
+      <div className="font-mono text-[7pt] uppercase tracking-tracked-sm text-ink-3">
         {k}
       </div>
       <div
