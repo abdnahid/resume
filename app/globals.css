@@ -150,6 +150,112 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   MODULE THEMES
+   Each scoped class overrides primary tokens for that module only.
+   HR uses :root defaults (#5b21b6) — no extra class needed.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Ecommerce — Plum */
+.ec-theme {
+  --primary:              #5F264A;
+  --primary-hover:        #4a1d39;
+  --secondary:            #fdf0f6;
+  --secondary-foreground: #5F264A;
+  --accent:               #fdf0f6;
+  --accent-foreground:    #5F264A;
+  --ring:                 #5F264A;
+}
+.ec-theme.dark, .ec-theme .dark {
+  --primary:              #a05580;
+  --primary-hover:        #7d3d62;
+  --secondary:            #2d0f1e;
+  --secondary-foreground: #e8bbd3;
+  --accent:               #2d0f1e;
+  --accent-foreground:    #e8bbd3;
+  --ring:                 #a05580;
+}
+
+/* Workflow — Violet */
+.workflow-theme {
+  --primary:              #791280;
+  --primary-hover:        #5e0e64;
+  --secondary:            #fdf0fe;
+  --secondary-foreground: #791280;
+  --accent:               #fdf0fe;
+  --accent-foreground:    #791280;
+  --ring:                 #791280;
+}
+.workflow-theme.dark, .workflow-theme .dark {
+  --primary:              #c084fc;
+  --primary-hover:        #a855f7;
+  --secondary:            #2d0a35;
+  --secondary-foreground: #e9d5ff;
+  --accent:               #2d0a35;
+  --accent-foreground:    #e9d5ff;
+  --ring:                 #c084fc;
+}
+
+/* Accounts — Cyan */
+.accounts-theme {
+  --primary:              #56B6C6;
+  --primary-hover:        #3d9dac;
+  --secondary:            #f0fbfd;
+  --secondary-foreground: #56B6C6;
+  --accent:               #f0fbfd;
+  --accent-foreground:    #56B6C6;
+  --ring:                 #56B6C6;
+}
+.accounts-theme.dark, .accounts-theme .dark {
+  --primary:              #67cfe0;
+  --primary-hover:        #56B6C6;
+  --secondary:            #0a2e33;
+  --secondary-foreground: #a5e8f0;
+  --accent:               #0a2e33;
+  --accent-foreground:    #a5e8f0;
+  --ring:                 #67cfe0;
+}
+
+/* Inventory — Brown */
+.inventory-theme {
+  --primary:              #4B2E2B;
+  --primary-hover:        #3a2220;
+  --secondary:            #fdf5f4;
+  --secondary-foreground: #4B2E2B;
+  --accent:               #fdf5f4;
+  --accent-foreground:    #4B2E2B;
+  --ring:                 #4B2E2B;
+}
+.inventory-theme.dark, .inventory-theme .dark {
+  --primary:              #8b5e5b;
+  --primary-hover:        #6b4441;
+  --secondary:            #2a1614;
+  --secondary-foreground: #dbb8b6;
+  --accent:               #2a1614;
+  --accent-foreground:    #dbb8b6;
+  --ring:                 #8b5e5b;
+}
+
+/* Admin — Slate */
+.admin-theme {
+  --primary:              #334155;
+  --primary-hover:        #1e293b;
+  --secondary:            #f1f5f9;
+  --secondary-foreground: #334155;
+  --accent:               #f1f5f9;
+  --accent-foreground:    #334155;
+  --ring:                 #334155;
+}
+.admin-theme.dark, .admin-theme .dark {
+  --primary:              #64748b;
+  --primary-hover:        #475569;
+  --secondary:            #0f172a;
+  --secondary-foreground: #cbd5e1;
+  --accent:               #0f172a;
+  --accent-foreground:    #cbd5e1;
+  --ring:                 #64748b;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    ③ TAILWIND WIRING
    Maps the tokens above into Tailwind utility classes.
    You normally don't need to edit this section.
