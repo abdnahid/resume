@@ -9,6 +9,22 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+enum OrgCategory {
+  wing
+  divisional
+  regional
+  unit
+}
+
+enum PostingType {
+  initial
+  transfer
+  promotion
+  demotion
+  deputation
+  lien
+}
+
 enum Role {
   superadmin
   officeadmin
@@ -60,6 +76,64 @@ enum BloodGroup {
   AB_neg
   O_pos
   O_neg
+}
+
+// ─── Organogram ──────────────────────────────────────────────────────────────
+
+model OrgUnit {
+  id        Int         @id @default(autoincrement())
+  slug      String      @unique
+  nameEn    String
+  nameBn    String
+  category  OrgCategory @default(unit)
+  parentId  Int?
+  sortOrder Int         @default(0)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  parent   OrgUnit?  @relation("OrgUnitTree", fields: [parentId], references: [id])
+  children OrgUnit[] @relation("OrgUnitTree")
+  posts    OrgPost[]
+}
+
+model OrgPost {
+  id              Int      @id @default(autoincrement())
+  nameEn          String
+  nameBn          String
+  grade           String?
+  sanctionedCount Int      @default(1)
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  unitId    Int
+  unit      OrgUnit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  employees Employee[]
+  postings  Posting[]
+}
+
+model Posting {
+  id         Int         @id @default(autoincrement())
+  type       PostingType @default(initial)
+  grade      String
+  joinedAt   String
+  relievedAt String?
+  orderNo    String?
+  orderDate  String?
+  remarks    String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  orgPostId  Int?
+  orgPost    OrgPost? @relation(fields: [orgPostId], references: [id])
+
+  officeId   Int
+  office     Office   @relation(fields: [officeId], references: [id])
 }
 
 // ─── better-auth tables ───────────────────────────────────────────────────────
@@ -134,6 +208,7 @@ model Office {
   email      String?
 
   employees Employee[]
+  postings  Posting[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -185,10 +260,10 @@ model Employee {
   emergencyPhone    String?
   emergencyMobile   String?
 
-  // Current job
-  designationEn         String
-  designationBn         String
-  grade                 String
+  // Current job — nullable during Posting migration; derive from active Posting going forward
+  designationEn         String?
+  designationBn         String?
+  grade                 String?
   division              String?
   initialDesignationBn  String?
   dateOfJoining         String?
@@ -196,6 +271,10 @@ model Employee {
   fullRetirement        String?
 
   // Relations
+  orgPostId         Int?
+  orgPost           OrgPost? @relation(fields: [orgPostId], references: [id])
+  postings          Posting[]
+
   officeId          Int
   office            Office  @relation(fields: [officeId], references: [id])
 

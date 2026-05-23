@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, DollarSign, FileText, Banknote, FileIcon } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -20,6 +20,13 @@ const NAV: NavGroup[] = [
       { label: "Salary Fixation",  href: "/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
       { label: "Processed Salary", href: "/listing/salary",        icon: Banknote   },
       { label: "Bank Advice",      href: "/listing/bank-advice",   icon: FileIcon   },
+    ],
+  },
+  {
+    title: "Organization",
+    items: [
+      { label: "Organogram",        href: "/organogram",         icon: GitFork },
+      { label: "Manage Structure",  href: "/organogram/manage",  icon: GitFork, roles: ["superadmin", "officeadmin"] },
     ],
   },
   {

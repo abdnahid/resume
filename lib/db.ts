@@ -22,6 +22,9 @@ import type {
 import type {
   Employee as DbEmployee,
   Office as DbOffice,
+  OrgPost,
+  OrgUnit,
+  Posting,
   SalaryFixation,
   SalaryHistory,
   WorkHistory,
@@ -216,13 +219,39 @@ function mapAward(r: Award): AwardRow {
   };
 }
 
+// ─── Posting helpers ──────────────────────────────────────────────────────────
+
+type CurrentPosting = Posting & {
+  orgPost: (OrgPost & { unit: OrgUnit & { parent: OrgUnit | null } }) | null;
+  office: DbOffice;
+};
+
+function mapPostingToWorkHistory(p: Posting & {
+  orgPost: OrgPost | null;
+  office: DbOffice;
+}, sl: number): WorkHistoryRow {
+  return {
+    sl,
+    designation_bn: p.orgPost?.nameBn ?? "",
+    designation_en: p.orgPost?.nameEn ?? "",
+    grade: p.grade,
+    office: p.office.nameBn,
+    start: p.joinedAt,
+    end: p.relievedAt ?? "",
+    order_no: p.orderNo ?? "",
+    order_date: p.orderDate ?? "",
+  };
+}
+
 // ─── Full DB row type (all relations included) ────────────────────────────────
 
 type FullDbEmployee = DbEmployee & {
   office: DbOffice;
+  currentPosting: CurrentPosting | null;
   fixation: SalaryFixation | null;
   salaryHistory: SalaryHistory[];
   workHistory: WorkHistory[];
+  postings: (Posting & { orgPost: OrgPost | null; office: DbOffice })[];
   educations: Education[];
   promotions: Promotion[];
   trainings: Training[];
@@ -235,6 +264,7 @@ type FullDbEmployee = DbEmployee & {
 
 type ListingDbEmployee = DbEmployee & {
   office: DbOffice;
+  currentPosting: CurrentPosting | null;
   fixation: SalaryFixation | null;
 };
 
@@ -245,6 +275,7 @@ function mapEmployee(
   full?: {
     salaryHistory: SalaryHistory[];
     workHistory: WorkHistory[];
+    postings: (Posting & { orgPost: OrgPost | null; office: DbOffice })[];
     educations: Education[];
     promotions: Promotion[];
     trainings: Training[];
@@ -255,10 +286,30 @@ function mapEmployee(
     permanentAddress: Address | null;
   },
 ): Employee {
+  // Resolve current job from active Posting; fall back to legacy Employee fields
+  const cp = emp.currentPosting;
+  const designationBn = cp?.orgPost?.nameBn ?? emp.designationBn ?? "";
+  const designationEn = cp?.orgPost?.nameEn ?? emp.designationEn ?? "";
+  const grade         = cp?.grade            ?? emp.grade          ?? "";
+  const officeRecord  = cp?.office           ?? emp.office;
+
+  // Derive wing from OrgUnit hierarchy: grandparent (top-level unit name)
+  const unitChain = cp?.orgPost
+    ? [cp.orgPost.unit.parent?.nameEn, cp.orgPost.unit.nameEn].filter(Boolean).join(" › ")
+    : (emp.wing ?? "");
+
+  // Build chronological posting history (structured postings first, then legacy WorkHistory)
+  const postingRows: WorkHistoryRow[] = (full?.postings ?? [])
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .map((p, i) => mapPostingToWorkHistory(p, i + 1));
+
+  const legacyRows: WorkHistoryRow[] = (full?.workHistory ?? []).map(mapWorkHistory);
+
   return {
     id: emp.id,
     name: { bn: emp.nameBn, en: emp.nameEn },
-    role_en: emp.designationEn,
+    role_en: designationEn,
+    currentPostingId: cp?.id ?? null,
     father_name: { bn: emp.fatherNameBn, en: emp.fatherNameEn },
     mother_name: { bn: emp.motherNameBn, en: emp.motherNameEn },
     date_of_birth: emp.dateOfBirth,
@@ -275,20 +326,20 @@ function mapEmployee(
     email: emp.email ?? "",
     photo_label: emp.photoLabel ?? undefined,
     status: emp.status as Employee["status"],
-    wing: emp.wing ?? "",
+    wing: unitChain,
     current_job: {
-      designation_bn: emp.designationBn,
-      designation_en: emp.designationEn,
-      office_bn: emp.office.nameBn,
-      office_en: emp.office.nameEn,
-      office_address_bn: emp.office.addressBn,
-      office_address_en: emp.office.addressEn,
-      grade: emp.grade,
+      designation_bn: designationBn,
+      designation_en: designationEn,
+      office_bn:      officeRecord.nameBn,
+      office_en:      officeRecord.nameEn,
+      office_address_bn: officeRecord.addressBn,
+      office_address_en: officeRecord.addressEn,
+      grade,
       division: emp.division ?? "",
       initial_designation_bn: emp.initialDesignationBn ?? "",
-      date_of_joining: emp.dateOfJoining ?? "",
-      post_retirement_leave: emp.postRetirementLeave ?? "",
-      full_retirement: emp.fullRetirement ?? "",
+      date_of_joining:        emp.dateOfJoining ?? "",
+      post_retirement_leave:  emp.postRetirementLeave ?? "",
+      full_retirement:        emp.fullRetirement ?? "",
     },
     emergency_contact: {
       name: emp.emergencyName ?? "",
@@ -302,7 +353,7 @@ function mapEmployee(
     },
     fixation: emp.fixation ? mapFixation(emp.fixation) : DEFAULT_FIXATION,
     salary_history: full ? full.salaryHistory.map(mapSalaryHistory) : [],
-    work_history: full ? full.workHistory.map(mapWorkHistory) : [],
+    work_history: full ? [...postingRows, ...legacyRows] : [],
     education: full ? full.educations.map(mapEducation) : [],
     promotions: full ? full.promotions.map(mapPromotion) : [],
     trainings: full ? full.trainings.map(mapTraining) : [],
@@ -316,6 +367,15 @@ function mapEmployee(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+const CURRENT_POSTING_INCLUDE = {
+  where: { relievedAt: null },
+  take: 1,
+  include: {
+    orgPost: { include: { unit: { include: { parent: true } } } },
+    office: true,
+  },
+} as const;
+
 export async function getEmployees(filter?: {
   officeId?: number;
   employeeId?: string;
@@ -328,10 +388,17 @@ export async function getEmployees(filter?: {
         : undefined;
   const rows = await prisma.employee.findMany({
     where,
-    include: { office: true, fixation: true },
+    include: {
+      office: true,
+      fixation: true,
+      postings: CURRENT_POSTING_INCLUDE,
+    },
     orderBy: { id: "asc" },
   });
-  return rows.map((emp) => mapEmployee(emp as ListingDbEmployee));
+  return rows.map((emp) => {
+    const listing = { ...emp, currentPosting: emp.postings[0] ?? null } as ListingDbEmployee;
+    return mapEmployee(listing);
+  });
 }
 
 export async function getEmployeeRecord(id: string): Promise<EmployeeRecord> {
@@ -340,30 +407,39 @@ export async function getEmployeeRecord(id: string): Promise<EmployeeRecord> {
     include: {
       office: true,
       fixation: true,
-      salaryHistory: { orderBy: { sl: "asc" } },
-      workHistory: { orderBy: { sl: "asc" } },
-      educations: { orderBy: { sl: "asc" } },
-      promotions: { orderBy: { sl: "asc" } },
-      trainings: { orderBy: { sl: "asc" } },
-      foreignTrainings: { orderBy: { sl: "asc" } },
-      publications: { orderBy: { sl: "asc" } },
-      awards: { orderBy: { sl: "asc" } },
-      presentAddress: true,
-      permanentAddress: true,
+      postings: {
+        include: {
+          orgPost: { include: { unit: { include: { parent: true } } } },
+          office: true,
+        },
+        orderBy: { joinedAt: "asc" },
+      },
+      salaryHistory:   { orderBy: { sl: "asc" } },
+      workHistory:     { orderBy: { sl: "asc" } },
+      educations:      { orderBy: { sl: "asc" } },
+      promotions:      { orderBy: { sl: "asc" } },
+      trainings:       { orderBy: { sl: "asc" } },
+      foreignTrainings:{ orderBy: { sl: "asc" } },
+      publications:    { orderBy: { sl: "asc" } },
+      awards:          { orderBy: { sl: "asc" } },
+      presentAddress:  true,
+      permanentAddress:true,
     },
   });
   if (!emp) throw new Error(`Employee ${id} not found`);
-  const full = emp as FullDbEmployee;
+  const currentPosting = emp.postings.find((p) => p.relievedAt === null) ?? null;
+  const full = { ...emp, currentPosting } as unknown as FullDbEmployee;
   const employee = mapEmployee(full, {
-    salaryHistory: full.salaryHistory,
-    workHistory: full.workHistory,
-    educations: full.educations,
-    promotions: full.promotions,
-    trainings: full.trainings,
+    salaryHistory:    full.salaryHistory,
+    workHistory:      full.workHistory,
+    postings:         emp.postings as (Posting & { orgPost: OrgPost | null; office: DbOffice })[],
+    educations:       full.educations,
+    promotions:       full.promotions,
+    trainings:        full.trainings,
     foreignTrainings: full.foreignTrainings,
-    publications: full.publications,
-    awards: full.awards,
-    presentAddress: full.presentAddress,
+    publications:     full.publications,
+    awards:           full.awards,
+    presentAddress:   full.presentAddress,
     permanentAddress: full.permanentAddress,
   });
   return { ...employee, org: ORG };
@@ -478,14 +554,28 @@ export async function getBankAdviceEntries(
 ): Promise<BankAdviceEntry[]> {
   const records = await prisma.salaryProcess.findMany({
     where: { month, year },
-    include: { employee: true },
+    include: {
+      employee: {
+        include: {
+          postings: {
+            where: { relievedAt: null },
+            take: 1,
+            include: { orgPost: true },
+          },
+        },
+      },
+    },
     orderBy: { employee: { id: "asc" } },
   });
-  return records.map((r, i) => ({
-    sl: i + 1,
-    name: r.employee.nameBn,
-    designation: r.employee.designationBn,
-    accountNo: r.employee.bankAccountNo ?? "",
-    salaryAllowance: r.netSalary,
-  }));
+  return records.map((r, i) => {
+    const cp = r.employee.postings[0] ?? null;
+    const designation = cp?.orgPost?.nameBn ?? r.employee.designationBn ?? "";
+    return {
+      sl: i + 1,
+      name: r.employee.nameBn,
+      designation,
+      accountNo: r.employee.bankAccountNo ?? "",
+      salaryAllowance: r.netSalary,
+    };
+  });
 }

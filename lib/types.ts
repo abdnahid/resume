@@ -115,6 +115,7 @@ export type Employee = {
   id: string;
   name: PersonName;
   role_en: string;
+  currentPostingId: number | null;
   father_name: PersonName;
   mother_name: PersonName;
   date_of_birth: string;
