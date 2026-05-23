@@ -119,6 +119,7 @@ export type Employee = {
   role_en: string;
   currentPostingId: number | null;
   postingStatus: PostingStatus | null;
+  releasedAt: string | null;
   father_name: PersonName;
   mother_name: PersonName;
   date_of_birth: string;

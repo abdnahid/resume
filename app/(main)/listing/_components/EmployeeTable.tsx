@@ -38,6 +38,7 @@ const ApproveIcon = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentCo
 const ReleaseIcon = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><path d="M10 8H3m0 0l3-3M3 8l3 3" /><path d="M13 4v8" /></svg>;
 const RoleIcon    = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><circle cx="8" cy="5.5" r="3" /><path d="M2 14c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /></svg>;
 const AssignIcon  = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><rect x="2" y="4" width="12" height="10" rx="1.5" /><path d="M8 8v4m-2-2h4" /></svg>;
+const KeyIcon     = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><circle cx="6" cy="8" r="3.5" /><path d="M9 8h5M12 7v2" /></svg>;
 
 // ─── Shared overlay ───────────────────────────────────────────────────────────
 
@@ -343,6 +344,12 @@ function ApproveModal({
             <p className="text-xs text-slate-400 mt-0.5">
               Pending: {employee.current_job.designation_bn || "—"} · {employee.current_job.office_bn}
             </p>
+            {employee.releasedAt && (
+              <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                <span>Released:</span>
+                <span className="font-semibold">{employee.releasedAt}</span>
+              </p>
+            )}
           </div>
           <button type="button" onClick={onClose} className="ml-3 shrink-0 text-slate-400 hover:text-slate-600 cursor-pointer">
             <X size={18} />
@@ -455,6 +462,76 @@ function AssignRoleModal({
   );
 }
 
+// ─── Reset Password Modal ─────────────────────────────────────────────────────
+
+function ResetPasswordModal({
+  employee,
+  onClose,
+}: {
+  employee: Employee;
+  onClose: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const [done, setDone]     = useState(false);
+
+  async function handleReset() {
+    setSaving(true); setError("");
+    try {
+      const res = await fetch(`/api/users/${employee.userId}/reset-password`, {
+        method: "POST",
+      });
+      if (!res.ok) { const j = await res.json(); setError(j.error ?? "Failed"); return; }
+      setDone(true);
+      setTimeout(onClose, 1800);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h3 className="font-semibold text-slate-900">Reset Password</h3>
+            <p className="text-sm text-slate-500 mt-0.5 font-bn-serif">{employee.name.bn}</p>
+          </div>
+          <button type="button" onClick={onClose} className="ml-3 shrink-0 text-slate-400 hover:text-slate-600 cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {done ? (
+          <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-3 text-center">
+            Password reset to <span className="font-mono font-semibold">12345678</span>
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-600 mb-5">
+              This will reset <span className="font-bn-serif font-medium text-slate-800">{employee.name.bn}</span>&apos;s
+              password to <span className="font-mono font-semibold text-slate-800">12345678</span>.
+              The employee should change it after logging in.
+            </p>
+            {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleReset}
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 cursor-pointer transition-colors"
+              >
+                {saving ? "Resetting…" : "Reset Password"}
+              </button>
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Admin Action Dropdown ────────────────────────────────────────────────────
 
 function AdminActionMenu({
@@ -463,12 +540,14 @@ function AdminActionMenu({
   onRelease,
   onApprove,
   onAssignRole,
+  onResetPassword,
 }: {
   employee: Employee;
   role: string;
   onRelease: (e: Employee) => void;
   onApprove: (e: Employee) => void;
   onAssignRole: (e: Employee) => void;
+  onResetPassword: (e: Employee) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -546,6 +625,18 @@ function AdminActionMenu({
               Assign Role
             </button>
           )}
+
+          {/* Reset password → super admin only */}
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => { onResetPassword(employee); close(); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <span className="text-red-400"><KeyIcon /></span>
+              Reset Password
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -605,6 +696,7 @@ export default function EmployeeTable({
   const [releaseTarget,    setReleaseTarget]    = useState<Employee | null>(null);
   const [approveTarget,    setApproveTarget]    = useState<Employee | null>(null);
   const [assignRoleTarget, setAssignRoleTarget] = useState<Employee | null>(null);
+  const [resetPwTarget,    setResetPwTarget]    = useState<Employee | null>(null);
 
   const isSuperAdmin = role === "superadmin";
 
@@ -646,6 +738,12 @@ export default function EmployeeTable({
         <AssignRoleModal
           employee={assignRoleTarget}
           onClose={() => setAssignRoleTarget(null)}
+        />
+      )}
+      {resetPwTarget && (
+        <ResetPasswordModal
+          employee={resetPwTarget}
+          onClose={() => setResetPwTarget(null)}
         />
       )}
 
@@ -739,6 +837,7 @@ export default function EmployeeTable({
                           onRelease={setReleaseTarget}
                           onApprove={setApproveTarget}
                           onAssignRole={setAssignRoleTarget}
+                          onResetPassword={setResetPwTarget}
                         />
                       ) : (
                         <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-medium text-slate-600 cursor-pointer">

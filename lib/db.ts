@@ -313,6 +313,7 @@ function mapEmployee(
     role_en: designationEn,
     currentPostingId: cp?.id ?? null,
     postingStatus: cp ? (cp.status as PostingStatus) : null,
+    releasedAt: null,
     father_name: { bn: emp.fatherNameBn, en: emp.fatherNameEn },
     mother_name: { bn: emp.motherNameBn, en: emp.motherNameEn },
     date_of_birth: emp.dateOfBirth,
@@ -407,9 +408,23 @@ export async function getEmployees(options?: {
     },
     orderBy: { id: "asc" },
   });
+
+  // Bulk-fetch the most recently closed posting for each employee so the
+  // Approve modal can show when they were released from their previous office.
+  const employeeIds = rows.map((r) => r.id);
+  const previousPostings = await prisma.posting.findMany({
+    where: { employeeId: { in: employeeIds }, relievedAt: { not: null } },
+    select: { employeeId: true, relievedAt: true },
+    orderBy: { createdAt: "desc" },
+    distinct: ["employeeId"],
+  });
+  const releasedAtMap = new Map(previousPostings.map((p) => [p.employeeId, p.relievedAt]));
+
   return rows.map((emp) => {
     const listing = { ...emp, currentPosting: emp.postings[0] ?? null } as ListingDbEmployee;
-    return mapEmployee(listing);
+    const result = mapEmployee(listing);
+    result.releasedAt = releasedAtMap.get(emp.id) ?? null;
+    return result;
   });
 }
 

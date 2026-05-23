@@ -8,45 +8,45 @@ import OrgNode from "./OrgNode";
 type Variant = "wing" | "divisional" | "regional";
 
 const HEADER_STYLES: Record<Variant, string> = {
-  wing: "border-[#412D15]  bg-[#412D15]",
-  divisional: "border-[#222831] bg-[#222831]",
-  regional: "border-[#09122C] bg-[#09122C]",
+  wing:       "border-amber-800   bg-amber-800",
+  divisional: "border-emerald-800 bg-emerald-800",
+  regional:   "border-blue-800    bg-blue-800",
 };
 
 const STEM_STYLES: Record<Variant, string> = {
-  wing: "bg-indigo-300",
-  divisional: "bg-emerald-300",
-  regional: "bg-amber-300",
+  wing:       "bg-amber-400",
+  divisional: "bg-emerald-400",
+  regional:   "bg-blue-400",
 };
 
 const RAIL_STYLES: Record<Variant, string> = {
-  wing: "border-indigo-200",
-  divisional: "border-emerald-200",
-  regional: "border-amber-200",
+  wing:       "border-amber-300",
+  divisional: "border-emerald-300",
+  regional:   "border-blue-300",
 };
 
 const STUB_STYLES: Record<Variant, string> = {
-  wing: "bg-indigo-200",
-  divisional: "bg-emerald-200",
-  regional: "bg-amber-200",
+  wing:       "bg-amber-300",
+  divisional: "bg-emerald-300",
+  regional:   "bg-blue-300",
 };
 
 const CHILD_RAIL_STYLES: Record<Variant, string> = {
-  wing: "border-indigo-100",
-  divisional: "border-emerald-100",
-  regional: "border-amber-100",
+  wing:       "border-amber-200",
+  divisional: "border-emerald-200",
+  regional:   "border-blue-200",
 };
 
 const CHILD_STUB_STYLES: Record<Variant, string> = {
-  wing: "bg-indigo-100",
-  divisional: "bg-emerald-100",
-  regional: "bg-amber-100",
+  wing:       "bg-amber-200",
+  divisional: "bg-emerald-200",
+  regional:   "bg-blue-200",
 };
 
 const COUNT_STYLES: Record<Variant, string> = {
-  wing: "bg-indigo-100  text-indigo-700",
-  divisional: "bg-emerald-100 text-emerald-700",
-  regional: "bg-amber-100   text-amber-700",
+  wing:       "bg-amber-100   text-amber-900",
+  divisional: "bg-emerald-100 text-emerald-900",
+  regional:   "bg-blue-100    text-blue-900",
 };
 
 /* ── recursive entry row ── */
@@ -59,10 +59,9 @@ function EntryRow({
   variant: Variant;
   depth?: number;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const hasChildren = !!entry.children?.length;
-  const stubStyle =
-    depth === 0 ? STUB_STYLES[variant] : CHILD_STUB_STYLES[variant];
+  const stubStyle = depth === 0 ? STUB_STYLES[variant] : CHILD_STUB_STYLES[variant];
 
   return (
     <div>
@@ -82,9 +81,7 @@ function EntryRow({
 
       {/* children — rendered recursively */}
       {hasChildren && open && (
-        <div
-          className={`ml-8 mt-1 mb-1 border-l-2 ${CHILD_RAIL_STYLES[variant]}`}
-        >
+        <div className={`ml-8 mt-1 mb-1 border-l-2 ${CHILD_RAIL_STYLES[variant]}`}>
           {entry.children!.map((child) => (
             <div key={child.id} className="mt-1">
               <EntryRow entry={child} variant={variant} depth={depth + 1} />
@@ -104,20 +101,13 @@ type Props = {
   variant: Variant;
 };
 
-export default function CategoryColumn({
-  title,
-  titleBn,
-  entries,
-  variant,
-}: Props) {
+export default function CategoryColumn({ title, titleBn, entries, variant }: Props) {
   const totalManpower = entries.reduce((sum, e) => sum + sumStaff(e), 0);
 
   return (
     <div className="flex flex-col items-center w-full">
       {/* ── category header ── */}
-      <div
-        className={`w-full rounded-xl border-2 px-4 py-3 text-white shadow-md ${HEADER_STYLES[variant]}`}
-      >
+      <div className={`w-full rounded-xl border-2 px-4 py-3 text-white shadow-md ${HEADER_STYLES[variant]}`}>
         <p className="text-center text-xl font-display font-bold leading-tight text-white">
           {title}
         </p>
@@ -125,14 +115,10 @@ export default function CategoryColumn({
           {titleBn}
         </p>
         <div className="mt-2 flex justify-center gap-2">
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${COUNT_STYLES[variant]}`}
-          >
+          <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${COUNT_STYLES[variant]}`}>
             {entries.length} units
           </span>
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-sm font-semibold font-bn-serif ${COUNT_STYLES[variant]}`}
-          >
+          <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold font-bn-serif ${COUNT_STYLES[variant]}`}>
             জনবল: {totalManpower}
           </span>
         </div>

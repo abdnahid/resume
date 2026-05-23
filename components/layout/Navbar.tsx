@@ -13,6 +13,7 @@ import {
   FileText,
   Building2,
   Shield,
+  X,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
@@ -79,6 +80,78 @@ const PAGE_TITLES: Record<string, string> = {
   "/listing/bank-advice": "Bank Advice",
 };
 
+// ─── Change Password Modal ────────────────────────────────────────────────────
+
+const INPUT_CLS = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100";
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword]         = useState("");
+  const [confirm, setConfirm]                 = useState("");
+  const [saving, setSaving]                   = useState(false);
+  const [error, setError]                     = useState("");
+  const [success, setSuccess]                 = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== confirm) { setError("Passwords do not match"); return; }
+    if (newPassword.length < 8) { setError("Password must be at least 8 characters"); return; }
+    setSaving(true); setError("");
+    try {
+      const result = await authClient.changePassword({ currentPassword, newPassword });
+      if (result.error) {
+        setError(result.error.message ?? "Failed to change password");
+        return;
+      }
+      setSuccess(true);
+      setTimeout(onClose, 1500);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <div className="flex items-start justify-between mb-5">
+          <h3 className="font-semibold text-slate-900">Change Password</h3>
+          <button type="button" onClick={onClose} className="ml-3 text-slate-400 hover:text-slate-600 cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {success ? (
+          <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-3 text-center">
+            Password changed successfully!
+          </p>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Current Password</label>
+              <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={INPUT_CLS} required autoFocus />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={INPUT_CLS} required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm New Password</label>
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={INPUT_CLS} required />
+            </div>
+            {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+            <div className="flex gap-2 pt-1">
+              <button type="submit" disabled={saving} className="flex-1 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 cursor-pointer transition-colors">
+                {saving ? "Saving…" : "Change Password"}
+              </button>
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Click-outside hook ───────────────────────────────────────────────────────
 
 function useClickOutside(cb: () => void) {
@@ -100,6 +173,7 @@ export default function Navbar({ user }: { user: SessionUser }) {
   const [lang, setLang] = useState<"en" | "bn">("en");
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [changePwOpen, setChangePwOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const menuRef = useClickOutside(closeMenu);
 
@@ -123,6 +197,8 @@ export default function Navbar({ user }: { user: SessionUser }) {
   const displayOffice = lang === "bn" ? user.officeBn : user.officeEn;
 
   return (
+    <>
+    {changePwOpen && <ChangePasswordModal onClose={() => setChangePwOpen(false)} />}
     <header className="sticky top-0 z-50 shrink-0">
       {/* ── Utility Bar ── */}
       <div className="bg-primary text-primary-foreground/85">
@@ -316,7 +392,7 @@ export default function Navbar({ user }: { user: SessionUser }) {
                     </Link>
                     <button
                       type="button"
-                      onClick={closeMenu}
+                      onClick={() => { closeMenu(); setChangePwOpen(true); }}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground transition-colors hover:bg-muted cursor-pointer"
                     >
                       <Key
@@ -333,5 +409,6 @@ export default function Navbar({ user }: { user: SessionUser }) {
         </div>
       </nav>
     </header>
+    </>
   );
 }

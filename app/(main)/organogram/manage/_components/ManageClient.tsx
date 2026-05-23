@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { UnitNode, PostNode } from "@/lib/org";
-import { sumSanctioned } from "@/lib/org";
+import type { UnitNode, PostNode } from "@/lib/org-types";
+import { sumSanctioned } from "@/lib/org-types";
 
 // ─── Modal types ──────────────────────────────────────────────────────────────
 
