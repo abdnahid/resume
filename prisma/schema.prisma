@@ -16,6 +16,11 @@ enum OrgCategory {
   unit
 }
 
+enum PostingStatus {
+  pending
+  active
+}
+
 enum PostingType {
   initial
   transfer
@@ -115,16 +120,17 @@ model OrgPost {
 }
 
 model Posting {
-  id         Int         @id @default(autoincrement())
-  type       PostingType @default(initial)
+  id         Int           @id @default(autoincrement())
+  type       PostingType   @default(initial)
+  status     PostingStatus @default(active)
   grade      String
-  joinedAt   String
+  joinedAt   String?
   relievedAt String?
   orderNo    String?
   orderDate  String?
   remarks    String?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

@@ -12,6 +12,7 @@ export type OrgInfo = {
 };
 
 export type EmployeeStatus = "active" | "retired" | "prl" | "inactive";
+export type PostingStatus = "pending" | "active";
 export type SalaryStatus = "active" | "expired" | "not_found" | "inactive";
 
 export type FixationRecord = {
@@ -113,9 +114,11 @@ export type AwardRow = {
 export type Employee = {
   // ─── Common identity ─────────────────────────────────────────────
   id: string;
+  userId: string;
   name: PersonName;
   role_en: string;
   currentPostingId: number | null;
+  postingStatus: PostingStatus | null;
   father_name: PersonName;
   mother_name: PersonName;
   date_of_birth: string;

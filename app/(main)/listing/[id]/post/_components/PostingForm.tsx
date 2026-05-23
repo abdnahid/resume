@@ -12,20 +12,10 @@ type OfficeOption = {
   rootId: number | null;
 };
 
-const POSTING_TYPES = [
-  { value: "transfer",   label: "Transfer"   },
-  { value: "promotion",  label: "Promotion"  },
-  { value: "demotion",   label: "Demotion"   },
-  { value: "deputation", label: "Deputation" },
-  { value: "lien",       label: "Lien"       },
-];
-
 function StepLabel({ n, label }: { n: number; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold shrink-0">
-        {n}
-      </span>
+      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold shrink-0">{n}</span>
       <span className="text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</span>
     </div>
   );
@@ -37,7 +27,6 @@ export default function PostingForm({
   wings,
   offices,
   defaultOfficeId,
-  defaultGrade,
 }: {
   employeeId: string;
   orgPosts: OrgPostFlat[];
@@ -48,39 +37,26 @@ export default function PostingForm({
 }) {
   const router = useRouter();
 
-  // ── Step 1: Office ──────────────────────────────────────────────────────
-  const [officeId, setOfficeId] = useState(String(defaultOfficeId));
+  const [officeId, setOfficeId]   = useState(String(defaultOfficeId));
+  const [wingId, setWingId]       = useState<number | null>(null);
+  const [selectedPostId, setSelectedPostId] = useState("");
+  const [orderNo, setOrderNo]     = useState("");
+  const [orderDate, setOrderDate] = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState("");
 
-  const selectedOffice = useMemo(
-    () => offices.find((o) => o.id === Number(officeId)) ?? null,
-    [offices, officeId],
-  );
+  const selectedOffice = useMemo(() => offices.find((o) => o.id === Number(officeId)) ?? null, [offices, officeId]);
   const isHead = selectedOffice?.type === "head";
+  const activeRootId: number | null = isHead ? wingId : (selectedOffice?.rootId ?? null);
 
-  // ── Step 2: Wing (head office only) ────────────────────────────────────
-  const [wingId, setWingId] = useState<number | null>(null);
+  const selectedPost = useMemo(() => orgPosts.find((p) => p.id === Number(selectedPostId)) ?? null, [orgPosts, selectedPostId]);
 
-  const activeRootId: number | null = isHead
-    ? wingId
-    : (selectedOffice?.rootId ?? null);
-
-  // ── Step 3: Designation select ─────────────────────────────────────────
-  const [selectedPostId, setSelectedPostId] = useState<string>("");
-
-  const selectedPost = useMemo(
-    () => orgPosts.find((p) => p.id === Number(selectedPostId)) ?? null,
-    [orgPosts, selectedPostId],
-  );
-
-  // Posts for the active root, grouped by path-without-root
   const grouped = useMemo(() => {
-    if (activeRootId == null) return {};
+    if (activeRootId == null) return {} as Record<string, OrgPostFlat[]>;
     const filtered = orgPosts.filter((p) => p.rootId === activeRootId);
     const map: Record<string, OrgPostFlat[]> = {};
     for (const post of filtered) {
-      const label = post.pathBn.length > 1
-        ? post.pathBn.slice(1).join(" › ")
-        : post.pathBn[0];
+      const label = post.pathBn.length > 1 ? post.pathBn.slice(1).join(" › ") : post.pathBn[0];
       if (!map[label]) map[label] = [];
       map[label].push(post);
     }
@@ -89,31 +65,12 @@ export default function PostingForm({
 
   const hasGroups = Object.keys(grouped).length > 0;
 
-  // ── Posting details ─────────────────────────────────────────────────────
-  const [type, setType]           = useState("transfer");
-  const [joinedAt, setJoinedAt]   = useState("");
-  const [orderNo, setOrderNo]     = useState("");
-  const [orderDate, setOrderDate] = useState("");
-  const [remarks, setRemarks]     = useState("");
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState("");
-
-  function handleOfficeChange(val: string) {
-    setOfficeId(val);
-    setWingId(null);
-    setSelectedPostId("");
-  }
-
-  function handleWingChange(id: number) {
-    setWingId(id);
-    setSelectedPostId("");
-  }
+  function handleOfficeChange(val: string) { setOfficeId(val); setWingId(null); setSelectedPostId(""); }
+  function handleWingChange(id: number)    { setWingId(id); setSelectedPostId(""); }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!joinedAt) { setError("Joining date is required"); return; }
-    setSaving(true);
-    setError("");
+    setSaving(true); setError("");
     try {
       const res = await fetch(`/api/employees/${employeeId}/postings`, {
         method: "POST",
@@ -121,24 +78,14 @@ export default function PostingForm({
         body: JSON.stringify({
           orgPostId:  selectedPost?.id ?? null,
           officeId:   Number(officeId),
-          grade:      selectedPost?.grade || defaultGrade || "0",
-          joinedAt,
-          type,
-          orderNo:   orderNo   || null,
-          orderDate: orderDate || null,
-          remarks:   remarks   || null,
+          orderNo:    orderNo   || null,
+          orderDate:  orderDate || null,
         }),
       });
-      if (!res.ok) {
-        const j = await res.json();
-        setError(j.error ?? "Failed to save posting");
-        return;
-      }
+      if (!res.ok) { const j = await res.json(); setError(j.error ?? "Failed to save posting"); return; }
       router.push("/listing");
       router.refresh();
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   }
 
   const INPUT = "w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 bg-white";
@@ -147,21 +94,15 @@ export default function PostingForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
 
-      {/* ── Step 1: Office ─────────────────────────────────────────────── */}
+      {/* Step 1: Office */}
       <div>
         <StepLabel n={1} label="Select Office" />
-        <select
-          value={officeId}
-          onChange={(e) => handleOfficeChange(e.target.value)}
-          className={INPUT + " font-bn-serif"}
-        >
-          {offices.map((o) => (
-            <option key={o.id} value={o.id}>{o.nameBn}</option>
-          ))}
+        <select value={officeId} onChange={(e) => handleOfficeChange(e.target.value)} className={INPUT + " font-bn-serif"}>
+          {offices.map((o) => <option key={o.id} value={o.id}>{o.nameBn}</option>)}
         </select>
       </div>
 
-      {/* ── Step 2: Wing (head office only) ────────────────────────────── */}
+      {/* Step 2: Wing (head office only) */}
       {isHead && (
         <div>
           <StepLabel n={2} label="Select Wing" />
@@ -184,18 +125,15 @@ export default function PostingForm({
         </div>
       )}
 
-      {/* ── Step 3: Designation ────────────────────────────────────────── */}
+      {/* Step 3: Designation */}
       <div>
         <StepLabel n={stepNum(3)} label="Select Designation" />
-
         {activeRootId == null && isHead && (
           <p className="text-sm text-slate-400 italic">Select a wing above to see available designations.</p>
         )}
-
         {activeRootId != null && !hasGroups && (
-          <p className="text-sm text-slate-400 italic">No sanctioned posts found in the organogram for this office.</p>
+          <p className="text-sm text-slate-400 italic">No sanctioned posts found for this office.</p>
         )}
-
         {hasGroups && (
           <>
             <select
@@ -209,14 +147,12 @@ export default function PostingForm({
                 <optgroup key={groupLabel} label={groupLabel}>
                   {posts.map((post) => (
                     <option key={post.id} value={String(post.id)}>
-                      {post.nameBn}
-                      {post.grade ? `  (গ্রেড ${post.grade})` : ""}
+                      {post.nameBn}{post.grade ? `  (গ্রেড ${post.grade})` : ""}
                     </option>
                   ))}
                 </optgroup>
               ))}
             </select>
-
             {selectedPost && (
               <div className="mt-2 flex items-center gap-3 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
                 <span className="text-emerald-500 font-bold">✓</span>
@@ -226,71 +162,29 @@ export default function PostingForm({
                     Grade {selectedPost.grade}
                   </span>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setSelectedPostId("")}
-                  className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-                >
-                  ✕
-                </button>
+                <button type="button" onClick={() => setSelectedPostId("")} className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer">✕</button>
               </div>
             )}
           </>
         )}
       </div>
 
-      {/* ── Posting details ─────────────────────────────────────────────── */}
+      {/* Step 4: Appointment Letter */}
       <div className="space-y-4 pt-1 border-t border-border">
-        <StepLabel n={stepNum(4)} label="Posting Details" />
-
-        {/* Posting type */}
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Type</label>
-          <div className="flex flex-wrap gap-2">
-            {POSTING_TYPES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setType(t.value)}
-                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${
-                  type === t.value
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "border-slate-200 text-slate-600 hover:border-slate-400"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Joining date + order */}
+        <StepLabel n={stepNum(4)} label="Appointment Letter" />
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">
-              Joining Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={joinedAt}
-              onChange={(e) => setJoinedAt(e.target.value)}
-              placeholder="DD-MM-YYYY"
-              className={INPUT}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Order No</label>
-            <input type="text" value={orderNo} onChange={(e) => setOrderNo(e.target.value)} className={INPUT} />
+            <label className="block text-sm font-medium text-foreground mb-1.5">Memo No</label>
+            <input type="text" value={orderNo} onChange={(e) => setOrderNo(e.target.value)} className={INPUT} placeholder="Appointment letter memo no" />
           </div>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Order Date</label>
-            <input type="text" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} placeholder="DD-MM-YYYY" className={INPUT} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Remarks</label>
-            <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className={INPUT} />
+            <input type="text" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className={INPUT} placeholder="DD-MM-YYYY" />
           </div>
         </div>
+        <p className="text-xs text-slate-400">
+          The employee will appear as <strong>Pending</strong> in the office admin&apos;s list. Office admin enters the joining date when the employee reports.
+        </p>
       </div>
 
       {error && (
@@ -303,7 +197,7 @@ export default function PostingForm({
           disabled={saving}
           className="px-5 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
         >
-          {saving ? "Saving…" : "Save Posting"}
+          {saving ? "Saving…" : "Create Pending Posting"}
         </button>
         <button
           type="button"

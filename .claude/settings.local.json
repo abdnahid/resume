@@ -45,7 +45,11 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(Get-Content C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\\\\prisma\\\\out.txt)",
       "Bash(Remove-Item \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\\\\prisma\\\\query-test.ts\" -Force)",
-      "Bash(Remove-Item \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\\\\prisma\\\\out.txt\" -Force -ErrorAction SilentlyContinue)"
+      "Bash(Remove-Item \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\\\\prisma\\\\out.txt\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(npm run *)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const fs=require\\('fs'\\);const d=JSON.parse\\(fs.readFileSync\\('/dev/stdin','utf8'\\)\\);console.log\\(JSON.stringify\\({scripts:d.scripts,prisma:d.prisma,devDeps:Object.keys\\(d.devDependencies||{}\\)},null,2\\)\\)\")",
+      "Bash(grep -v \"^\\\\s*,$\")"
     ]
   }
 }

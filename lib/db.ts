@@ -9,6 +9,7 @@ import type {
   BankAdviceEntry,
   FixationRecord,
   SalaryStatus,
+  PostingStatus,
   AddressBlock,
   SalaryHistoryRow,
   WorkHistoryRow,
@@ -236,7 +237,7 @@ function mapPostingToWorkHistory(p: Posting & {
     designation_en: p.orgPost?.nameEn ?? "",
     grade: p.grade,
     office: p.office.nameBn,
-    start: p.joinedAt,
+    start: p.joinedAt ?? "",
     end: p.relievedAt ?? "",
     order_no: p.orderNo ?? "",
     order_date: p.orderDate ?? "",
@@ -300,16 +301,18 @@ function mapEmployee(
 
   // Build chronological posting history (structured postings first, then legacy WorkHistory)
   const postingRows: WorkHistoryRow[] = (full?.postings ?? [])
-    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .sort((a, b) => (a.joinedAt ?? "").localeCompare(b.joinedAt ?? ""))
     .map((p, i) => mapPostingToWorkHistory(p, i + 1));
 
   const legacyRows: WorkHistoryRow[] = (full?.workHistory ?? []).map(mapWorkHistory);
 
   return {
     id: emp.id,
+    userId: emp.userId,
     name: { bn: emp.nameBn, en: emp.nameEn },
     role_en: designationEn,
     currentPostingId: cp?.id ?? null,
+    postingStatus: cp ? (cp.status as PostingStatus) : null,
     father_name: { bn: emp.fatherNameBn, en: emp.fatherNameEn },
     mother_name: { bn: emp.motherNameBn, en: emp.motherNameEn },
     date_of_birth: emp.dateOfBirth,
@@ -376,16 +379,25 @@ const CURRENT_POSTING_INCLUDE = {
   },
 } as const;
 
-export async function getEmployees(filter?: {
+export async function getUserOfficeId(userId: string): Promise<number | null> {
+  const emp = await prisma.employee.findUnique({
+    where: { userId },
+    select: { officeId: true },
+  });
+  return emp?.officeId ?? null;
+}
+
+export async function getEmployees(options?: {
+  role?: string;
   officeId?: number;
-  employeeId?: string;
 }): Promise<Employee[]> {
+  // Office admin: only employees with a current (active or pending) posting at their office
+  // Super admin / unscoped: all employees
   const where =
-    filter?.officeId !== undefined
-      ? { officeId: filter.officeId }
-      : filter?.employeeId !== undefined
-        ? { id: filter.employeeId }
-        : undefined;
+    options?.role === "officeadmin" && options.officeId !== undefined
+      ? { postings: { some: { relievedAt: null, officeId: options.officeId } } }
+      : undefined;
+
   const rows = await prisma.employee.findMany({
     where,
     include: {
