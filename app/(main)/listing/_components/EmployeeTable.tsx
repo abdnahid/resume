@@ -39,6 +39,8 @@ const ReleaseIcon = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentCo
 const RoleIcon    = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><circle cx="8" cy="5.5" r="3" /><path d="M2 14c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /></svg>;
 const AssignIcon  = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><rect x="2" y="4" width="12" height="10" rx="1.5" /><path d="M8 8v4m-2-2h4" /></svg>;
 const KeyIcon     = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><circle cx="6" cy="8" r="3.5" /><path d="M9 8h5M12 7v2" /></svg>;
+const ResumeIcon  = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><path d="M4 2.5h5.5L13 6v7.5a1 1 0 01-1 1H4a1 1 0 01-1-1v-10a1 1 0 011-1z" /><path d="M9 2.5V6h4M5.5 8.5h5M5.5 10.5h5M5.5 12.5h3" /></svg>;
+const EditIcon    = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" /></svg>;
 
 // ─── Shared overlay ───────────────────────────────────────────────────────────
 
@@ -577,6 +579,28 @@ function AdminActionMenu({
 
       {open && (
         <div className="absolute z-50 right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+
+          {/* View Resume → superadmin + officeadmin */}
+          <Link
+            href={`/listing/${employee.id}/resume`}
+            onClick={close}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50 transition-colors"
+          >
+            <span className="text-sky-400"><ResumeIcon /></span>
+            View Resume
+          </Link>
+
+          {/* Edit → super admin only */}
+          {isSuperAdmin && (
+            <Link
+              href={`/listing/${employee.id}/edit`}
+              onClick={close}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 transition-colors"
+            >
+              <span className="text-indigo-400"><EditIcon /></span>
+              Edit
+            </Link>
+          )}
 
           {/* No posting → super admin assigns initial post */}
           {isSuperAdmin && postingStatus === null && (
