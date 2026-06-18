@@ -41,6 +41,7 @@ const AssignIcon  = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentCo
 const KeyIcon     = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><circle cx="6" cy="8" r="3.5" /><path d="M9 8h5M12 7v2" /></svg>;
 const ResumeIcon  = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><path d="M4 2.5h5.5L13 6v7.5a1 1 0 01-1 1H4a1 1 0 01-1-1v-10a1 1 0 011-1z" /><path d="M9 2.5V6h4M5.5 8.5h5M5.5 10.5h5M5.5 12.5h3" /></svg>;
 const EditIcon    = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" /></svg>;
+const CardIcon    = () => <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="w-3.5 h-3.5 shrink-0"><rect x="2" y="3.5" width="12" height="9" rx="1.5" /><path d="M2 6.5h12M4.5 9.5h3" /></svg>;
 
 // ─── Shared overlay ───────────────────────────────────────────────────────────
 
@@ -588,6 +589,16 @@ function AdminActionMenu({
           >
             <span className="text-sky-400"><ResumeIcon /></span>
             View Resume
+          </Link>
+
+          {/* ID Card → superadmin + officeadmin */}
+          <Link
+            href={`/listing/${employee.id}/card`}
+            onClick={close}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 transition-colors"
+          >
+            <span className="text-teal-400"><CardIcon /></span>
+            ID Card
           </Link>
 
           {/* Edit → super admin only */}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -20,6 +20,7 @@ const NAV: NavGroup[] = [
       { label: "Salary Fixation",  href: "/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
       { label: "Processed Salary", href: "/listing/salary",        icon: Banknote   },
       { label: "Bank Advice",      href: "/listing/bank-advice",   icon: FileIcon   },
+      { label: "ID Cards",         href: "/listing/id-cards",      icon: CreditCard, roles: ["superadmin"] },
     ],
   },
   {
@@ -27,6 +28,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Organogram",        href: "/organogram",         icon: GitFork },
       { label: "Manage Structure",  href: "/organogram/manage",  icon: GitFork, roles: ["superadmin", "officeadmin"] },
+      { label: "Director General",  href: "/listing/director-general", icon: Stamp, roles: ["superadmin"] },
     ],
   },
   {
@@ -42,7 +44,7 @@ export default function Sidebar({ role }: { role: string }) {
   const isActive = (href: string) => pathname === href;
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-card">
+    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-card print:hidden">
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {NAV.map((group) => {
           const visibleItems = group.items.filter(

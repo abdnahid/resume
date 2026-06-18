@@ -220,3 +220,62 @@ export type BankAdviceEntry = {
   accountNo: string;
   salaryAllowance: number;
 };
+
+// ─── Director General ───────────────────────────────────────────────────────────
+
+export type DirectorGeneralRecord = {
+  id: number;
+  name: PersonName;
+  signatureUrl: string | null;
+  photoUrl: string | null;
+  appointedAt: string;        // DD-MM-YYYY
+  relievedAt: string | null;  // null = current DG
+  orderNo: string;
+  orderDate: string;
+  isCurrent: boolean;
+};
+
+// ─── ID Card authorization ────────────────────────────────────────────────────
+
+export type IdCardBatchStatus = "pending" | "issued";
+export type IdCardStatus = "pending" | "active" | "superseded";
+
+export type IdCardBatchRecord = {
+  id: number;
+  memoNo: string;
+  status: IdCardBatchStatus;
+  requestedAt: string;             // DD-MM-YYYY
+  signedDate: string | null;       // DD-MM-YYYY — the card's "Issued on" date
+  directorGeneralId: number;
+  dgName: PersonName;              // signatory at request time
+  cardCount: number;
+  createdAt: string;               // ISO string
+};
+
+// One card issuance, with the employee context needed for listings.
+export type IdCardRecord = {
+  id: number;
+  version: number;
+  status: IdCardStatus;
+  issueDate: string | null;        // DD-MM-YYYY (set on issue)
+  batchId: number;
+  employee: {
+    id: string;
+    name: PersonName;
+    designation_bn: string;
+    office_bn: string;
+  };
+};
+
+// A batch together with the employee cards it contains.
+export type IdCardBatchDetail = IdCardBatchRecord & {
+  cards: IdCardRecord[];
+};
+
+// The authorization context stamped on a printed card.
+export type IdCardAuthorization = {
+  issueDate: string;       // DD-MM-YYYY
+  version: number;
+  dgName: PersonName;
+  signatureUrl: string | null;
+};

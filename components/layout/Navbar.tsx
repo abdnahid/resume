@@ -78,6 +78,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/listing/fixation": "Salary Fixation",
   "/listing/salary": "Processed Salary",
   "/listing/bank-advice": "Bank Advice",
+  "/listing/id-cards": "ID Card Authorization",
+  "/listing/director-general": "Director General",
 };
 
 // ─── Change Password Modal ────────────────────────────────────────────────────
@@ -199,7 +201,7 @@ export default function Navbar({ user }: { user: SessionUser }) {
   return (
     <>
     {changePwOpen && <ChangePasswordModal onClose={() => setChangePwOpen(false)} />}
-    <header className="sticky top-0 z-50 shrink-0">
+    <header className="sticky top-0 z-50 shrink-0 print:hidden">
       {/* ── Utility Bar ── */}
       <div className="bg-primary text-primary-foreground/85">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-2 text-[12.5px] tracking-wide lg:px-10">

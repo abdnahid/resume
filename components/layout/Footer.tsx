@@ -30,7 +30,7 @@ export default function Footer() {
   );
 
   return (
-    <footer className="bg-primary text-primary-foreground/75 shrink-0">
+    <footer className="bg-primary text-primary-foreground/75 shrink-0 print:hidden">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-2 text-[12px] tracking-wide lg:px-10">
         <span className="font-bn text-primary-foreground/50 text-sm hidden sm:inline">
           BSTI e-Services

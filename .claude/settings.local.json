@@ -49,7 +49,12 @@
       "Bash(npm run *)",
       "Bash(node -e ' *)",
       "Bash(node -e \"const fs=require\\('fs'\\);const d=JSON.parse\\(fs.readFileSync\\('/dev/stdin','utf8'\\)\\);console.log\\(JSON.stringify\\({scripts:d.scripts,prisma:d.prisma,devDeps:Object.keys\\(d.devDependencies||{}\\)},null,2\\)\\)\")",
-      "Bash(grep -v \"^\\\\s*,$\")"
+      "Bash(grep -v \"^\\\\s*,$\")",
+      "PowerShell(Get-ChildItem -Force \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\" -Filter \".env*\" | Select-Object Name; \"--- prisma.config ---\"; Get-ChildItem \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\" -Filter \"prisma.config.*\" -ErrorAction SilentlyContinue | Select-Object Name; \"--- migrations dir? ---\"; Test-Path \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\\\\prisma\\\\migrations\")",
+      "PowerShell(Set-Location *)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; $env:PORT=\"3939\"; Start-Process -FilePath \"npx\" -ArgumentList \"next dev -p 3939\" -WindowStyle Hidden -RedirectStandardOutput \"dev-out.log\" -RedirectStandardError \"dev-err.log\"; \"started\")",
+      "Bash(node -e \"const i=require\\('lucide-react'\\); ['CreditCard','IdCard','Stamp','UserCog','ShieldCheck','BadgeCheck','Award','ScanLine','Plus','Search','Printer','ArrowLeft','Upload','PenLine','UserPlus','Pencil'].forEach\\(n=>console.log\\(n, n in i\\)\\)\")",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; $out = npm run build 2>&1; $code = $LASTEXITCODE; \"exit=$code\"; $out | Select-Object -Last 55)"
     ]
   }
 }

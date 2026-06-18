@@ -59,6 +59,17 @@ enum SalaryStatus {
   inactive
 }
 
+enum IdCardBatchStatus {
+  pending
+  issued
+}
+
+enum IdCardStatus {
+  pending
+  active
+  superseded
+}
+
 enum Gender {
   male
   female
@@ -304,6 +315,7 @@ model Employee {
   foreignTrainings ForeignTraining[]
   publications   Publication[]
   awards         Award[]
+  idCards        IdCard[]
 }
 
 // ─── Salary Fixation ─────────────────────────────────────────────────────────
@@ -470,4 +482,64 @@ model BankAdvice {
   createdAt     DateTime @default(now())
 
   @@unique([month, year])
+}
+
+// ─── Director General ──────────────────────────────────────────────────────────
+// Govt-appointed (Ministry of Public Administration), ~0–3 yr tenure. NOT an
+// Employee — never transferred/promoted/demoted. One row per appointee; the
+// current DG is the row with relievedAt = null. Supplies the authorizing
+// signatory name + signature for ID cards. Managed by superadmin (no login).
+
+model DirectorGeneral {
+  id           Int      @id @default(autoincrement())
+  nameEn       String
+  nameBn       String
+  signatureUrl String?           // uploaded by superadmin; required before issuing cards
+  photoUrl     String?
+  appointedAt  String            // joining / MoPA appointment date
+  relievedAt   String?           // null = current DG
+  orderNo      String?           // MoPA appointment memo
+  orderDate    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  authorizations IdCardBatch[]
+}
+
+// ─── ID Card Authorization ──────────────────────────────────────────────────────
+// A batch is one authorization request/file the DG signs. Lifecycle:
+//   pending  → request created, employee-list file produced for the DG
+//   issued   → admin records DG signing date + memo; cards stamped & activated
+
+model IdCardBatch {
+  id          Int               @id @default(autoincrement())
+  memoNo      String?           // reference of the authorization file
+  status      IdCardBatchStatus @default(pending)
+  requestedAt String
+  signedDate  String?           // DG signing date = "Issued on" for the batch
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  directorGeneralId Int
+  directorGeneral   DirectorGeneral @relation(fields: [directorGeneralId], references: [id])
+
+  cards IdCard[]
+}
+
+// One issuance per employee. Regeneration (data changed) creates a new row with
+// version+1; the prior active card is marked superseded, preserving full history.
+// At most one active card per employee (enforced in app logic at issue time).
+
+model IdCard {
+  id        Int          @id @default(autoincrement())
+  version   Int          @default(1)
+  status    IdCardStatus @default(pending)
+  issueDate String?                       // copied from batch.signedDate at issue
+  createdAt DateTime     @default(now())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  batchId Int
+  batch   IdCardBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 }
