@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ICalendarSettings } from "./dateScapeTypes";
-import { dayNames } from "./dateScapeDatabase";
+import { dayNames, defaultCalendarSettings } from "./dateScapeDatabase";
 import { CalendarHeader } from "./CalendarHeader";
 import { getSortedDays } from "./dateScapeFunctions";
 import { TLangDateFormat } from "@/lib/typescript/types";
@@ -20,21 +20,12 @@ import {
 import { FakeInput } from "../FakeInput";
 import { generateDate } from "@/utils/generators.client";
 
-const currentMonth = new Date().getMonth();
-const currentYear = new Date().getFullYear();
-
-const defaultSettings: ICalendarSettings = {
-  month: currentMonth,
-  year: currentYear,
-  arrowButtonStyle:
-    "rounded-md shadow-md p-1 dark:text-white bg-card hover:scale-115 cursor-pointer transition-all duration-500",
-};
-
 const SingleDatePopover = ({
-  calendarSettings = defaultSettings,
+  calendarSettings = defaultCalendarSettings,
   fieldTitle,
   placeholder,
   defaultDate,
+  value,
   getSelectedDate,
   lang = "en-GB",
   arrowSize,
@@ -44,6 +35,7 @@ const SingleDatePopover = ({
   fieldTitle?: string;
   placeholder?: string;
   defaultDate?: Date;
+  value?: Date;
   isRequired?: boolean;
   lang?: TLangDateFormat;
   arrowSize?: number;
@@ -51,11 +43,21 @@ const SingleDatePopover = ({
   getSelectedDate: (date?: Date) => void;
 }) => {
   const [open, setOpen] = useState<boolean>(false);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(defaultDate);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    value ?? defaultDate
+  );
 
-  const { month, year, arrowButtonStyle } = calendarSettings;
-  const [annualYear, setAnnualYear] = useState<number>(year);
-  const [period, setPeriod] = useState(month);
+  // Sync controlled value prop when it changes externally
+  useEffect(() => {
+    if (value !== undefined) setSelectedDate(value);
+  }, [value]);
+
+  const { arrowButtonStyle } = calendarSettings;
+  // Open the calendar on the selected date's month/year, falling back to current
+  const initYear = (value ?? defaultDate)?.getFullYear() ?? calendarSettings.year;
+  const initMonth = (value ?? defaultDate)?.getMonth() ?? calendarSettings.month;
+  const [annualYear, setAnnualYear] = useState<number>(initYear);
+  const [period, setPeriod] = useState(initMonth);
   const arrayOfDate: Date[] = getSortedDays(annualYear, period);
 
   return (

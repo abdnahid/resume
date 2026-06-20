@@ -10,11 +10,7 @@ export function getSortedDays(year: number, month: number) {
     arrayOfDate.push(date);
   }
   for (let i = 1; i <= lastDay; i++) {
-    if (i === today && todayMonth === month && todayYear === year) {
-      arrayOfDate.push(new Date(year, month, i, 0, 0, 0, 0));
-    } else {
-      arrayOfDate.push(new Date(year, month, i, 0, 0, 0, 0));
-    }
+    arrayOfDate.push(new Date(year, month, i, 0, 0, 0, 0));
   }
   const rest = 42 - arrayOfDate.length;
   for (let i = 1; i <= rest; i++) {

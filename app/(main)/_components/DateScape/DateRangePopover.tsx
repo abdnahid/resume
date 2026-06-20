@@ -14,22 +14,13 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
-import { dayNames, monthNames } from "./dateScapeDatabase";
+import { dayNames, monthNames, defaultCalendarSettings } from "./dateScapeDatabase";
 import { CalendarHeader } from "./CalendarHeader";
 import { FakeInput } from "../FakeInput";
 import { delay, generateDate } from "@/utils/generators.client";
 
-const currentMonth = new Date().getMonth();
-const currentYear = new Date().getFullYear();
-const defaultSettings: ICalendarSettings = {
-  month: currentMonth,
-  year: currentYear,
-  arrowButtonStyle:
-    "rounded-md shadow-md p-1 dark:text-white bg-card hover:scale-115 cursor-pointer transition-all duration-500",
-};
-
 export function DateRangePopover({
-  calendarSettings = defaultSettings,
+  calendarSettings = defaultCalendarSettings,
   name,
   startDate,
   endDate,

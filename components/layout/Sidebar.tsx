@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -27,7 +27,7 @@ const NAV: NavGroup[] = [
     title: "Organization",
     items: [
       { label: "Organogram",        href: "/organogram",         icon: GitFork },
-      { label: "Manage Structure",  href: "/organogram/manage",  icon: GitFork, roles: ["superadmin", "officeadmin"] },
+      { label: "Manage Structure",  href: "/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
       { label: "Director General",  href: "/listing/director-general", icon: Stamp, roles: ["superadmin"] },
     ],
   },
@@ -35,6 +35,8 @@ const NAV: NavGroup[] = [
     title: "Documents",
     items: [
       { label: "Personal Data Sheet", href: "/", icon: FileText },
+      { label: "My Profile",          href: "/profile",  icon: UserCircle },
+      { label: "Profile Approvals",   href: "/approvals", icon: ClipboardCheck, roles: ["superadmin"] },
     ],
   },
 ];

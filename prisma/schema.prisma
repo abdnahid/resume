@@ -94,6 +94,11 @@ enum BloodGroup {
   O_neg
 }
 
+enum WorkHistoryType {
+  bsti
+  previous
+}
+
 // ─── Organogram ──────────────────────────────────────────────────────────────
 
 model OrgUnit {
@@ -131,17 +136,18 @@ model OrgPost {
 }
 
 model Posting {
-  id         Int           @id @default(autoincrement())
-  type       PostingType   @default(initial)
-  status     PostingStatus @default(active)
-  grade      String
-  joinedAt   String?
-  relievedAt String?
-  orderNo    String?
-  orderDate  String?
-  remarks    String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id           Int           @id @default(autoincrement())
+  type         PostingType   @default(initial)
+  status       PostingStatus @default(active)
+  grade        String
+  joinedAt     String?
+  relievedAt   String?
+  orderNo      String?
+  orderDate    String?
+  remarks      String?
+  selfReported Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -231,14 +237,21 @@ model Office {
 // ─── Address ──────────────────────────────────────────────────────────────────
 
 model Address {
-  id           Int    @id @default(autoincrement())
-  village      String?
-  postOffice   String?
-  upazila      String?
-  district     String?
+  id           Int     @id @default(autoincrement())
   division     String?
+  district     String?
+  upazila      String?
+  cityCorpType String? // "cityCorp" | "pourosova" | "union"
+  cityCorpName String?
+  ward         String?
+  houseNo      String?
+  road         String?
+  postOffice   String?
+  postCode     String?
+  thana        String?
+  village      String? // legacy field — kept for backward compat
 
-  presentOf  Employee? @relation("PresentAddress")
+  presentOf   Employee? @relation("PresentAddress")
   permanentOf Employee? @relation("PermanentAddress")
 }
 
@@ -261,7 +274,9 @@ model Employee {
   bloodGroup   BloodGroup?
   nid           String?
   passportNo    String?
-  bankAccountNo String?
+  nationality   String?
+  placeOfBirth  String?
+  signatureLabel String?
   photoLabel    String?
   wing          String?
 
@@ -277,6 +292,11 @@ model Employee {
   emergencyPhone    String?
   emergencyMobile   String?
 
+  // Bank details
+  bankAccountNo String?
+  bankBranch    String?
+  tinNo         String?
+
   // Current job — nullable during Posting migration; derive from active Posting going forward
   designationEn         String?
   designationBn         String?
@@ -286,6 +306,16 @@ model Employee {
   dateOfJoining         String?
   postRetirementLeave   String?
   fullRetirement        String?
+
+  // Profile self-reporting control
+  serviceHistoryLocked Boolean @default(false)
+
+  // Profile approval workflow
+  profileStatus       String    @default("draft") // draft | submitted | approved | needs_revision
+  profileSubmittedAt  DateTime?
+  profileApprovedAt   DateTime?
+  profileApprovedBy   String?
+  profileRevisionNote String?
 
   // Relations
   orgPostId         Int?
@@ -305,17 +335,24 @@ model Employee {
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Sub-tables
-  fixation       SalaryFixation?
-  salaryHistory  SalaryHistory[]
-  salaryProcesses SalaryProcess[]
-  workHistory    WorkHistory[]
-  educations     Education[]
-  promotions     Promotion[]
-  trainings      Training[]
-  foreignTrainings ForeignTraining[]
-  publications   Publication[]
-  awards         Award[]
-  idCards        IdCard[]
+  fixation            SalaryFixation?
+  salaryHistory       SalaryHistory[]
+  salaryProcesses     SalaryProcess[]
+  workHistory         WorkHistory[]
+  educations          Education[]
+  promotions          Promotion[]
+  trainings           Training[]
+  foreignTrainings    ForeignTraining[]
+  publications        Publication[]
+  awards              Award[]
+  idCards             IdCard[]
+
+  // New profile sub-tables
+  spouse              Spouse?
+  children            Child[]
+  languages           Language[]
+  curriculars         Curricular[]
+  disciplinaryActions DisciplinaryAction[]
 }
 
 // ─── Salary Fixation ─────────────────────────────────────────────────────────
@@ -364,16 +401,17 @@ model SalaryProcess {
 // ─── Work History ─────────────────────────────────────────────────────────────
 
 model WorkHistory {
-  id             Int    @id @default(autoincrement())
-  sl             Int
-  designationBn  String
-  designationEn  String
-  grade          String
-  office         String
-  start          String
-  end            String
-  orderNo        String?
-  orderDate      String?
+  id            Int             @id @default(autoincrement())
+  sl            Int
+  type          WorkHistoryType @default(bsti)
+  designationBn String
+  designationEn String
+  grade         String
+  office        String
+  start         String
+  end           String
+  orderNo       String?
+  orderDate     String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -390,6 +428,7 @@ model Education {
   board       String?
   passingYear String
   result      String?
+  gpa         String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -420,6 +459,9 @@ model Training {
   institution  String?
   duration     String?
   year         String?
+  result       String?
+  startDate    String?
+  endDate      String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -435,6 +477,9 @@ model ForeignTraining {
   institution String?
   duration    String?
   year        String?
+  result      String?
+  startDate   String?
+  endDate     String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -443,11 +488,14 @@ model ForeignTraining {
 // ─── Publication ──────────────────────────────────────────────────────────────
 
 model Publication {
-  id        Int    @id @default(autoincrement())
-  sl        Int
-  title     String
-  publisher String?
-  year      String?
+  id          Int    @id @default(autoincrement())
+  sl          Int
+  type        String?
+  title       String
+  publisher   String?
+  writers     String?
+  year        String?
+  description String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -456,11 +504,15 @@ model Publication {
 // ─── Award ────────────────────────────────────────────────────────────────────
 
 model Award {
-  id           Int    @id @default(autoincrement())
-  sl           Int
-  title        String
-  awardedBy    String?
-  year         String?
+  id        Int    @id @default(autoincrement())
+  sl        Int
+  type      String?
+  title     String
+  awardedBy String?
+  country   String?
+  subject   String?
+  reason    String?
+  year      String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -485,20 +537,16 @@ model BankAdvice {
 }
 
 // ─── Director General ──────────────────────────────────────────────────────────
-// Govt-appointed (Ministry of Public Administration), ~0–3 yr tenure. NOT an
-// Employee — never transferred/promoted/demoted. One row per appointee; the
-// current DG is the row with relievedAt = null. Supplies the authorizing
-// signatory name + signature for ID cards. Managed by superadmin (no login).
 
 model DirectorGeneral {
   id           Int      @id @default(autoincrement())
   nameEn       String
   nameBn       String
-  signatureUrl String?           // uploaded by superadmin; required before issuing cards
+  signatureUrl String?
   photoUrl     String?
-  appointedAt  String            // joining / MoPA appointment date
-  relievedAt   String?           // null = current DG
-  orderNo      String?           // MoPA appointment memo
+  appointedAt  String
+  relievedAt   String?
+  orderNo      String?
   orderDate    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -506,17 +554,14 @@ model DirectorGeneral {
   authorizations IdCardBatch[]
 }
 
-// ─── ID Card Authorization ──────────────────────────────────────────────────────
-// A batch is one authorization request/file the DG signs. Lifecycle:
-//   pending  → request created, employee-list file produced for the DG
-//   issued   → admin records DG signing date + memo; cards stamped & activated
+// ─── ID Card Authorization ────────────────────────────────────────────────────
 
 model IdCardBatch {
   id          Int               @id @default(autoincrement())
-  memoNo      String?           // reference of the authorization file
+  memoNo      String?
   status      IdCardBatchStatus @default(pending)
   requestedAt String
-  signedDate  String?           // DG signing date = "Issued on" for the batch
+  signedDate  String?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
@@ -526,15 +571,11 @@ model IdCardBatch {
   cards IdCard[]
 }
 
-// One issuance per employee. Regeneration (data changed) creates a new row with
-// version+1; the prior active card is marked superseded, preserving full history.
-// At most one active card per employee (enforced in app logic at issue time).
-
 model IdCard {
   id        Int          @id @default(autoincrement())
   version   Int          @default(1)
   status    IdCardStatus @default(pending)
-  issueDate String?                       // copied from batch.signedDate at issue
+  issueDate String?
   createdAt DateTime     @default(now())
 
   employeeId String
@@ -542,4 +583,89 @@ model IdCard {
 
   batchId Int
   batch   IdCardBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+// ─── Spouse ───────────────────────────────────────────────────────────────────
+
+model Spouse {
+  id                   Int         @id @default(autoincrement())
+  nid                  String?
+  mobile               String?
+  nameBn               String?
+  nameEn               String?
+  motherNameBn         String?
+  motherNameEn         String?
+  fatherNameBn         String?
+  fatherNameEn         String?
+  dateOfBirth          String?
+  occupation           String?
+  bloodGroup           BloodGroup?
+  nationality          String?
+  passportNo           String?
+  passportReceivePlace String?
+  passportReceiveDate  String?
+  passportIssueDate    String?
+  passportExpiryDate   String?
+
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Child ────────────────────────────────────────────────────────────────────
+
+model Child {
+  id          Int         @id @default(autoincrement())
+  sl          Int
+  nameBn      String?
+  nameEn      String?
+  dateOfBirth String?
+  bloodGroup  BloodGroup?
+  brn         String?
+  nid         String?
+  gender      Gender?
+  isSpecial   Boolean     @default(false)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Language ─────────────────────────────────────────────────────────────────
+
+model Language {
+  id          Int    @id @default(autoincrement())
+  sl          Int
+  name        String
+  proficiency String? // "good" | "better" | "best"
+  comment     String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Curricular ───────────────────────────────────────────────────────────────
+
+model Curricular {
+  id      Int    @id @default(autoincrement())
+  sl      Int
+  type    String
+  comment String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── Disciplinary Action ──────────────────────────────────────────────────────
+
+model DisciplinaryAction {
+  id          Int    @id @default(autoincrement())
+  sl          Int
+  type        String // "departmental" | "criminal" | "acc"
+  reason      String?
+  description String?
+  startDate   String?
+  endDate     String?
+  comment     String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 }

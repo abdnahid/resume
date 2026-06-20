@@ -54,7 +54,12 @@
       "PowerShell(Set-Location *)",
       "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; $env:PORT=\"3939\"; Start-Process -FilePath \"npx\" -ArgumentList \"next dev -p 3939\" -WindowStyle Hidden -RedirectStandardOutput \"dev-out.log\" -RedirectStandardError \"dev-err.log\"; \"started\")",
       "Bash(node -e \"const i=require\\('lucide-react'\\); ['CreditCard','IdCard','Stamp','UserCog','ShieldCheck','BadgeCheck','Award','ScanLine','Plus','Search','Printer','ArrowLeft','Upload','PenLine','UserPlus','Pencil'].forEach\\(n=>console.log\\(n, n in i\\)\\)\")",
-      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; $out = npm run build 2>&1; $code = $LASTEXITCODE; \"exit=$code\"; $out | Select-Object -Last 55)"
+      "PowerShell(Set-Location \"C:\\\\Users\\\\AbdNahid\\\\Desktop\\\\resume\"; $out = npm run build 2>&1; $code = $LASTEXITCODE; \"exit=$code\"; $out | Select-Object -Last 55)",
+      "Bash(mkdir -p \"/home/abdnahid/Desktop/resume/app/api/admin/profile/[id]\")",
+      "Bash(mkdir -p \"/home/abdnahid/Desktop/resume/app/\\(main\\)/approvals/[id]\")",
+      "Bash(npx next *)",
+      "Bash(python3 *)",
+      "Bash(node *)"
     ]
   }
 }
