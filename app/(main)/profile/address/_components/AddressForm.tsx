@@ -244,8 +244,8 @@ export default function AddressForm({
       });
       if (!res.ok) { const j = await res.json(); setError(j.error ?? "Failed to save"); return; }
       setSaved(true);
+      router.refresh();
       if (nextStep) router.push("/profile?step=" + nextStep);
-      else router.refresh();
     } finally { setSaving(false); }
   }
 

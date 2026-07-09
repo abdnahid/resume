@@ -59,7 +59,12 @@
       "Bash(mkdir -p \"/home/abdnahid/Desktop/resume/app/\\(main\\)/approvals/[id]\")",
       "Bash(npx next *)",
       "Bash(python3 *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "PowerShell(npx tsx --env-file=.env prisma/_check-schema.ts)",
+      "PowerShell(npx prisma generate)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(node --env-file=.env prisma/_test-save.mjs)",
+      "PowerShell(node --env-file=.env prisma/_users.mjs)"
     ]
   }
 }

@@ -23,7 +23,7 @@ export default function DisciplinaryForm({ initial, prevStep, nextStep }: { init
     e.preventDefault(); setSaving(true); setError(""); setSaved(false);
     const res = await fetch("/api/profile/disciplinary", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows }) }).finally(() => setSaving(false));
     if (!res.ok) { setError((await res.json()).error ?? "Failed"); return; }
-    setSaved(true); if (nextStep) router.push("/profile?step=" + nextStep); else router.refresh();
+    setSaved(true); router.refresh(); if (nextStep) router.push("/profile?step=" + nextStep);
   }
 
   return (

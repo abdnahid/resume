@@ -28,8 +28,8 @@ export default function BankForm({ bankAccountNo: initAcc, bankBranch: initBranc
     }).finally(() => setSaving(false));
     if (!res.ok) { setError((await res.json()).error ?? "Failed"); return; }
     setSaved(true);
+    router.refresh();
     if (nextStep) router.push("/profile?step=" + nextStep);
-    else router.refresh();
   }
 
   return (
