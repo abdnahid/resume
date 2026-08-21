@@ -74,12 +74,12 @@ function getRoleConfig(role: string) {
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Personal Data Sheet",
-  "/listing": "Employees",
-  "/listing/fixation": "Salary Fixation",
-  "/listing/salary": "Processed Salary",
-  "/listing/bank-advice": "Bank Advice",
-  "/listing/id-cards": "ID Card Authorization",
-  "/listing/director-general": "Director General",
+  "/hr/listing": "Employees",
+  "/hr/listing/fixation": "Salary Fixation",
+  "/hr/listing/salary": "Processed Salary",
+  "/hr/listing/bank-advice": "Bank Advice",
+  "/hr/listing/id-cards": "ID Card Authorization",
+  "/hr/listing/director-general": "Director General",
 };
 
 // ─── Change Password Modal ────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export default function Navbar({ user }: { user: SessionUser }) {
       >
         <div className="mx-auto grid max-w-[1440px] grid-cols-[auto_1fr_auto] items-center gap-8 px-5 py-3.5 lg:px-10">
           {/* Brand */}
-          <Link href="/" className="flex items-center gap-3.5">
+          <Link href="/hr" className="flex items-center gap-3.5">
             <Image src="/bsti.svg" alt="BSTI Logo" width={60} height={60} />
             <div className="hidden flex-col border-l-2 border-border pl-3.5 leading-tight md:flex">
               <span className="font-display text-base font-semibold tracking-tight text-foreground">
@@ -382,7 +382,7 @@ export default function Navbar({ user }: { user: SessionUser }) {
                   {/* Links */}
                   <div className="px-2 py-1.5">
                     <Link
-                      href="/"
+                      href="/hr"
                       onClick={closeMenu}
                       className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground transition-colors hover:bg-muted"
                     >

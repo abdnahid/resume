@@ -26,7 +26,7 @@ export default async function PrintProfilePage({
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  if (session.user.role !== "superadmin") redirect("/");
+  if (session.user.role !== "superadmin") redirect("/hr");
 
   const { id } = await params;
   const record = await getEmployeeRecord(id).catch(() => null);

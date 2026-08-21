@@ -64,7 +64,14 @@
       "PowerShell(npx prisma generate)",
       "PowerShell(Remove-Item *)",
       "PowerShell(node --env-file=.env prisma/_test-save.mjs)",
-      "PowerShell(node --env-file=.env prisma/_users.mjs)"
+      "PowerShell(node --env-file=.env prisma/_users.mjs)",
+      "Bash(git -C /home/abdnahid/Desktop/resume log --oneline -10)",
+      "Bash(NEXT_PUBLIC_SUBDOMAINS=true NEXT_PUBLIC_ROOT_DOMAIN=localhost:3000 npx next *)",
+      "Bash(NEXT_PUBLIC_SUBDOMAINS=true NEXT_PUBLIC_ROOT_DOMAIN=localhost:3111 npx next dev -p 3111)",
+      "Bash(curl -s -H \"Host: ec.localhost:3111\" http://127.0.0.1:3111/)",
+      "Bash(shred -u /tmp/claude-1000/-home-abdnahid-Desktop-resume/7ea12bde-9651-4d95-90fb-c64ed66e16ed/scratchpad/env.backup)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   }
 }

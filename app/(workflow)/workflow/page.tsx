@@ -2,11 +2,11 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { CheckSquare, FolderKanban, Users, BarChart3 } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard",  href: "/workflow"           },
+  { label: "Dashboard",  href: "/workflow"                             },
   { label: "Projects",   href: "/workflow/projects",  hasDropdown: true },
-  { label: "My Tasks",   href: "/workflow/tasks"      },
-  { label: "Team",       href: "/workflow/team"       },
-  { label: "Reports",    href: "/workflow/reports"    },
+  { label: "My Tasks",   href: "/workflow/tasks"                        },
+  { label: "Team",       href: "/workflow/team"                         },
+  { label: "Reports",    href: "/workflow/reports"                      },
 ];
 
 const cards = [

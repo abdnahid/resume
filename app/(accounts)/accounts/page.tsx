@@ -2,11 +2,11 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { Wallet, ArrowLeftRight, FileText, Banknote } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard",    href: "/accounts"                              },
-  { label: "Transactions", href: "/accounts/transactions"                 },
-  { label: "Invoices",     href: "/accounts/invoices",  hasDropdown: true },
-  { label: "Payroll",      href: "/accounts/payroll"                      },
-  { label: "Reports",      href: "/accounts/reports",   hasDropdown: true },
+  { label: "Dashboard",    href: "/accounts"                                 },
+  { label: "Transactions", href: "/accounts/transactions"                     },
+  { label: "Invoices",     href: "/accounts/invoices",      hasDropdown: true },
+  { label: "Payroll",      href: "/accounts/payroll"                          },
+  { label: "Reports",      href: "/accounts/reports",       hasDropdown: true },
 ];
 
 const cards = [

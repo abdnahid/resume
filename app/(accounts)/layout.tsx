@@ -6,7 +6,7 @@ export default function AccountsLayout({ children }: { children: React.ReactNode
       <div className="flex flex-1 flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
-      <Footer />
+      <Footer module="accounts" />
     </div>
   );
 }

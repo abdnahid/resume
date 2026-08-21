@@ -47,7 +47,7 @@ export default async function DashboardLayout({
         <Sidebar role={role} />
         <main className="flex-1 overflow-y-auto print:overflow-visible">{children}</main>
       </div>
-      <Footer />
+      <Footer module="hr" />
     </div>
   );
 }

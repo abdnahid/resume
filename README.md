@@ -70,6 +70,37 @@ Open `http://localhost:3000`. Print via browser (Cmd/Ctrl + P) — the
 print stylesheet hides screen chrome, drops shadows, and paginates
 at the three sheets.
 
+## Modules and routing
+
+BSTI e-Services is one Next.js app made of several modules. Each is a route
+group under `app/`, mounted at a path prefix. `lib/modules.ts` is the single
+source of truth — it drives the landing page cards and the footer switcher.
+
+| Path         | Route group       | Theme                     |
+| ------------ | ----------------- | ------------------------- |
+| `/`          | `app/(public)`    | Public landing page       |
+| `/hr`        | `app/(main)`      | Purple (`:root` default)  |
+| `/store`     | `app/(ecommerce)` | `.ec-theme` — plum        |
+| `/workflow`  | `app/(workflow)`  | `.workflow-theme`         |
+| `/accounts`  | `app/(accounts)`  | `.accounts-theme`         |
+| `/inventory` | `app/(inventory)` | `.inventory-theme`        |
+| `/admin`     | `app/(admin)`     | `.admin-theme`            |
+
+`/` is public — a landing page listing the modules, with the org chart and
+sign-in reachable from it. `/organogram` (`app/(public)/organogram`) is public
+too. Everything under `/hr` requires a session: `app/(main)/layout.tsx` loads
+it and redirects to `/login` when absent.
+
+`/print/[id]` stays at the root, outside every module — `app/api/approvals/[id]/pdf`
+drives it with puppeteer and builds the URL from the request's base URL.
+
+### Adding a module
+
+1. Add an entry to `MODULES` in `lib/modules.ts` (path, labels, blurb, theme class).
+2. Create `app/(group)/<path>/page.tsx` and a `layout.tsx` rendering
+   `<Footer module="<key>" />`.
+3. Add the theme class to `app/globals.css` and the icon to `Footer.tsx`.
+
 ## Notes
 
 - Google Fonts (`Newsreader`, `Inter Tight`, `Hind Siliguri`,

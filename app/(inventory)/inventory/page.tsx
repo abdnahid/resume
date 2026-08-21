@@ -2,11 +2,11 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { Package, Layers, Truck, ClipboardList } from "lucide-react";
 
 const navItems = [
-  { label: "Dashboard",        href: "/inventory"                                  },
-  { label: "Products",         href: "/inventory/products",  hasDropdown: true     },
-  { label: "Stock",            href: "/inventory/stock"                            },
-  { label: "Suppliers",        href: "/inventory/suppliers"                        },
-  { label: "Purchase Orders",  href: "/inventory/orders"                           },
+  { label: "Dashboard",        href: "/inventory"                                },
+  { label: "Products",         href: "/inventory/products",   hasDropdown: true   },
+  { label: "Stock",            href: "/inventory/stock"                           },
+  { label: "Suppliers",        href: "/inventory/suppliers"                       },
+  { label: "Purchase Orders",  href: "/inventory/orders"                          },
 ];
 
 const cards = [

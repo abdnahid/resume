@@ -16,27 +16,27 @@ const NAV: NavGroup[] = [
   {
     title: "Management",
     items: [
-      { label: "Employees",        href: "/listing",               icon: Users      },
-      { label: "Salary Fixation",  href: "/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
-      { label: "Processed Salary", href: "/listing/salary",        icon: Banknote   },
-      { label: "Bank Advice",      href: "/listing/bank-advice",   icon: FileIcon   },
-      { label: "ID Cards",         href: "/listing/id-cards",      icon: CreditCard, roles: ["superadmin"] },
+      { label: "Employees",        href: "/hr/listing",               icon: Users      },
+      { label: "Salary Fixation",  href: "/hr/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
+      { label: "Processed Salary", href: "/hr/listing/salary",        icon: Banknote   },
+      { label: "Bank Advice",      href: "/hr/listing/bank-advice",   icon: FileIcon   },
+      { label: "ID Cards",         href: "/hr/listing/id-cards",      icon: CreditCard, roles: ["superadmin"] },
     ],
   },
   {
     title: "Organization",
     items: [
       { label: "Organogram",        href: "/organogram",         icon: GitFork },
-      { label: "Manage Structure",  href: "/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
-      { label: "Director General",  href: "/listing/director-general", icon: Stamp, roles: ["superadmin"] },
+      { label: "Manage Structure",  href: "/hr/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
+      { label: "Director General",  href: "/hr/listing/director-general", icon: Stamp, roles: ["superadmin"] },
     ],
   },
   {
     title: "Documents",
     items: [
-      { label: "Personal Data Sheet", href: "/", icon: FileText },
-      { label: "My Profile",          href: "/profile",  icon: UserCircle },
-      { label: "Profile Approvals",   href: "/approvals", icon: ClipboardCheck, roles: ["superadmin"] },
+      { label: "Personal Data Sheet", href: "/hr", icon: FileText },
+      { label: "My Profile",          href: "/hr/profile",  icon: UserCircle },
+      { label: "Profile Approvals",   href: "/hr/approvals", icon: ClipboardCheck, roles: ["superadmin"] },
     ],
   },
 ];

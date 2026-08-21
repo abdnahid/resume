@@ -18,12 +18,13 @@ export function middleware(request: NextRequest) {
   }
 
   if (session && isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/hr", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/"],
+  // `/` is the public landing page; the HR module root is what needs a session.
+  matcher: ["/hr"],
 };
