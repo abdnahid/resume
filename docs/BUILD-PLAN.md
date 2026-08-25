@@ -118,6 +118,20 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 
 ---
 
+## Working agreement
+
+Two machines, home and office, never running at the same time. The database is
+remote and shared, so only the code needs care. `CLAUDE.md` carries the full
+routine; the rule that matters is **push before switching machines** — an
+uncommitted change on the powered-off machine is unreachable. If a session ends
+mid-task, commit the work in progress rather than leaving it in the working
+tree.
+
+`.env` is not in git and must not be. Copy it across by hand once;
+`.env.example` lists the keys. Both machines point at the same database.
+
+---
+
 ## Parallel track — reference data (Phase G)
 
 Addendum A§11: **Phase G gates everything after Phase H and is not a coding
