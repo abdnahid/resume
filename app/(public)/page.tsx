@@ -2,28 +2,22 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ShoppingBag,
-  GitBranch,
-  Users,
-  Calculator,
-  Package,
-  ShieldCheck,
+  BadgeCheck,
+  SearchCheck,
   ArrowRight,
   GlobeIcon,
   MailIcon,
   PhoneIcon,
-  GitFork,
-  LogIn,
+  Lock,
 } from "lucide-react";
 import Footer from "@/components/layout/Footer";
-import { MODULES, type ModuleKey } from "@/lib/modules";
+import LandingAuth from "./_components/LandingAuth";
+import { CITIZEN_SERVICES, type CitizenService } from "@/lib/services";
 
-const ICONS: Record<ModuleKey, typeof Users> = {
-  hr: Users,
-  store: ShoppingBag,
-  workflow: GitBranch,
-  accounts: Calculator,
-  inventory: Package,
-  admin: ShieldCheck,
+const ICONS: Record<CitizenService["icon"], typeof ShoppingBag> = {
+  standards: ShoppingBag,
+  certificate: BadgeCheck,
+  verify: SearchCheck,
 };
 
 const ORG = {
@@ -87,13 +81,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <Link
-            href="/login"
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
-          >
-            <LogIn className="h-4 w-4" strokeWidth={1.8} />
-            <span className="hidden sm:inline">Sign in</span>
-          </Link>
+          <LandingAuth />
         </div>
       </header>
 
@@ -108,16 +96,16 @@ export default function LandingPage() {
               One portal for every BSTI service
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-              Standards, certification, personnel records and internal
-              operations — brought together in a single place for officers,
-              partners and the public.
+              Buy a Bangladesh Standard, apply for quality certification and
+              track your file — every BSTI service for citizens and businesses,
+              in one place.
             </p>
             <p className="font-bn mt-2 max-w-2xl leading-relaxed text-muted-foreground">
-              মান, সনদায়ন, কর্মকর্তা তথ্য ও অভ্যন্তরীণ কার্যক্রম — সবকিছু এক
+              মান ক্রয়, সনদের আবেদন ও ফাইলের অবস্থা — বিএসটিআই'র সকল সেবা এক
               ঠিকানায়।
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-8">
               <Link
                 href="/store"
                 className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
@@ -125,43 +113,61 @@ export default function LandingPage() {
                 Browse standards
                 <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
               </Link>
-              <Link
-                href="/organogram"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-5 py-3 text-sm font-medium text-foreground transition-colors hover:border-primary/30 hover:bg-muted"
-              >
-                <GitFork className="h-4 w-4" strokeWidth={1.8} />
-                View organogram
-              </Link>
             </div>
           </div>
         </section>
 
-        {/* ── Modules ── */}
+        {/* ── Services ── */}
         <section className="mx-auto max-w-[1440px] px-5 py-20 lg:px-10">
           <h2 className="font-display text-2xl font-medium text-foreground">
             Services
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Sign in is required for internal modules.
+            Browse freely. You only need an account to buy or to apply.
           </p>
 
           <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {MODULES.map(({ key, path, label, labelBn, blurb, theme }) => {
-              const Icon = ICONS[key];
-              return (
-                <Link
-                  key={key}
-                  href={path}
-                  className={`${theme} group flex flex-col rounded-2xl border border-border bg-card p-8 shadow-sm transition-all duration-200 hover:border-primary/25 hover:shadow-md`}
-                >
+            {CITIZEN_SERVICES.map((service) => {
+              const Icon = ICONS[service.icon];
+
+              const body = (
+                <>
                   <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
                     <Icon className="h-5 w-5 text-primary" strokeWidth={1.8} />
                   </div>
-                  <p className="font-semibold text-foreground">{label}</p>
-                  <p className="font-bn text-sm text-primary">{labelBn}</p>
+                  <p className="font-semibold text-foreground">{service.label}</p>
+                  <p className="font-bn text-sm text-primary">{service.labelBn}</p>
                   <p className="mt-2.5 flex-1 text-sm leading-relaxed text-muted-foreground">
-                    {blurb}
+                    {service.blurb}
                   </p>
+                </>
+              );
+
+              // Not built yet: shown disabled with the reason, never as a link
+              // that 404s.
+              if (service.status.kind === "planned") {
+                return (
+                  <div
+                    key={service.key}
+                    aria-disabled="true"
+                    className="flex flex-col rounded-2xl border border-dashed border-border bg-card/60 p-8"
+                  >
+                    {body}
+                    <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                      <Lock className="h-3.5 w-3.5" strokeWidth={2} />
+                      {service.status.note}
+                    </span>
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={service.key}
+                  href={service.status.href}
+                  className="group flex flex-col rounded-2xl border border-border bg-card p-8 shadow-sm transition-all duration-200 hover:border-primary/25 hover:shadow-md"
+                >
+                  {body}
                   <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary">
                     Open
                     <ArrowRight

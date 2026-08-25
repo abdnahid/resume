@@ -26,7 +26,7 @@ const NAV: NavGroup[] = [
   {
     title: "Organization",
     items: [
-      { label: "Organogram",        href: "/organogram",         icon: GitFork },
+      { label: "Organogram",        href: "/hr/organogram",      icon: GitFork },
       { label: "Manage Structure",  href: "/hr/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
       { label: "Director General",  href: "/hr/listing/director-general", icon: Stamp, roles: ["superadmin"] },
     ],

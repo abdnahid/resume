@@ -10,7 +10,7 @@ export default async function ManagePage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
   const role = (session.user as { role?: string }).role ?? "";
-  if (role !== "superadmin") redirect("/organogram");
+  if (role !== "superadmin") redirect("/hr/organogram");
 
   const tree = await getOrgTree();
 

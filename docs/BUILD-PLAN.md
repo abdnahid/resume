@@ -18,7 +18,7 @@ card layout were taken from.
 | # | Decision | Rationale |
 |---|---|---|
 | D1 | **No `/kernel /modules /apps` monorepo split** (deviates from plan §12). Keep the single Next.js app; enforce the kernel/module boundary with `lib/` conventions — `lib/store/*`, `lib/hr/*`, later `lib/kernel/*`. | A monorepo restructure of a working app costs weeks and buys nothing yet. The discipline is the boundary, not the folder depth. Revisit only if it actually hurts. |
-| D2 | **One auth system, two lanes.** Widen the existing better-auth `User` with `accountType: INTERNAL \| CLIENT`, make `email` optional, add unique `mobile` + nullable `mobileVerifiedAt`. No separate client auth stack. | Plan §1 "one platform"; §2.6 mobile identity, one user → many org memberships. Two session models would fork the platform on day one. |
+| D2 | **One auth system, two lanes.** Widen the existing better-auth `User` with `accountType: INTERNAL \| CLIENT`, make `email` optional, add unique `mobile` + nullable `mobileVerifiedAt`. No separate client auth stack. | Plan §1 "one platform"; §2.6 mobile identity, one user → many org memberships. Two session models would fork the platform on day one. **Amended 2026-08-25:** the *column* is nullable, but better-auth 1.6.9 has no email-less sign-up — `/sign-up/email` requires a valid address — so mobile-only clients carry a synthesised placeholder (D16). |
 | D3 | **Progressive build mirrors progressive profiling.** Store ships at Tier 1 (individual: mobile + name). Companies, groups, factories arrive with the licence slice. | Plan §2.1 — never ask for more than the current action needs; same rule applied to our own build order. |
 | D4 | **Payment behind a `PaymentProvider` interface**, manual/offline provider first. | The Sonali-vs-aggregator question (§6) is unresolved. Keeps it a swap, not a rewrite. |
 | D5 | **`consumedByApplicationId` (nullable, UNIQUE) exists on `BdsPurchase` from day one**, even though nothing reads it until step 6. | Plan §3.3. Retrofitting a unique index onto a live purchase table is the expensive version. |
@@ -27,8 +27,40 @@ card layout were taken from.
 | D8 | **Unresolved policy lives behind one named function**, per the plan's instruction to Claude Code (§12). | So a `[OPEN]` answer changes one place. |
 | D9 | **Per-module code splits into a Prisma-free half and a server half** — `lib/store/bds-catalog.ts` (facets, query shape, URL encoding) vs `lib/store/bds.ts` (queries). | A client component importing the query module drags `pg` into the browser bundle and the page 500s. The split makes the boundary a file boundary. |
 | D10 | **Navbar active state is a prop (`activeHref`), never `useSearchParams()`.** | That hook opts the whole page out of static prerendering — it broke the build for `/store`, `/accounts`, `/admin`, `/inventory` and `/workflow` at once. Matches how `Footer` already takes `module` as a prop. |
+| D11 | **`accountType` gates routes; `role` stays internal-only.** `AccountType { INTERNAL \| CLIENT }` on `User`, defaulting to `INTERNAL`. | Every existing employee row is correct with no data migration. The `Role` enum keeps meaning what it means — client roles arrive later with organization membership (§2.4), on a different axis. |
+| D12 | **One guard module, `lib/auth-guard.ts`, enforced in two places.** `accountType` rides in better-auth's signed session cookie so middleware can redirect cheaply; every internal layout also calls `requireInternal()`, which is authoritative. | Middleware runs on the edge and cannot reach Prisma — it only knows a cookie exists. The cookie makes the redirect fast, the DB check makes it true. A stale cookie can never grant access, and a new module that forgets the guard is caught by the middleware prefix. |
+| D13 | **The store treats any logged-in user as a buyer.** Purchases hang off `User`, not off a client-only table. | An employee buying a BDS is a buyer who happens to have an employee ID — one identity, two surfaces. Consequence: an INTERNAL user may hold no mobile, so checkout asks for one when missing. That is D3 progressive profiling applied to staff. |
+| D14 | **Public surfaces list citizen services, not the module grid.** The landing page "Services" section and the `Footer` / `ModuleNavbar` switchers filter by viewer. | The grid currently shows a public visitor six modules of which they can use one. That is the dead-link problem one step worse — the link works, it just refuses them. §8 asks for service tiles, not an internal inventory. |
+| D15 | **The organogram is internal.** `/organogram` moves to `/hr/organogram`; the public hero link is removed. | Decided 2026-08-25. The chart names post-holders across every office — org structure is staff-facing. It also pairs the viewer with the editor already at `/hr/organogram/manage`. |
+| D16 | **Mobile identity is better-auth's `phone-number` plugin, mapped onto `User.mobile`** — not `username = mobile`. Mobile-only clients get a synthesised `@mobile.bsti.invalid` placeholder email. | Spike, 2026-08-25. Employee IDs and BD mobiles are both 11-digit numeric, so sharing the `username` column would let a client claim a number identical to an employee ID and deny it. Separate columns make the collision impossible. `/sign-in/phone-number` takes `{phoneNumber, password}` and, with `requireVerification: false`, never touches an OTP — so §2.6 is satisfied with the plugin already in place for when SMS lands. |
 
 ---
+
+---
+
+## Route access model
+
+Decided 2026-08-25. Two account types, and the route prefix decides the audience.
+
+| Prefix | Who | Notes |
+|---|---|---|
+| `/` | Anyone | Client landing page. Citizen service tiles (D14), not the module grid. |
+| `/public/*` | Anyone | Client pages as they arrive — service detail, certificate verification, fees and guides (§8). Empty today. |
+| `/store/*` | Anyone | Browse without an account. A session is required only at checkout. |
+| `/login` | Anyone | Two lanes (see Step 2). |
+| `/hr/*` `/workflow/*` `/accounts/*` `/inventory/*` `/admin/*` `/print/*` | INTERNAL only | |
+| `/api/auth/*` | Anyone | better-auth itself. |
+| all other `/api/*` | INTERNAL only | Client-facing store APIs get their own prefix when step 3 needs them. |
+
+**A client who requests an internal route is redirected to `/` silently.** No 404,
+no 403 page — a citizen never sees an error screen, and nothing is revealed about
+what exists internally. An *anonymous* visitor still goes to `/login` with a
+`redirect` return URL, because they may well be an employee.
+
+**An internal employee may browse every client surface**, and is rendered there as
+a customer — store chrome, purchase history, no HR navigation (D13).
+
+**A client can never reach an internal route.**
 
 ## Steps
 
@@ -64,10 +96,93 @@ synthesised from the year. Cart and buy buttons render disabled with a note —
 they light up in step 3. `/help` and `/contact` in the shared utility bar are
 pre-existing dead links, not introduced here.
 
-### ⬜ Step 2 — Client accounts
-D2's schema change made real: mobile registration/login, two-lane login page,
-client dashboard shell. Tier 1 only. Restores the Sign Up button removed from
-`ModuleNavbar` in step 1.
+### ✅ Step 2 — Client accounts and the two-lane boundary
+D2 and D11–D16 made real: the account-type split, route enforcement, a two-lane
+login, and Tier-1 client registration. Planned 2026-08-25.
+
+**Why the login has two explicit lanes rather than one smart field:** employee IDs
+are 11-digit numeric (`20105010089`) and Bangladeshi mobile numbers are 11-digit
+numeric (`01712345678`). No heuristic can separate them. Two lanes is forced, not
+a preference. *Within* the client lane, mobile-versus-email is unambiguous, so
+that single field can detect its own input.
+
+- [x] **Spike first — this gates the rest.** Confirm against better-auth 1.6.9
+      whether `User.email` and `User.username` may be nullable, and whether the
+      `phone-number` plugin does password sign-in with no OTP step. The answer
+      decides whether mobile identity is that plugin or simply `username = mobile`
+      on client rows. **Answered:** both columns may be nullable; the plugin
+      does password sign-in with no OTP; `/sign-up/email` requires an email, so
+      placeholders it is (D16).
+- [x] Schema: `AccountType` enum; `User.accountType` (default `INTERNAL`),
+      `email` → optional, `username` → optional, `mobile` unique,
+      `mobileVerifiedAt` nullable (§2.6 — OTP drops in later without a migration).
+      `prisma db push`, and read the data-loss warnings rather than passing
+      `--accept-data-loss`.
+- [x] `lib/auth-guard.ts` — `requireInternal()`, `getViewer()`. One place (D12).
+- [x] Gate the four unguarded module layouts — `(admin)`, `(workflow)`,
+      `(accounts)`, `(inventory)` have **no session check at all** today. They are
+      placeholders so nothing leaks yet, but they are internal routes standing open.
+- [x] Close `app/api/salary/process/route.ts` and `app/api/test/route.ts` — the
+      only two non-auth API routes with no `getSession` (37 of 40 do check).
+      `api/test` looks like a debug endpoint; consider deleting it outright.
+- [x] Middleware: widen the matcher to every internal prefix and make it
+      account-type aware. It currently blanket-redirects any logged-in user off
+      `/login` to `/hr`, which is wrong for a client.
+- [x] Two-lane `/login` — employee ID · mobile-or-email — with a `redirect` return
+      URL and the lane preselected by where the visitor came from. Retire the
+      hardcoded `bsti@123` quick-login before this page is ever public.
+- [x] Client registration (Tier 1: mobile + name) and a client dashboard shell.
+      Restores the Sign Up button removed from `ModuleNavbar` in step 1.
+- [x] Move the organogram (D15): `app/(public)/organogram/*` →
+      `app/(main)/hr/organogram/*`. Repoint `components/layout/Sidebar.tsx:29`
+      (it links `/organogram` — the internal sidebar was already pointing at the
+      public route) and drop the hero link at `app/(public)/page.tsx:129`.
+      The page is `flex flex-col h-screen` with its own header because
+      `(public)/layout.tsx` is a bare passthrough; under `(main)` it inherits
+      Navbar + Sidebar + Footer, which are themselves `h-screen overflow-hidden`,
+      so it needs `h-full` or it will double-scroll.
+- [x] Landing page: hero keeps only "Browse standards". The "Services" section
+      renders citizen services instead of the `MODULES` grid, and the
+      `Footer` / `ModuleNavbar` switchers filter by viewer (D14).
+
+**Found while planning, not fixed here:** the organogram viewer and its editor
+read different sources of truth. `(public)/organogram/_components/data.ts` is
+3706 lines of hardcoded `WINGS` / `DIVISIONAL_OFFICES` / `REGIONAL_OFFICES`,
+while `/hr/organogram/manage` edits the `OrgUnit` / `OrgPost` tables that
+`npm run seed:org` populates. Structure changed in `manage` does not move the
+chart. Pre-existing; worth its own step.
+
+
+**Shipped:** `lib/auth-identity.ts` (Prisma-free — shared by the edge middleware
+and the browser), `lib/auth-guard.ts`, `lib/services.ts`, a rewritten
+`middleware.ts`, `/register` + `POST /api/client/register`, `/public/dashboard`,
+and an audience-filtered `Footer`.
+
+**Verified against a running server**, all three viewer types:
+
+| | internal prefixes | internal API | `/` `/store` `/public/dashboard` | `/login` |
+|---|---|---|---|---|
+| client | 307 → `/` | 403 | 200 | 307 → `/` |
+| staff | 200 | passes gate | 200 (customer view) | 307 → `/hr` |
+| anonymous | 307 → `/login?redirect=…` | 401 | 200 (dashboard → login) | 200 |
+
+Cross-lane sign-in was checked directly: staff signing in through the client
+email field is refused with "BSTI staff sign in with their employee ID." Stripping
+the `session_data` cookie so middleware cannot see `accountType` still produced a
+redirect off `/hr` — confirming the layout guard stands on its own (D12).
+
+**Two things to know:**
+
+- The account chip in `ModuleNavbar` and the landing masthead read the session
+  **client-side** (`authClient.useSession()`). Awaiting it on the server would
+  opt the ISR store pages and the static landing page out of static generation.
+- The office quick-login now renders only when `NODE_ENV !== "production"`. It
+  signs in as an office admin with a shared default password, and `/login` is
+  reachable by the public from this step onward.
+
+**Left alone deliberately:** every employee row is still created with the default
+password `bsti@123` in `app/api/employees/route.ts`. Pre-existing, out of this
+step's scope, and worth its own fix before any public launch.
 
 ### 🔒 Step 3 — Purchase, payment, download
 `BdsPurchase` (§3.2) with polymorphic buyer + D5's column. Guest checkout

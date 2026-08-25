@@ -5,7 +5,7 @@ export const metadata = { title: "Organogram — BSTI" };
 
 export default function OrganogramPage() {
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex h-full flex-col">
       {/* ── Page header ── */}
       <div className="shrink-0 border-b border-border bg-card px-8 py-5">
         <h1 className="text-lg font-bold text-foreground">

@@ -10,8 +10,11 @@ import {
   Shield,
   Menu,
   X,
+  UserRound,
+  LogOut,
 } from "lucide-react";
 import Image from "next/image";
+import { authClient } from "@/lib/auth-client";
 
 export type ModuleNavItem = {
   label: string;
@@ -43,6 +46,12 @@ export default function ModuleNavbar({
   activeHref,
 }: Props) {
   const pathname = usePathname();
+  /**
+   * Read client-side rather than passing the viewer down from the page. The
+   * store renders with ISR, and awaiting a session on the server would opt every
+   * catalogue page out of static generation.
+   */
+  const { data: session, isPending } = authClient.useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const cartCount = 0;
@@ -60,6 +69,11 @@ export default function ModuleNavbar({
       if (!matches) return best;
       return best === null || item.href.length > best.length ? item.href : best;
     }, null);
+
+  async function handleSignOut() {
+    await authClient.signOut();
+    window.location.href = "/";
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -159,13 +173,43 @@ export default function ModuleNavbar({
 
             <span className="mx-2 hidden h-6 w-px bg-border sm:block" />
 
-            <Link
-              href="/login"
-              className="hidden rounded-lg px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary hover:text-primary sm:inline-flex"
-            >
-              Sign In
-            </Link>
-            {/* Sign Up returns with client registration (build plan, step 2). */}
+            {isPending ? (
+              <span className="hidden h-10 w-24 animate-pulse rounded-lg bg-secondary sm:block" />
+            ) : session ? (
+              <div className="hidden items-center gap-1 sm:flex">
+                <Link
+                  href="/public/dashboard"
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary hover:text-primary"
+                >
+                  <UserRound className="h-4 w-4" strokeWidth={1.8} />
+                  <span className="max-w-[10ch] truncate">
+                    {session.user.name}
+                  </span>
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  aria-label="Sign out"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg text-subtitle transition-colors hover:bg-secondary hover:text-primary cursor-pointer"
+                >
+                  <LogOut className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                </button>
+              </div>
+            ) : (
+              <div className="hidden items-center gap-1 sm:flex">
+                <Link
+                  href="/login"
+                  className="rounded-lg px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary hover:text-primary"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
 
             {/* Mobile toggle */}
             <button
@@ -200,13 +244,41 @@ export default function ModuleNavbar({
                     )}
                   </Link>
                 ))}
-                <div className="mt-3 border-t border-border pt-3">
-                  <Link
-                    href="/login"
-                    className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
-                  >
-                    Sign In
-                  </Link>
+                <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
+                  {session ? (
+                    <>
+                      <Link
+                        href="/public/dashboard"
+                        onClick={() => setMobileOpen(false)}
+                        className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
+                      >
+                        My account
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-subtitle hover:bg-muted cursor-pointer"
+                      >
+                        Sign out
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/login"
+                        onClick={() => setMobileOpen(false)}
+                        className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
+                      >
+                        Sign In
+                      </Link>
+                      <Link
+                        href="/register"
+                        onClick={() => setMobileOpen(false)}
+                        className="rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                      >
+                        Sign Up
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

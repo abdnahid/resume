@@ -35,6 +35,18 @@ enum Role {
   officeadmin
   data_entry
   employee
+  /// Inert. Clients are gated by `accountType`, not by role — this exists so a
+  /// client row never reads as `employee` and trips an internal role check.
+  client
+}
+
+/// Which side of the platform an account belongs to.
+/// INTERNAL = BSTI staff (employee ID login, may reach internal modules).
+/// CLIENT   = the public (mobile or email login, client surfaces only).
+/// Defaults to INTERNAL so every pre-existing employee row stays correct.
+enum AccountType {
+  INTERNAL
+  CLIENT
 }
 
 enum OfficeType {
@@ -164,13 +176,28 @@ model Posting {
 model User {
   id            String   @id
   name          String
-  email         String   @unique
+  /// Optional: a mobile-only client has no real email. better-auth's sign-up
+  /// endpoint still demands one, so those rows carry a synthesised placeholder
+  /// (see `lib/auth-identity.ts`) which is replaced if the client adds a real
+  /// address later.
+  email         String?  @unique
   emailVerified Boolean
   image         String?
   createdAt     DateTime
   updatedAt     DateTime
-  username      String   @unique
+  /// Employee ID for INTERNAL accounts. Null for clients — they are keyed on
+  /// `mobile` instead, which keeps an 11-digit mobile from ever colliding with
+  /// an 11-digit employee ID.
+  username      String?  @unique
   role          Role     @default(employee)
+
+  accountType AccountType @default(INTERNAL)
+
+  /// better-auth's phone-number plugin is mapped onto these two columns.
+  mobile         String?  @unique
+  mobileVerified Boolean  @default(false)
+  /// §2.6 — present and nullable from day one so OTP drops in without a migration.
+  mobileVerifiedAt DateTime?
 
   sessions Session[]
   accounts Account[]

@@ -1,7 +1,5 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireInternal } from "@/lib/auth-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -12,11 +10,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
+  const viewer = await requireInternal("/hr");
 
-  const employeeId = session.user.username ?? "";
-  const role = (session.user as { role?: string }).role ?? "employee";
+  const employeeId = viewer.employeeId ?? "";
+  const role = viewer.role;
 
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
@@ -32,8 +29,8 @@ export default async function DashboardLayout({
   const user: SessionUser = {
     employeeId,
     role,
-    nameBn: employee?.nameBn ?? session.user.name,
-    nameEn: employee?.nameEn ?? session.user.name,
+    nameBn: employee?.nameBn ?? viewer.name,
+    nameEn: employee?.nameEn ?? viewer.name,
     designationBn: employee?.designationBn ?? "",
     designationEn: employee?.designationEn ?? "",
     officeBn: employee?.office.nameBn ?? "",
@@ -47,7 +44,7 @@ export default async function DashboardLayout({
         <Sidebar role={role} />
         <main className="flex-1 overflow-y-auto print:overflow-visible">{children}</main>
       </div>
-      <Footer module="hr" />
+      <Footer module="hr" audience="internal" />
     </div>
   );
 }

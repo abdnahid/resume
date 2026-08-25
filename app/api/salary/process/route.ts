@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 function effectiveStatus(validThru: string, stored: string): string {
@@ -26,6 +28,14 @@ function todayIssueDate() {
 }
 
 export async function POST(req: Request) {
+  // Internal-only mutation. `middleware.ts` already refuses clients and
+  // anonymous callers on /api/*; this is the check that does not depend on a
+  // cookie being readable.
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || (session.user as { accountType?: string }).accountType !== "INTERNAL") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { month, year, employeeId } = await req.json();
 
   if (!month || !year) {
