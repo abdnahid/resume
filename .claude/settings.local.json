@@ -71,7 +71,8 @@
       "Bash(curl -s -H \"Host: ec.localhost:3111\" http://127.0.0.1:3111/)",
       "Bash(shred -u /tmp/claude-1000/-home-abdnahid-Desktop-resume/7ea12bde-9651-4d95-90fb-c64ed66e16ed/scratchpad/env.backup)",
       "Bash(git checkout *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

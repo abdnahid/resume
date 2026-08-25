@@ -7,10 +7,12 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
+    "postinstall": "prisma generate",
+    "seed:bds": "tsx prisma/seed-bds.ts",
     "seed:org": "tsx prisma/seed-organogram.ts",
-    "migrate:postings": "tsx prisma/migrate-postings.ts",
     "seed:grades": "tsx prisma/seed-grades.ts",
-    "seed:employees": "tsx prisma/seed-employees.ts"
+    "seed:employees": "tsx prisma/seed-employees.ts",
+    "migrate:postings": "tsx prisma/migrate-postings.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

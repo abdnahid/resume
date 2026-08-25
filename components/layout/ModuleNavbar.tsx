@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   Search,
   ShoppingCart,
   ChevronDown,
-  ArrowRight,
   Shield,
   Menu,
   X,
@@ -24,6 +24,15 @@ type Props = {
   moduleSubtitle: string;
   navItems: ModuleNavItem[];
   showCart?: boolean;
+  /**
+   * The href to highlight. Pages that filter via the query string pass this,
+   * since the pathname alone cannot tell "All Standards" from "Just
+   * Published" — both live at /store/bds. Omit it and the pathname decides.
+   *
+   * Deliberately a prop rather than a `useSearchParams()` call: that hook
+   * opts the whole page out of static prerendering.
+   */
+  activeHref?: string;
 };
 
 export default function ModuleNavbar({
@@ -31,11 +40,26 @@ export default function ModuleNavbar({
   moduleSubtitle,
   navItems,
   showCart = false,
+  activeHref,
 }: Props) {
-  const [activePath, setActivePath] = useState(navItems[0]?.href ?? "/");
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [cartCount] = useState(2);
+  const cartCount = 0;
+
+  /**
+   * Longest matching href wins, so "/store/bds" stays highlighted on a detail
+   * page while "/store" does not steal it. Items carrying a query string only
+   * match when the page names them via `activeHref`.
+   */
+  const activePath =
+    activeHref ??
+    navItems.reduce<string | null>((best, item) => {
+      if (item.href.includes("?")) return best;
+      const matches = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      if (!matches) return best;
+      return best === null || item.href.length > best.length ? item.href : best;
+    }, null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -103,10 +127,6 @@ export default function ModuleNavbar({
                 <Link
                   key={item.href}
                   href={item.href}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setActivePath(item.href);
-                  }}
                   className={`group relative flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-[14.5px] font-medium transition-colors duration-150 ${
                     isActive
                       ? "text-primary"
@@ -140,18 +160,12 @@ export default function ModuleNavbar({
             <span className="mx-2 hidden h-6 w-px bg-border sm:block" />
 
             <Link
-              href="/signin"
+              href="/login"
               className="hidden rounded-lg px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary hover:text-primary sm:inline-flex"
             >
               Sign In
             </Link>
-            <Link
-              href="/signup"
-              className="hidden items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:-translate-y-px hover:bg-primary-hover hover:shadow-md sm:inline-flex"
-            >
-              Sign Up
-              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
-            </Link>
+            {/* Sign Up returns with client registration (build plan, step 2). */}
 
             {/* Mobile toggle */}
             <button
@@ -173,11 +187,7 @@ export default function ModuleNavbar({
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setActivePath(item.href);
-                      setMobileOpen(false);
-                    }}
+                    onClick={() => setMobileOpen(false)}
                     className={`flex items-center justify-between rounded-lg px-3 py-3 text-[15px] font-medium ${
                       activePath === item.href
                         ? "bg-secondary text-primary"
@@ -190,18 +200,12 @@ export default function ModuleNavbar({
                     )}
                   </Link>
                 ))}
-                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                <div className="mt-3 border-t border-border pt-3">
                   <Link
-                    href="/signin"
+                    href="/login"
                     className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
                   >
                     Sign In
-                  </Link>
-                  <Link
-                    href="/signup"
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
-                  >
-                    Sign Up <ArrowRight className="h-3.5 w-3.5" />
                   </Link>
                 </div>
               </div>

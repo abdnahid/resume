@@ -1,97 +1,69 @@
-# BSTI Personal Data Sheet — Next.js
+# BSTI e-Services
 
-A Next.js 14 (App Router) + Tailwind CSS implementation of the BSTI
-employee biodata sheet. Design is the **Standard density / Ruled table /
-Photo slot shown** variant, with a purple (`#5b21b6`) accent.
+The internal and public platform for the **Bangladesh Standards and Testing
+Institution**. One Next.js 14 application, several modules mounted on path
+prefixes, backed by PostgreSQL through Prisma.
 
-## Structure
+The HR module is built and in use. The BDS store catalogue is new. The CM
+quality-certification module is the large piece ahead.
 
-```
-nextjs-resume/
-├── app/
-│   ├── layout.tsx         Root HTML shell
-│   ├── page.tsx           Server component — fetches employee + renders sheets
-│   └── globals.css        Tailwind base + print rules + font imports
-├── components/
-│   ├── Sheet.tsx          Single letter-sized page frame
-│   ├── GovHeader.tsx      Gov + BSTI emblems + three Bengali title lines
-│   ├── DocumentTitle.tsx  "Personal Data Sheet" centerpiece
-│   ├── SectionHead.tsx    Numbered section header
-│   ├── PersonalSection.tsx
-│   ├── CurrentJobSection.tsx
-│   ├── AddressSection.tsx
-│   ├── DataTable.tsx      Reusable ruled-table primitives
-│   ├── EducationSection.tsx
-│   ├── PostingSection.tsx
-│   ├── PromotionSection.tsx
-│   ├── TrainingSection.tsx
-│   ├── ForeignTrainingSection.tsx
-│   ├── PublicationSection.tsx
-│   ├── AwardSection.tsx
-│   ├── Signatures.tsx
-│   └── PageFoot.tsx
-├── lib/
-│   ├── types.ts           TypeScript shape of the DB row
-│   ├── employee.json      Mock data (looks like a DB result set)
-│   └── db.ts              getEmployeeRecord(id) — stand-in for a real query
-└── tailwind.config.ts
-```
+## Plan
 
-## Data flow
+**[`docs/BUILD-PLAN.md`](docs/BUILD-PLAN.md)** is the current plan — the
+architecture decisions, the build steps in order, and the open questions that
+gate each one. Start there.
 
-`app/page.tsx` is an async server component. It calls
-`getEmployeeRecord(id)` from `lib/db.ts` (currently reads
-`lib/employee.json`, but shaped like a Prisma/Drizzle query so swapping
-in a real DB is a one-file change), then passes slices of the record
-down to each section component as props.
+The specs it builds on live beside it:
+[`docs/bsti-eservices-cm-module-plan.md`](docs/bsti-eservices-cm-module-plan.md)
+(platform kernel + CM module) and
+[`docs/bsti-eservices-lab-routing-addendum.md`](docs/bsti-eservices-lab-routing-addendum.md)
+(lab pipeline, Phase 5+).
 
-Swap the fixture for a real query later:
-
-```ts
-// lib/db.ts
-import { db } from "./drizzle";
-import { eq } from "drizzle-orm";
-import { employees } from "./schema";
-
-export async function getEmployeeRecord(id: string) {
-  return db.query.employees.findFirst({ where: eq(employees.id, id) });
-}
-```
+Working in this repo with Claude Code? Read [`CLAUDE.md`](CLAUDE.md) too — it
+carries the conventions and the two-machine workflow.
 
 ## Run
 
 ```bash
-cd nextjs-resume
-npm install
+npm install          # also generates the Prisma client
+cp .env.example .env # then fill in DATABASE_URL and the auth keys
 npm run dev
 ```
 
-Open `http://localhost:3000`. Print via browser (Cmd/Ctrl + P) — the
-print stylesheet hides screen chrome, drops shadows, and paginates
-at the three sheets.
+Open `http://localhost:3000`.
 
-## Modules and routing
+To populate a fresh database:
 
-BSTI e-Services is one Next.js app made of several modules. Each is a route
-group under `app/`, mounted at a path prefix. `lib/modules.ts` is the single
-source of truth — it drives the landing page cards and the footer switcher.
+```bash
+npm run seed:org        # organogram — units and posts
+npm run seed:grades     # NPS-2015 grades onto posts
+npm run seed:employees  # employees
+npm run seed:bds        # BDS store catalogue
+```
 
-| Path         | Route group       | Theme                     |
-| ------------ | ----------------- | ------------------------- |
-| `/`          | `app/(public)`    | Public landing page       |
-| `/hr`        | `app/(main)`      | Purple (`:root` default)  |
-| `/store`     | `app/(ecommerce)` | `.ec-theme` — plum        |
-| `/workflow`  | `app/(workflow)`  | `.workflow-theme`         |
-| `/accounts`  | `app/(accounts)`  | `.accounts-theme`         |
-| `/inventory` | `app/(inventory)` | `.inventory-theme`        |
-| `/admin`     | `app/(admin)`     | `.admin-theme`            |
+All seeds upsert on natural keys, so re-running them is safe.
 
-`/` is public — a landing page listing the modules, with the org chart and
-sign-in reachable from it. `/organogram` (`app/(public)/organogram`) is public
-too. Everything under `/hr` requires a session: `app/(main)/layout.tsx` loads
-it and redirects to `/login` when absent.
+## Modules
 
-`/print/[id]` stays at the root, outside every module — `app/api/approvals/[id]/pdf`
+Each module is a route group under `app/`, mounted at a path prefix.
+`lib/modules.ts` is the single source of truth — it drives the landing page
+cards and the footer module switcher.
+
+| Path         | Route group       | State       | Theme                    |
+| ------------ | ----------------- | ----------- | ------------------------ |
+| `/`          | `app/(public)`    | Built       | Public landing page      |
+| `/hr`        | `app/(main)`      | Built       | Purple (`:root` default) |
+| `/store`     | `app/(ecommerce)` | Catalogue   | `.ec-theme` — plum       |
+| `/workflow`  | `app/(workflow)`  | Placeholder | `.workflow-theme`        |
+| `/accounts`  | `app/(accounts)`  | Placeholder | `.accounts-theme`        |
+| `/inventory` | `app/(inventory)` | Placeholder | `.inventory-theme`       |
+| `/admin`     | `app/(admin)`     | Placeholder | `.admin-theme`           |
+
+`/` and `/organogram` are public. Everything under `/hr` requires a session:
+`middleware.ts` guards the module root and `app/(main)/layout.tsx` guards the
+rest, redirecting to `/login`.
+
+`/print/[id]` sits at the root, outside every module — `app/api/approvals/[id]/pdf`
 drives it with puppeteer and builds the URL from the request's base URL.
 
 ### Adding a module
@@ -101,13 +73,41 @@ drives it with puppeteer and builds the URL from the request's base URL.
    `<Footer module="<key>" />`.
 3. Add the theme class to `app/globals.css` and the icon to `Footer.tsx`.
 
+## HR module
+
+The primary output is the government-format **Personal Data Sheet** — a
+three-page A4 print layout composed from the section components in
+`components/` (`GovHeader`, `PersonalSection`, `EducationSection`,
+`PostingSection`, `Signatures`, `PageFoot` and the rest), framed by `Sheet`.
+Print via the browser; the print stylesheet hides screen chrome, drops shadows
+and paginates at the sheet boundaries.
+
+Beyond the data sheet: employee records and postings, salary fixation and
+processing, bank advice letters, ID card batches, and the organogram.
+
+Data comes from PostgreSQL via `lib/db.ts` (`getEmployeeRecord`, `getEmployees`
+and friends). Server components query it directly; `app/api/*` exists for
+client-side mutations.
+
+## BDS store
+
+`/store` is the public storefront for Bangladesh Standards. `/store/bds` is the
+faceted catalogue — search, publication date, day-wise, division and price band,
+with facet counts computed against the other active filters. `/store/bds/[slug]`
+is the detail page.
+
+Purchase and download are not wired yet; the buttons render disabled. That is
+step 3 in the build plan and it is blocked on the payment gateway decision.
+
+The catalogue schema (`Bds`, `BdsDivision`) carries `status`/`supersededBy` and
+the mandatory-315 flag from the start. `productId` is deliberately absent until
+the product catalogue arrives — the BDS attachment rule needs it at step 6.
+
 ## Notes
 
 - Google Fonts (`Newsreader`, `Inter Tight`, `Hind Siliguri`,
-  `Noto Serif Bengali`, `JetBrains Mono`) are loaded via `@import` in
-  `globals.css`. Consider moving to `next/font` for production.
-- The two circular logo slots are typographic placeholders. Drop real
-  SVGs into `GovHeader.tsx` when available.
-- Photo slot is a striped placeholder with corner ticks. Replace the
-  inner `<div>` in `PersonalSection.tsx` → `PhotoSlot` with an `<Image>`
-  when a real photo is on file.
+  `Noto Serif Bengali`, `JetBrains Mono`) load via `@import` in `globals.css`.
+  Consider `next/font` for production.
+- The two circular logo slots in `GovHeader.tsx` are typographic placeholders.
+- Colours come from the token block in `app/globals.css` — use `text-primary`,
+  `bg-card` and friends rather than hex values, so module themes keep working.

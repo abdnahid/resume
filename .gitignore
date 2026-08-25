@@ -3,9 +3,14 @@ node_modules
 out
 .DS_Store
 *.log
+
+# Secrets — every machine keeps its own copy; see CLAUDE.md
 .env*
 !.env.example
 
-/generated/prisma
+# Prisma client is generated from schema.prisma on install
+/generated
 
-/generated/prisma
+# Build caches and desktop-environment cruft: pure churn across machines
+tsconfig.tsbuildinfo
+.directory

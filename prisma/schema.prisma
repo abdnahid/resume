@@ -130,7 +130,7 @@ model OrgPost {
   updatedAt       DateTime @updatedAt
 
   unitId    Int
-  unit      OrgUnit   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  unit      OrgUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   employees Employee[]
   postings  Posting[]
 }
@@ -152,29 +152,29 @@ model Posting {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  orgPostId  Int?
-  orgPost    OrgPost? @relation(fields: [orgPostId], references: [id])
+  orgPostId Int?
+  orgPost   OrgPost? @relation(fields: [orgPostId], references: [id])
 
-  officeId   Int
-  office     Office   @relation(fields: [officeId], references: [id])
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id])
 }
 
 // ─── better-auth tables ───────────────────────────────────────────────────────
 
 model User {
-  id            String    @id
+  id            String   @id
   name          String
-  email         String    @unique
+  email         String   @unique
   emailVerified Boolean
   image         String?
   createdAt     DateTime
   updatedAt     DateTime
-  username      String    @unique
-  role          Role      @default(employee)
+  username      String   @unique
+  role          Role     @default(employee)
 
-  sessions  Session[]
-  accounts  Account[]
-  employee  Employee?
+  sessions Session[]
+  accounts Account[]
+  employee Employee?
 }
 
 model Session {
@@ -262,23 +262,23 @@ model Employee {
   status EmployeeStatus @default(active)
 
   // Identity
-  nameEn       String
-  nameBn       String
-  fatherNameEn String
-  fatherNameBn String
-  motherNameEn String
-  motherNameBn String
-  dateOfBirth  String
-  gender       Gender
-  maritalStatus MaritalStatus
-  bloodGroup   BloodGroup?
-  nid           String?
-  passportNo    String?
-  nationality   String?
-  placeOfBirth  String?
+  nameEn         String
+  nameBn         String
+  fatherNameEn   String
+  fatherNameBn   String
+  motherNameEn   String
+  motherNameBn   String
+  dateOfBirth    String
+  gender         Gender
+  maritalStatus  MaritalStatus
+  bloodGroup     BloodGroup?
+  nid            String?
+  passportNo     String?
+  nationality    String?
+  placeOfBirth   String?
   signatureLabel String?
-  photoLabel    String?
-  wing          String?
+  photoLabel     String?
+  wing           String?
 
   // Contact
   email        String?
@@ -298,14 +298,14 @@ model Employee {
   tinNo         String?
 
   // Current job — nullable during Posting migration; derive from active Posting going forward
-  designationEn         String?
-  designationBn         String?
-  grade                 String?
-  division              String?
-  initialDesignationBn  String?
-  dateOfJoining         String?
-  postRetirementLeave   String?
-  fullRetirement        String?
+  designationEn        String?
+  designationBn        String?
+  grade                String?
+  division             String?
+  initialDesignationBn String?
+  dateOfJoining        String?
+  postRetirementLeave  String?
+  fullRetirement       String?
 
   // Profile self-reporting control
   serviceHistoryLocked Boolean @default(false)
@@ -318,34 +318,34 @@ model Employee {
   profileRevisionNote String?
 
   // Relations
-  orgPostId         Int?
-  orgPost           OrgPost? @relation(fields: [orgPostId], references: [id])
-  postings          Posting[]
+  orgPostId Int?
+  orgPost   OrgPost?  @relation(fields: [orgPostId], references: [id])
+  postings  Posting[]
 
-  officeId          Int
-  office            Office  @relation(fields: [officeId], references: [id])
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id])
 
-  presentAddressId  Int?    @unique
-  presentAddress    Address? @relation("PresentAddress", fields: [presentAddressId], references: [id])
+  presentAddressId Int?     @unique
+  presentAddress   Address? @relation("PresentAddress", fields: [presentAddressId], references: [id])
 
-  permanentAddressId Int?   @unique
+  permanentAddressId Int?     @unique
   permanentAddress   Address? @relation("PermanentAddress", fields: [permanentAddressId], references: [id])
 
-  userId String  @unique
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Sub-tables
-  fixation            SalaryFixation?
-  salaryHistory       SalaryHistory[]
-  salaryProcesses     SalaryProcess[]
-  workHistory         WorkHistory[]
-  educations          Education[]
-  promotions          Promotion[]
-  trainings           Training[]
-  foreignTrainings    ForeignTraining[]
-  publications        Publication[]
-  awards              Award[]
-  idCards             IdCard[]
+  fixation         SalaryFixation?
+  salaryHistory    SalaryHistory[]
+  salaryProcesses  SalaryProcess[]
+  workHistory      WorkHistory[]
+  educations       Education[]
+  promotions       Promotion[]
+  trainings        Training[]
+  foreignTrainings ForeignTraining[]
+  publications     Publication[]
+  awards           Award[]
+  idCards          IdCard[]
 
   // New profile sub-tables
   spouse              Spouse?
@@ -372,7 +372,7 @@ model SalaryFixation {
 // ─── Salary History ───────────────────────────────────────────────────────────
 
 model SalaryHistory {
-  id    Int @id @default(autoincrement())
+  id    Int    @id @default(autoincrement())
   sl    Int
   grade Int
   basic Int
@@ -420,7 +420,7 @@ model WorkHistory {
 // ─── Education ────────────────────────────────────────────────────────────────
 
 model Education {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   sl          Int
   degree      String
   subject     String?
@@ -437,14 +437,14 @@ model Education {
 // ─── Promotion ────────────────────────────────────────────────────────────────
 
 model Promotion {
-  id              Int    @id @default(autoincrement())
-  sl              Int
-  designationBn   String
-  designationEn   String
-  grade           String
-  effectiveDate   String
-  orderNo         String?
-  orderDate       String?
+  id            Int     @id @default(autoincrement())
+  sl            Int
+  designationBn String
+  designationEn String
+  grade         String
+  effectiveDate String
+  orderNo       String?
+  orderDate     String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -453,15 +453,15 @@ model Promotion {
 // ─── Training ─────────────────────────────────────────────────────────────────
 
 model Training {
-  id           Int    @id @default(autoincrement())
-  sl           Int
-  title        String
-  institution  String?
-  duration     String?
-  year         String?
-  result       String?
-  startDate    String?
-  endDate      String?
+  id          Int     @id @default(autoincrement())
+  sl          Int
+  title       String
+  institution String?
+  duration    String?
+  year        String?
+  result      String?
+  startDate   String?
+  endDate     String?
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -470,7 +470,7 @@ model Training {
 // ─── Foreign Training ─────────────────────────────────────────────────────────
 
 model ForeignTraining {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   sl          Int
   title       String
   country     String?
@@ -488,7 +488,7 @@ model ForeignTraining {
 // ─── Publication ──────────────────────────────────────────────────────────────
 
 model Publication {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   sl          Int
   type        String?
   title       String
@@ -504,7 +504,7 @@ model Publication {
 // ─── Award ────────────────────────────────────────────────────────────────────
 
 model Award {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   sl        Int
   type      String?
   title     String
@@ -632,7 +632,7 @@ model Child {
 // ─── Language ─────────────────────────────────────────────────────────────────
 
 model Language {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   sl          Int
   name        String
   proficiency String? // "good" | "better" | "best"
@@ -645,7 +645,7 @@ model Language {
 // ─── Curricular ───────────────────────────────────────────────────────────────
 
 model Curricular {
-  id      Int    @id @default(autoincrement())
+  id      Int     @id @default(autoincrement())
   sl      Int
   type    String
   comment String?
@@ -657,7 +657,7 @@ model Curricular {
 // ─── Disciplinary Action ──────────────────────────────────────────────────────
 
 model DisciplinaryAction {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   sl          Int
   type        String // "departmental" | "criminal" | "acc"
   reason      String?
@@ -668,4 +668,79 @@ model DisciplinaryAction {
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+// ─── BDS Store ────────────────────────────────────────────────────────────────
+
+enum BdsStatus {
+  current
+  superseded
+  withdrawn
+}
+
+/// Standards division — the subject grouping the store uses as its primary
+/// facet. A table rather than an enum so labels stay bilingual and a new
+/// division is data entry, not a migration.
+model BdsDivision {
+  id        Int    @id @default(autoincrement())
+  slug      String @unique
+  nameEn    String
+  nameBn    String
+  sortOrder Int    @default(0)
+
+  standards Bds[]
+}
+
+/// A published Bangladesh Standard, as sold by the Standards Wing.
+/// Catalogue only — purchases arrive in step 3.
+model Bds {
+  id Int @id @default(autoincrement())
+
+  /// Canonical designation, e.g. "BDS 1982:2020". The natural key.
+  number String @unique
+  /// URL key derived from `number`, e.g. "bds-1982-2020".
+  slug   String @unique
+
+  titleEn String
+  titleBn String?
+
+  /// Denormalised from `number` so it sorts and filters without parsing.
+  year        Int
+  /// Drives the publication-date and day-wise filters. Null for older records
+  /// that carry a year in the designation but no exact date on file.
+  publishedOn DateTime?
+  edition     String?
+  pages       Int?
+
+  /// Whole taka. The Standards Wing list price — unrelated to the service fee
+  /// schedule, which moves to the kernel fee engine later.
+  priceBdt Int
+
+  status BdsStatus @default(current)
+
+  divisionId Int
+  division   BdsDivision @relation(fields: [divisionId], references: [id])
+
+  /// A newer edition may retire several older ones, so this is many-to-one.
+  supersededById Int?
+  supersededBy   Bds?  @relation("Supersedes", fields: [supersededById], references: [id])
+  supersedes     Bds[] @relation("Supersedes")
+
+  /// True for the 315 products under mandatory certification (plan §3.1).
+  isMandatory315 Boolean @default(false)
+
+  /// Placeholder until the kernel document store exists. Real PDFs load later.
+  pdfUrl String?
+
+  // TODO(step 6): productId FK → Product. The BDS attachment rule (plan §3.3,
+  // check 3) matches a purchase against the product being applied for. The
+  // product catalogue arrives with Phase G reference data.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([divisionId])
+  @@index([status])
+  @@index([publishedOn])
+  @@index([priceBdt])
 }
