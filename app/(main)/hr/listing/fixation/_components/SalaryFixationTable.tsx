@@ -3,6 +3,7 @@
 import { ArrowRight, PlusIcon, Zap } from "lucide-react";
 import { useState } from "react";
 import ProcessSalaryModal from "./ProcessSalaryModal";
+import FixationModal from "./FixationModal";
 import {
   FilterSearch,
   FilterSelect,
@@ -81,6 +82,7 @@ export default function SalaryFixationTable({
   const [validTo, setValidTo] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [fixing, setFixing] = useState<Employee | null>(null);
 
   const activeCount = employees.filter((e) => e.fixation.salaryStatus === "active").length;
 
@@ -311,7 +313,7 @@ export default function SalaryFixationTable({
                         <td className="px-4 py-4 align-top">
                           <button
                             type="button"
-                            onClick={() => console.log("Edit fixation for", emp.id)}
+                            onClick={() => setFixing(emp)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${emp.fixation.validFrom && emp.fixation.validThru ? "text-slate-600" : "border-theme text-theme"} text-xs font-medium hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 transition-all duration-150 cursor-pointer`}
                           >
                             {emp.fixation.validFrom && emp.fixation.validThru ? (
@@ -352,6 +354,11 @@ export default function SalaryFixationTable({
       onClose={() => setModalOpen(false)}
       lastProcessed={lastProcessed}
       activeCount={activeCount}
+    />
+
+    <FixationModal
+      employee={fixing}
+      onClose={() => setFixing(null)}
     />
     </>
   );
