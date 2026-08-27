@@ -245,6 +245,10 @@ tree.
 `.env` is not in git and must not be. Copy it across by hand once;
 `.env.example` lists the keys. Both machines point at the same database.
 
+**Work lands on `main`.** Feature branches were dropped on 2026-08-27 — one
+developer, two machines, no reviewers, so a branch only bought a merge step.
+`module-path-routing` was fast-forwarded into `main` and retired.
+
 ---
 
 ## Parallel track — reference data (Phase G)

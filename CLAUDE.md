@@ -6,8 +6,15 @@ Guidance for Claude Code working in this repository.
 
 **BSTI e-Services** — the internal and public platform for the Bangladesh
 Standards and Testing Institution. One Next.js app, several modules mounted on
-path prefixes. The HR module is built and in use; the BDS store catalogue is
-new; the CM quality-certification module is the large piece ahead.
+path prefixes. The HR module is built and in use; the BDS store catalogue and
+client accounts are new; the CM quality-certification module is the large piece
+ahead.
+
+**Two kinds of user, and the route prefix decides which.** BSTI staff
+(`accountType: INTERNAL`) sign in with an employee ID and are the only ones who
+reach the internal modules. Clients (`CLIENT`) sign in with a mobile number or
+email and live on the public surfaces. See "Auth" below — it is the rule most
+likely to bite you.
 
 ## The plan — read this first
 
@@ -38,25 +45,29 @@ Two rules from the spec that carry real weight:
 - Next.js 14 App Router, TypeScript, Tailwind v4
 - Prisma 7 + PostgreSQL (remote, `db.prisma.io`), client generated to
   `generated/prisma`, `@prisma/adapter-pg`
-- better-auth (session cookie, `username` plugin — username is the employee ID)
+- better-auth (session cookie + `cookieCache`; `username` plugin for staff —
+  username is the employee ID; `phone-number` plugin for clients, mapped onto
+  `User.mobile`)
 - shadcn/ui + `@base-ui/react`, lucide-react
 
 ## Layout
 
 ```
 app/
-  (public)/      /            landing page, /organogram      public
-  (main)/        /hr          HR module — the built one       session required
+  (public)/      /            landing page                    public
+                 /public/*    client pages (dashboard, …)     session for private ones
   (ecommerce)/   /store       BDS store                       public
-  (workflow)/    /workflow    placeholder
-  (accounts)/    /accounts    placeholder
-  (inventory)/   /inventory   placeholder
-  (admin)/       /admin       placeholder
-  api/           route handlers
-  login/         two-lane sign-in
-  print/[id]/    outside every module — puppeteer drives it for PDFs
+  (main)/        /hr          HR module — the built one       INTERNAL only
+  (workflow)/    /workflow    placeholder                     INTERNAL only
+  (accounts)/    /accounts    placeholder                     INTERNAL only
+  (inventory)/   /inventory   placeholder                     INTERNAL only
+  (admin)/       /admin       placeholder                     INTERNAL only
+  api/           route handlers — INTERNAL except /api/auth/* and /api/client/*
+  login/         two-lane sign-in                             public
+  register/      client sign-up (Tier 1: mobile + name)       public
+  print/[id]/    outside every module — puppeteer drives it   INTERNAL only
 components/      shared UI; layout/ holds Navbar, Sidebar, Footer, ModuleNavbar
-lib/             modules, auth, prisma, types; lib/store/ is the BDS store
+lib/             modules, services, auth, prisma, types; lib/store/ is the BDS store
 prisma/          schema.prisma and the seed scripts
 docs/            the plan and the specs
 ```
@@ -65,12 +76,44 @@ docs/            the plan and the specs
 class. Adding a module is one entry there plus its `app/(group)/<path>` folder
 and a theme class in `app/globals.css`.
 
-Auth gating: `middleware.ts` matches `/hr` only. Everything else protected is
-gated by its own layout (`app/(main)/layout.tsx` redirects to `/login`).
+## Auth
+
+Decisions D11–D16 in the plan. The route prefix decides the audience:
+`/`, `/public/*`, `/store/*`, `/login` and `/register` are public; everything
+else is INTERNAL only.
+
+- **`accountType` gates routes. `role` is internal-only.** Never gate an
+  internal route on `role` alone — clients carry the inert `role: client`.
+- **Enforced in two places, on purpose.** `middleware.ts` reads `accountType`
+  from better-auth's signed `session_data` cookie and refuses at the edge;
+  every internal layout also calls `requireInternal()` from `lib/auth-guard.ts`,
+  which re-reads the database and is the authority. Middleware fails *open* when
+  the cookie is unreadable — the layout is what actually decides.
+- **Adding an internal module means two things:** the prefix in
+  `INTERNAL_PREFIXES` (`lib/auth-identity.ts`) *and* a `requireInternal()` call
+  in its layout. Miss the second and a stale cookie gets in.
+- **A client hitting an internal route is redirected to `/` silently** — no 404,
+  no 403. Anonymous visitors go to `/login` with a `redirect` return URL,
+  because they may be staff.
+- **Staff may browse every client surface** and are rendered there as customers.
+  `requireClient()` deliberately does not demand `CLIENT`.
+- **Two login lanes, and they cannot be merged.** Employee IDs and Bangladeshi
+  mobile numbers are both 11-digit numeric, so no heuristic separates them. That
+  is also why mobile has its own column instead of sharing `username`.
+- **better-auth has no email-less sign-up.** `/sign-up/email` requires a valid
+  address, so mobile-only clients carry a synthesised `@mobile.bsti.invalid`
+  placeholder. Use `displayEmail()` before showing an address — it returns null
+  for placeholders. Never mail one.
+- **`lib/auth-identity.ts` is Prisma-free** and imported by the edge middleware
+  and by client components. Keep it that way. `lib/auth-guard.ts` is the
+  server-only half.
+- **OTP is not enabled.** `sendOTP` throws by design. The schema already carries
+  `mobileVerifiedAt`, so SMS drops in without a migration.
 
 ## Conventions that have bitten us
 
-These are decisions D9 and D10 in the plan. Both cost a broken build once.
+These are decisions D9, D10 and D14 in the plan. The first two cost a broken
+build once.
 
 - **Split Prisma-free code from server code inside a module.**
   `lib/store/bds-catalog.ts` holds facets, query shape and URL encoding — no
@@ -82,6 +125,18 @@ These are decisions D9 and D10 in the plan. Both cost a broken build once.
   page using that component out of static prerendering, and the build fails on
   all of them at once. Pass active state down as a prop instead — `Footer` takes
   `module`, `ModuleNavbar` takes `activeHref`.
+
+- **Don't await a session on a static or ISR page.** It opts the page out of
+  static generation — the same failure class as `useSearchParams()` above. The
+  store's account chip and the landing masthead read it client-side with
+  `authClient.useSession()` instead (`ModuleNavbar`, `LandingAuth`). `/` and
+  `/store` are static and should stay that way.
+
+- **Public surfaces list citizen services, not modules.** `lib/services.ts` is
+  the public-facing registry; `lib/modules.ts` is the internal one. Showing a
+  visitor the module grid advertises five destinations they get refused at.
+  `Footer` takes `audience` and defaults to `"public"` — pass
+  `audience="internal"` in an internal layout.
 
 - **Server components read the DB directly.** No API route in between unless the
   browser needs it. `app/api/*` exists for client-side mutations.
@@ -155,8 +210,11 @@ git push
 
 The rule that matters: **push before switching machines.** An uncommitted change
 on the machine that is powered off is unreachable. If a session ends mid-task,
-commit the work in progress on a branch rather than leaving it in the working
-tree.
+commit the work in progress rather than leaving it in the working tree.
+
+**Work on `main`.** Feature branches were dropped on 2026-08-27 — one developer,
+two machines, no reviewers, so a branch only adds a merge step. Commit to `main`
+and push.
 
 **`.env` is not in git** and must not be. Copy it to the other machine by hand
 once; `.env.example` lists the keys it needs. Both machines point at the same
