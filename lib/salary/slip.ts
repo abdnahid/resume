@@ -10,6 +10,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { employeesOfOffice } from "@/lib/salary/payroll";
+import { orgForOffice } from "@/lib/db";
+import type { OrgInfo } from "@/lib/types";
 
 export type PayslipLine = {
   nameEn: string;
@@ -21,6 +23,8 @@ export type PayslipLine = {
 };
 
 export type Payslip = {
+  /** The issuing office's letterhead — not BSTI head office's. */
+  org: OrgInfo;
   employee: {
     id: string;
     nameEn: string;
@@ -98,13 +102,13 @@ export async function getPayslip(
           nameBn: true,
           designationBn: true,
           bankAccountNo: true,
-          office: { select: { nameBn: true } },
+          office: { select: { nameBn: true, addressBn: true, email: true } },
           postings: {
             where: { relievedAt: null },
             take: 1,
             include: {
               orgPost: { select: { nameBn: true } },
-              office: { select: { nameBn: true } },
+              office: { select: { nameBn: true, addressBn: true, email: true } },
             },
           },
         },
@@ -140,13 +144,18 @@ export async function getPayslip(
 
   const arrear = row.arrears[0] ?? null;
 
+  // The office that actually pays them — their posting, falling back to the
+  // legacy column, the same rule `employeesOfOffice()` applies.
+  const payingOffice = posting?.office ?? emp.office;
+
   return {
+    org: orgForOffice(payingOffice),
     employee: {
       id: emp.id,
       nameEn: emp.nameEn,
       nameBn: emp.nameBn,
       designationBn: posting?.orgPost?.nameBn ?? emp.designationBn ?? "",
-      officeNameBn: posting?.office.nameBn ?? emp.office.nameBn,
+      officeNameBn: payingOffice.nameBn,
       bankAccountNo: emp.bankAccountNo ?? "",
     },
     month: row.month,

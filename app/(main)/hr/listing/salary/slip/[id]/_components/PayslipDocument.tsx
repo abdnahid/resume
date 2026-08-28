@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import GovHeader from "@/components/GovHeader";
 import { BENGALI_MONTHS, toBengaliDigits, numberToBengaliWords } from "@/lib/bengali";
-import type { OrgInfo } from "@/lib/types";
 import type { Payslip } from "@/lib/salary/slip";
 
 /**
@@ -20,13 +19,16 @@ function bdt(n: number) {
   return toBengaliDigits(n.toLocaleString("en-US")) + ".০০";
 }
 
-export default function PayslipDocument({
-  slip,
-  org,
-}: {
-  slip: Payslip;
-  org: OrgInfo;
-}) {
+/**
+ * Salary dates are stored `MM-DD-YYYY`; documents read DD-MM-YYYY. Printing the
+ * stored form raw gave "০৮-২৮-২০২৬" — a twenty-eighth month.
+ */
+function toDisplayDate(stored: string): string {
+  const m = stored.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  return m ? `${m[2]}-${m[1]}-${m[3]}` : stored;
+}
+
+export default function PayslipDocument({ slip }: { slip: Payslip }) {
   const router = useRouter();
   const [downloading, setDownloading] = useState(false);
 
@@ -100,7 +102,7 @@ export default function PayslipDocument({
       {/* Document */}
       <div className="max-w-3xl mx-auto bg-paper shadow-sm border border-rule print:shadow-none print:border-none font-bn-serif text-base leading-[1.7]">
         <div className="px-12 py-8 print:px-10 print:py-8">
-          <GovHeader org={org} />
+          <GovHeader org={slip.org} />
 
           <h2 className="text-center text-[13pt] font-bold text-ink mt-4 mb-1 underline underline-offset-4">
             বেতন বিবরণী
@@ -140,7 +142,7 @@ export default function PayslipDocument({
             </tbody>
           </table>
 
-          {/* Earnings and deductions */}
+          {/* Earnings, then deductions, on one amount column */}
           <div className="border border-rule-strong rounded overflow-hidden mb-4">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -148,94 +150,134 @@ export default function PayslipDocument({
                   <th className="border-r border-rule-strong px-3 py-2 text-left font-semibold text-ink-2">
                     বিবরণ
                   </th>
-                  <th className="border-r border-rule-strong px-3 py-2 text-right font-semibold text-ink-2 w-40">
-                    প্রাপ্য (টাকা)
-                  </th>
-                  <th className="px-3 py-2 text-right font-semibold text-ink-2 w-40">
-                    কর্তন (টাকা)
+                  <th className="px-3 py-2 text-right font-semibold text-ink-2 w-48">
+                    টাকা
                   </th>
                 </tr>
               </thead>
               <tbody>
+                {/* ── Salary and allowances ── */}
+                <tr className="bg-rule/20 border-b border-rule">
+                  <td
+                    colSpan={2}
+                    className="px-3 py-1.5 font-semibold text-ink-2 text-[13px]"
+                  >
+                    বেতন ও ভাতাদি
+                  </td>
+                </tr>
+
                 <tr className="border-b border-rule">
-                  <td className="border-r border-rule px-3 py-2 text-ink-2">মূল বেতন</td>
-                  <td className="border-r border-rule px-3 py-2 text-right tabular-nums text-ink">
+                  <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
+                    মূল বেতন
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink">
                     {bdt(slip.basicSalary)}
                   </td>
-                  <td className="px-3 py-2" />
                 </tr>
 
                 {slip.earnings.map((l, i) => (
                   <tr key={`e${i}`} className="border-b border-rule">
-                    <td className="border-r border-rule px-3 py-2 text-ink-2">
+                    <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
                       {l.nameBn}
                       {l.suppressed && (
                         <span className="text-ink-4 text-xs"> (স্থগিত)</span>
                       )}
                     </td>
-                    <td className="border-r border-rule px-3 py-2 text-right tabular-nums text-ink">
-                      {bdt(l.amount)}
-                    </td>
-                    <td className="px-3 py-2" />
-                  </tr>
-                ))}
-
-                {slip.deductions.map((l, i) => (
-                  <tr key={`d${i}`} className="border-b border-rule">
-                    <td className="border-r border-rule px-3 py-2 text-ink-2">{l.nameBn}</td>
-                    <td className="border-r border-rule px-3 py-2" />
                     <td className="px-3 py-2 text-right tabular-nums text-ink">
                       {bdt(l.amount)}
                     </td>
                   </tr>
                 ))}
 
-                <tr className="bg-rule/30 border-t border-rule-strong font-semibold">
-                  <td className="border-r border-rule-strong px-3 py-2 text-right text-ink-2">
-                    সর্বমোট
+                <tr className="bg-rule/30 border-b border-rule-strong font-semibold">
+                  <td className="border-r border-rule-strong px-3 py-2 text-ink-2">
+                    মোট প্রাপ্য
                   </td>
-                  <td className="border-r border-rule-strong px-3 py-2 text-right tabular-nums text-ink">
+                  <td className="px-3 py-2 text-right tabular-nums text-ink">
                     {bdt(slip.grossEarning)}
+                  </td>
+                </tr>
+
+                {/* ── Deductions ── */}
+                <tr className="bg-rule/20 border-b border-rule">
+                  <td
+                    colSpan={2}
+                    className="px-3 py-1.5 font-semibold text-ink-2 text-[13px]"
+                  >
+                    কর্তন
+                  </td>
+                </tr>
+
+                {slip.deductions.length > 0 ? (
+                  slip.deductions.map((l, i) => (
+                    <tr key={`d${i}`} className="border-b border-rule">
+                      <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
+                        {l.nameBn}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-ink">
+                        {bdt(l.amount)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-b border-rule">
+                    <td className="border-r border-rule px-3 py-2 pl-6 text-ink-4 italic">
+                      কোনো কর্তন নেই
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink-4">
+                      {bdt(0)}
+                    </td>
+                  </tr>
+                )}
+
+                <tr className="bg-rule/30 border-b border-rule-strong font-semibold">
+                  <td className="border-r border-rule-strong px-3 py-2 text-ink-2">
+                    মোট কর্তন
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-ink">
                     {bdt(slip.totalDeduction)}
                   </td>
                 </tr>
+
+                {/* ── Net ── */}
+                <tr className="border-b border-rule">
+                  <td className="border-r border-rule px-3 py-2 text-ink-2 font-semibold">
+                    নীট বেতন (মোট প্রাপ্য − মোট কর্তন)
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-ink font-semibold">
+                    {bdt(slip.netSalary)}
+                  </td>
+                </tr>
+
+                {slip.arrearAmount > 0 && (
+                  <tr className="border-b border-rule">
+                    <td className="border-r border-rule px-3 py-2 text-ink-2">
+                      বকেয়া
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink">
+                      {bdt(slip.arrearAmount)}
+                    </td>
+                  </tr>
+                )}
+
+                <tr className="bg-rule/50 font-bold border-t border-rule-strong">
+                  <td className="border-r border-rule-strong px-3 py-2.5 text-ink">
+                    মোট প্রদেয়
+                  </td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-ink">
+                    {bdt(totalPayable)}
+                  </td>
+                </tr>
+
+                <tr className="border-t border-rule">
+                  <td colSpan={2} className="px-3 py-2 text-ink-2">
+                    <span className="font-semibold">কথায়ঃ</span>{" "}
+                    {numberToBengaliWords(totalPayable)} টাকা মাত্র।
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
-
-          {/* Net */}
-          <table className="w-full text-sm border border-rule-strong rounded overflow-hidden mb-3">
-            <tbody>
-              <tr className="border-b border-rule">
-                <td className="px-3 py-2 text-ink-2">নীট বেতন</td>
-                <td className="px-3 py-2 text-right tabular-nums text-ink font-semibold w-48">
-                  {bdt(slip.netSalary)}
-                </td>
-              </tr>
-              {slip.arrearAmount > 0 && (
-                <tr className="border-b border-rule">
-                  <td className="px-3 py-2 text-ink-2">বকেয়া</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-ink font-semibold">
-                    {bdt(slip.arrearAmount)}
-                  </td>
-                </tr>
-              )}
-              <tr className="bg-rule/40 font-bold">
-                <td className="px-3 py-2.5 text-ink">মোট প্রদেয়</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-ink">
-                  {bdt(totalPayable)}
-                </td>
-              </tr>
-              <tr className="border-t border-rule">
-                <td colSpan={2} className="px-3 py-2 text-ink-2">
-                  <span className="font-semibold">কথায়ঃ</span>{" "}
-                  {numberToBengaliWords(totalPayable)} টাকা মাত্র।
-                </td>
-              </tr>
-            </tbody>
-          </table>
 
           {/* Notes */}
           {(slip.verdictNote || slip.arrearNote) && (
@@ -256,7 +298,7 @@ export default function PayslipDocument({
           </div>
 
           <p className="mt-8 text-[10px] text-ink-4 text-center">
-            ইস্যুর তারিখঃ {toBengaliDigits(slip.issueDate)} · কম্পিউটারে প্রস্তুতকৃত,
+            ইস্যুর তারিখঃ {toBengaliDigits(toDisplayDate(slip.issueDate))} · কম্পিউটারে প্রস্তুতকৃত,
             স্বাক্ষর ব্যতীত বৈধ নয়।
           </p>
         </div>

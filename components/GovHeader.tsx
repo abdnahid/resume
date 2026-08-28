@@ -28,6 +28,12 @@ export default function GovHeader({ org }: Props) {
         <div className="text-[14pt] font-semibold tracking-[0.01em]">
           {org.header_lines_bn[2]}
         </div>
+        {/* Only on documents issued by a particular office. */}
+        {org.office_bn && (
+          <div className="text-[11.5pt] font-medium text-ink-2">
+            {org.office_bn}
+          </div>
+        )}
         <div className="mt-1 font-body text-xs font-normal tracking-[0.02em] text-ink-3">
           <span className="font-bn">{org.address_bn}</span>
         </div>

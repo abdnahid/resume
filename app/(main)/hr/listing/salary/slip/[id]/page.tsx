@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { ORG } from "@/lib/db";
 import { getPayslip } from "@/lib/salary/slip";
 import { resolvePayrollScope } from "@/lib/salary/payroll";
 import PayslipDocument from "./_components/PayslipDocument";
@@ -42,5 +41,5 @@ export default async function PayslipPage({
   const slip = await getPayslip(id, month, year, scope);
   if (!slip) notFound();
 
-  return <PayslipDocument slip={slip} org={ORG} />;
+  return <PayslipDocument slip={slip} />;
 }

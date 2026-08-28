@@ -5,6 +5,11 @@ export type PersonName = {
 
 export type OrgInfo = {
   header_lines_bn: [string, string, string];
+  /**
+   * The specific office a document belongs to, printed under the institution
+   * name. Omitted on documents that speak for BSTI as a whole.
+   */
+  office_bn?: string;
   address_bn: string;
   website: string;
   email: string;

@@ -53,6 +53,26 @@ export const ORG: OrgInfo = {
   hotline: "16126",
 };
 
+/**
+ * The letterhead for a document issued by one office, rather than by BSTI as a
+ * whole — its own name, address and email, with the national hotline kept.
+ *
+ * A salary slip printed in Barishal that carried the Dhaka address would be
+ * wrong on its face.
+ */
+export function orgForOffice(office: {
+  nameBn: string;
+  addressBn: string;
+  email?: string | null;
+}): OrgInfo {
+  return {
+    ...ORG,
+    office_bn: office.nameBn,
+    address_bn: office.addressBn,
+    email: office.email || ORG.email,
+  };
+}
+
 export const DEFAULT_EMPLOYEE_ID = "20105010089"; // Shahed Reza (has full data)
 
 // ─── Defaults for optional fields ─────────────────────────────────────────────
