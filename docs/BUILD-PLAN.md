@@ -235,7 +235,6 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | Subsidiary using parent's purchase? (§10 #4) | Step 6 | — |
 | Password reset with no OTP (§10 #9) | Step 2 launch | — |
 | **NPS-2015 step grid** — the gazette table of grade × step basic amounts. The documented 5% annual increment does not reproduce the published maxima, so it cannot be derived. | Grade-and-step selection in fixation | 2026-08-28 |
-| **House rent floors for "other districts"** — `utils/rent.xlsx` gives them as identical to Dhaka's (5600/6400/9600/19500) while its percentages are the lowest of the three columns. Looks like a copy artifact. | Correct house rent outside the metros | 2026-08-28 |
 | **BSTI's actual allowance and deduction heads** — names, rates, and whether education allowance is per-child. Only house rent is seeded. | A usable fixation | 2026-08-28 |
 | **Mymensingh's house rent zone** — a divisional office, but not among the eight cities `rent.xlsx` names, so seeded as `other_district`. | Correct house rent for that office | 2026-08-28 |
 
