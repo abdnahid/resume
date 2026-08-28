@@ -164,6 +164,22 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   `puppeteer.launch()` directly. Puppeteer's bundled Chromium is often absent;
   the helper falls back to a system Chrome and honours
   `PUPPETEER_EXECUTABLE_PATH`.
+- **Each office banks for itself.** `Bank` + `OfficeBankAccount` hold the bank,
+  branch, branch address, the designation a letter is addressed to, and the
+  account a cheque is drawn on. The advice used to hardcode all four — Sonali,
+  Tejgaon, head office's account — so every office's letter went to Dhaka.
+  Managed at `/hr/listing/offices`; a superadmin edits any office, an
+  officeadmin only their own.
+- **The house rent zone is superadmin-only, even on an officeadmin's own
+  office.** It multiplies every salary there — moving an office into the Dhaka
+  zone lifts house rent from 40% to 50% of basic — so it is not a change the
+  office being paid gets to make for itself.
+- **An advice snapshots its bank block at issue.** A letter is a record of what
+  was sent, so a branch that changes later must not rewrite an old one. Rows
+  issued before those columns existed fall back to the office's current details.
+- **Seeded branch details are improvised** except Head Office's, and carry
+  `isPlaceholder`. The office setup screen flags them; saving an office is what
+  marks it confirmed. Do not treat them as real bank data.
 - **An issued advice freezes its month.** That is what keeps the stored totals
   and the entries recomputed from `SalaryProcess` from ever drifting apart, so
   no separate snapshot table is needed.

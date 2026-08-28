@@ -252,6 +252,13 @@ export type BankAdviceRecord = {
   officeNameEn: string | null;
   officeNameBn: string | null;
   officeAddressBn: string | null;
+  officeEmail: string | null;
+  /** The bank block as it stood when the advice was issued. */
+  bankNameBn: string | null;
+  branchNameBn: string | null;
+  branchAddressBn: string | null;
+  recipientDesignationBn: string | null;
+  drawnOnAccountNo: string | null;
 };
 
 export type BankAdviceEntry = {

@@ -78,6 +78,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/hr/listing/fixation": "Salary Fixation",
   "/hr/listing/salary-heads": "Salary Heads",
   "/hr/listing/cases": "Case Register",
+  "/hr/listing/offices": "Office Setup",
   "/hr/listing/salary": "Processed Salary",
   "/hr/listing/bank-advice": "Bank Advice",
   "/hr/listing/id-cards": "ID Card Authorization",

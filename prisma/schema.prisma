@@ -343,6 +343,7 @@ model Office {
   employees   Employee[]
   postings    Posting[]
   bankAdvices BankAdvice[]
+  bankAccount OfficeBankAccount?
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -647,6 +648,48 @@ model SalaryFixationItem {
   head   SalaryHead @relation(fields: [headId], references: [id])
 
   @@unique([fixationId, headId])
+}
+
+// ─── Banking ─────────────────────────────────────────────────────────────────
+
+/// A bank BSTI holds accounts with. Sonali Bank PLC is the only one today, but
+/// the letter should not hardcode it — a change of bank is then data, not code.
+model Bank {
+  id        Int      @id @default(autoincrement())
+  nameEn    String   @unique
+  nameBn    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  accounts OfficeBankAccount[]
+}
+
+/// The account an office draws salary cheques on, and the branch its advice is
+/// addressed to. One per office — that is all an advice needs.
+model OfficeBankAccount {
+  id Int @id @default(autoincrement())
+
+  /// Who the letter is addressed to at the branch, e.g. সহকারী মহাব্যবস্থাপক.
+  recipientDesignationBn String
+  branchNameBn           String
+  branchAddressBn        String
+  /// The office's current account, as printed in the letter.
+  accountNo              String
+
+  /// True while the branch details are improvised rather than confirmed
+  /// against the bank. The office setup screen flags these.
+  isPlaceholder Boolean @default(true)
+
+  officeId Int    @unique
+  office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  bankId Int
+  bank   Bank @relation(fields: [bankId], references: [id])
+
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 // ─── Case management ─────────────────────────────────────────────────────────
@@ -959,6 +1002,16 @@ model BankAdvice {
   /// written from now on carries an office — the routes require it.
   officeId Int?
   office   Office? @relation(fields: [officeId], references: [id])
+
+  /// The bank block as it stood when the letter was issued. Snapshotted because
+  /// an advice is a record of what was sent — re-rendering an old letter with a
+  /// branch that changed since would misstate it. Null on advices issued before
+  /// office bank details existed; those fall back to the office's current ones.
+  bankNameBn             String?
+  branchNameBn           String?
+  branchAddressBn        String?
+  recipientDesignationBn String?
+  drawnOnAccountNo       String?
 
   @@unique([month, year, officeId])
 }

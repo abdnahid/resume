@@ -679,7 +679,24 @@ function mapAdvice(r: {
   employeeCount: number;
   createdAt: Date;
   officeId: number | null;
-  office: { nameEn: string; nameBn: string; addressBn: string } | null;
+  office: {
+    nameEn: string;
+    nameBn: string;
+    addressBn: string;
+    email: string | null;
+    bankAccount: {
+      branchNameBn: string;
+      branchAddressBn: string;
+      recipientDesignationBn: string;
+      accountNo: string;
+      bank: { nameBn: string };
+    } | null;
+  } | null;
+  bankNameBn: string | null;
+  branchNameBn: string | null;
+  branchAddressBn: string | null;
+  recipientDesignationBn: string | null;
+  drawnOnAccountNo: string | null;
 }): BankAdviceRecord {
   return {
     id: r.id,
@@ -697,11 +714,32 @@ function mapAdvice(r: {
     officeNameEn: r.office?.nameEn ?? null,
     officeNameBn: r.office?.nameBn ?? null,
     officeAddressBn: r.office?.addressBn ?? null,
+    officeEmail: r.office?.email ?? null,
+    // Prefer what was snapshotted at issue; fall back to the office's current
+    // details only for advices issued before the snapshot existed.
+    bankNameBn: r.bankNameBn ?? r.office?.bankAccount?.bank.nameBn ?? null,
+    branchNameBn: r.branchNameBn ?? r.office?.bankAccount?.branchNameBn ?? null,
+    branchAddressBn:
+      r.branchAddressBn ?? r.office?.bankAccount?.branchAddressBn ?? null,
+    recipientDesignationBn:
+      r.recipientDesignationBn ??
+      r.office?.bankAccount?.recipientDesignationBn ??
+      null,
+    drawnOnAccountNo:
+      r.drawnOnAccountNo ?? r.office?.bankAccount?.accountNo ?? null,
   };
 }
 
 const ADVICE_OFFICE = {
-  office: { select: { nameEn: true, nameBn: true, addressBn: true } },
+  office: {
+    select: {
+      nameEn: true,
+      nameBn: true,
+      addressBn: true,
+      email: true,
+      bankAccount: { include: { bank: { select: { nameBn: true } } } },
+    },
+  },
 };
 
 export async function getBankAdvices(filter?: {

@@ -279,6 +279,94 @@ async function seedHouseRentHead() {
   });
 }
 
+// ─── Banking ─────────────────────────────────────────────────────────────────
+
+/**
+ * Banks BSTI deals with. Only Sonali is in use; the others exist so the office
+ * setup screen offers a choice rather than a single locked row, and so a change
+ * of bank is a selection rather than a migration.
+ */
+const BANKS = [
+  { nameEn: "Sonali Bank PLC", nameBn: "সোনালী ব্যাংক পিএলসি" },
+  { nameEn: "Janata Bank PLC", nameBn: "জনতা ব্যাংক পিএলসি" },
+  { nameEn: "Agrani Bank PLC", nameBn: "অগ্রণী ব্যাংক পিএলসি" },
+  { nameEn: "Rupali Bank PLC", nameBn: "রূপালী ব্যাংক পিএলসি" },
+];
+
+/**
+ * Branch details per office.
+ *
+ * **These are improvised.** Only Head Office's is real — it is the block the
+ * bank advice used to hardcode. Every other row is a plausible corporate branch
+ * in the office's own city, written so the letter is coherent, and marked
+ * `isPlaceholder` so the office setup screen can flag it. Confirm each against
+ * the bank before a letter goes out.
+ *
+ * Keyed by office id.
+ */
+const BRANCHES: Record<number, { branchBn: string; addressBn: string; account: string }> = {
+  6:  { branchBn: "তেজগাঁও শিল্প এলাকা শাখা", addressBn: "তেজগাঁও, ঢাকা-১২০৮", account: "০১২৪২০০০০০৫০৬" },
+  19: { branchBn: "তেজগাঁও শিল্প এলাকা শাখা", addressBn: "তেজগাঁও, ঢাকা-১২০৮", account: "০১২৪২০০০০০৫০৭" },
+  1:  { branchBn: "বরিশাল কর্পোরেট শাখা", addressBn: "সদর রোড, বরিশাল-৮২০০", account: "০১০১২০০০০১১০১" },
+  2:  { branchBn: "সিলেট কর্পোরেট শাখা", addressBn: "জিন্দাবাজার, সিলেট-৩১০০", account: "০১০২২০০০০১১০২" },
+  3:  { branchBn: "আগ্রাবাদ কর্পোরেট শাখা", addressBn: "আগ্রাবাদ বাণিজ্যিক এলাকা, চট্টগ্রাম-৪১০০", account: "০১০৩২০০০০১১০৩" },
+  4:  { branchBn: "রংপুর কর্পোরেট শাখা", addressBn: "স্টেশন রোড, রংপুর-৫৪০০", account: "০১০৪২০০০০১১০৪" },
+  5:  { branchBn: "ময়মনসিংহ কর্পোরেট শাখা", addressBn: "সদর, ময়মনসিংহ-২২০০", account: "০১০৫২০০০০১১০৫" },
+  7:  { branchBn: "কুমিল্লা কর্পোরেট শাখা", addressBn: "কান্দিরপাড়, কুমিল্লা-৩৫০০", account: "০১০৭২০০০০১১০৭" },
+  8:  { branchBn: "ফরিদপুর শাখা", addressBn: "মুজিব সড়ক, ফরিদপুর-৭৮০০", account: "০১০৮২০০০০১১০৮" },
+  9:  { branchBn: "কক্সবাজার শাখা", addressBn: "প্রধান সড়ক, কক্সবাজার-৪৭০০", account: "০১০৯২০০০০১১০৯" },
+  10: { branchBn: "কুষ্টিয়া শাখা", addressBn: "এন এস রোড, কুষ্টিয়া-৭০০০", account: "০১১০২০০০০১১১০" },
+  11: { branchBn: "নওগাঁ শাখা", addressBn: "সদর, নওগাঁ-৬৫০০", account: "০১১১২০০০০১১১১" },
+  12: { branchBn: "গাজীপুর শাখা", addressBn: "জয়দেবপুর, গাজীপুর-১৭০০", account: "০১১২২০০০০১১১২" },
+  13: { branchBn: "পটুয়াখালী শাখা", addressBn: "সদর রোড, পটুয়াখালী-৮৬০০", account: "০১১৩২০০০০১১১৩" },
+  14: { branchBn: "পাবনা শাখা", addressBn: "আব্দুল হামিদ রোড, পাবনা-৬৬০০", account: "০১১৪২০০০০১১১৪" },
+  15: { branchBn: "গোপালগঞ্জ শাখা", addressBn: "সদর, গোপালগঞ্জ-৮১০০", account: "০১১৫২০০০০১১১৫" },
+  16: { branchBn: "দিনাজপুর শাখা", addressBn: "স্টেশন রোড, দিনাজপুর-৫২০০", account: "০১১৬২০০০০১১১৬" },
+  17: { branchBn: "নোয়াখালী শাখা", addressBn: "মাইজদী কোর্ট, নোয়াখালী-৩৮০০", account: "০১১৭২০০০০১১১৭" },
+  18: { branchBn: "খুলনা কর্পোরেট শাখা", addressBn: "কে ডি এ এভিনিউ, খুলনা-৯১০০", account: "০১১৮২০০০০১১১৮" },
+  20: { branchBn: "নরসিংদী শাখা", addressBn: "সদর, নরসিংদী-১৬০০", account: "০১২০২০০০০১১২০" },
+  21: { branchBn: "যশোর শাখা", addressBn: "এম কে রোড, যশোর-৭৪০০", account: "০১২১২০০০০১১২১" },
+  22: { branchBn: "রাজশাহী কর্পোরেট শাখা", addressBn: "সাহেব বাজার, রাজশাহী-৬১০০", account: "০১২২২০০০০১১২২" },
+  23: { branchBn: "নারায়ণগঞ্জ কর্পোরেট শাখা", addressBn: "বি বি রোড, নারায়ণগঞ্জ-১৪০০", account: "০১২৩২০০০০১১২৩" },
+};
+
+/** Who the advice is addressed to at the branch. */
+const RECIPIENT_BN = "সহকারী মহাব্যবস্থাপক";
+
+async function seedBanking(): Promise<{ banks: number; accounts: number; placeholders: number }> {
+  for (const b of BANKS) {
+    await p.bank.upsert({ where: { nameEn: b.nameEn }, update: { nameBn: b.nameBn }, create: b });
+  }
+  const sonali = await p.bank.findUniqueOrThrow({ where: { nameEn: "Sonali Bank PLC" } });
+
+  const offices = await p.office.findMany({ select: { id: true } });
+  let accounts = 0;
+  for (const o of offices) {
+    const branch = BRANCHES[o.id];
+    if (!branch) continue;
+    // Only creates. An office whose details have been corrected on screen is
+    // never overwritten by a re-run.
+    await p.officeBankAccount.upsert({
+      where: { officeId: o.id },
+      update: {},
+      create: {
+        officeId: o.id,
+        bankId: sonali.id,
+        recipientDesignationBn: RECIPIENT_BN,
+        branchNameBn: branch.branchBn,
+        branchAddressBn: branch.addressBn,
+        accountNo: branch.account,
+        // Head Office's block is the one the letter already used; the rest are
+        // improvised and must be confirmed.
+        isPlaceholder: o.id !== 6,
+      },
+    });
+    accounts++;
+  }
+  const placeholders = await p.officeBankAccount.count({ where: { isPlaceholder: true } });
+  return { banks: BANKS.length, accounts, placeholders };
+}
+
 // ─── Backfill ────────────────────────────────────────────────────────────────
 
 /**
@@ -438,6 +526,12 @@ async function main() {
           : ""),
     );
   }
+
+  const banking = await seedBanking();
+  console.log(
+    `  banking          ${banking.banks} banks · ${banking.accounts} office accounts` +
+      (banking.placeholders ? ` (${banking.placeholders} improvised — confirm with the bank)` : ""),
+  );
 
   const advicesFixed = await backfillBankAdviceOffices();
   if (advicesFixed) {

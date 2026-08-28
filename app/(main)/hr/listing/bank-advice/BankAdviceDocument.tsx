@@ -9,17 +9,19 @@ import {
 import type { OrgInfo, BankAdviceRecord, BankAdviceEntry } from "@/lib/types";
 import { useRouter } from "next/navigation";
 
-// ─── Static recipient details (kept static per spec) ─────────────────────────
+// ─── Recipient ───────────────────────────────────────────────────────────────
+// The bank block used to be four hardcoded constants — Sonali Bank, Tejgaon
+// branch, and the head office account — so every office's letter was addressed
+// to Dhaka. It now comes from the advice, which snapshotted the issuing
+// office's bank details when the letter was generated.
 
-const RECIPIENT = {
-  title: "সহকারী মহাব্যবস্থাপক",
-  org: "সোনালী ব্যাংক পিএলসি",
-  branch: "তেজগাঁও শিল্প এলাকা শাখা",
-  address: "তেজগাঁও, ঢাকা-১২০৮।",
+const FALLBACK = {
+  designation: "সহকারী মহাব্যবস্থাপক",
+  bank: "সোনালী ব্যাংক পিএলসি",
+  branch: "—",
+  address: "—",
+  account: "—",
 };
-
-// BSTI main current account at Sonali Bank (static)
-const BSTI_ACCOUNT = "০১২৪২০০০০০৫০৬";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -31,7 +33,7 @@ function buildSubject(month: string, year: string) {
   return `${BENGALI_MONTHS[month] ?? month}, ${toBengaliDigits(year)} মাসের বেতন ভাতাদি পরিশোধের অর্থ ছাড়ের প্রসঙ্গে।`;
 }
 
-function buildBodyText(advice: BankAdviceRecord, entryCount: number) {
+function buildBodyText(advice: BankAdviceRecord, entryCount: number, account: string) {
   const bnMonth = BENGALI_MONTHS[advice.month] ?? advice.month;
   const bnYear = toBengaliDigits(advice.year);
   const bnChequeDate = toBengaliDigits(advice.chequeDate);
@@ -44,7 +46,7 @@ function buildBodyText(advice: BankAdviceRecord, entryCount: number) {
 
   return (
     `উপর্যুক্ত বিষয়ের প্রেক্ষিতে জানানো যাচ্ছে যে, বিএসটিআই ${officeName}-এর কর্মকর্তা ও ` +
-    `কর্মচারীদের ${bnMonth}, ${bnYear} মাসের বেতন ভাতা পরিশোধের নিমিত্তে চলতি হিসাব নং- ${BSTI_ACCOUNT} এর ` +
+    `কর্মচারীদের ${bnMonth}, ${bnYear} মাসের বেতন ভাতা পরিশোধের নিমিত্তে চলতি হিসাব নং- ${account} এর ` +
     `একটি চেক নং-${advice.chequeNo}, তারিখ: ${bnChequeDate} টাকা ${bnAmount} ` +
     `(${advice.totalInWords} টাকা মাত্র) নিম্নে বর্ণিত তালিকার ${bnCount} জন কর্মকর্তা ও ` +
     `কর্মচারীদের নামের পাশে বর্ণিত বেতনের অর্থ স্ব স্ব সঞ্চয়ী হিসাবে স্থানান্তরের জন্য অনুরোধ করা হলো। ` +
@@ -93,7 +95,26 @@ export default function BankAdviceDocument({
   const router = useRouter();
   const total = entries.reduce((s, e) => s + e.salaryAllowance, 0);
   const subject = buildSubject(advice.month, advice.year);
-  const bodyText = buildBodyText(advice, entries.length);
+
+  const recipient = {
+    designation: advice.recipientDesignationBn || FALLBACK.designation,
+    bank: advice.bankNameBn || FALLBACK.bank,
+    branch: advice.branchNameBn || FALLBACK.branch,
+    address: advice.branchAddressBn || FALLBACK.address,
+    account: advice.drawnOnAccountNo || FALLBACK.account,
+  };
+
+  const bodyText = buildBodyText(advice, entries.length, recipient.account);
+
+  // The issuing office's letterhead, not head office's.
+  const letterhead: OrgInfo = advice.officeNameBn
+    ? {
+        ...org,
+        office_bn: advice.officeNameBn,
+        address_bn: advice.officeAddressBn ?? org.address_bn,
+        email: advice.officeEmail || org.email,
+      }
+    : org;
 
   return (
     <div className="min-h-screen bg-muted py-8 px-4 print:bg-white print:p-0 print:m-0">
@@ -132,7 +153,7 @@ export default function BankAdviceDocument({
       <div className="max-w-4xl mx-auto bg-paper shadow-sm border border-rule print:shadow-none print:border-none font-bn-serif text-base leading-[1.7]">
         <div className="px-12 py-8 print:px-10 print:py-8">
           {/* Letterhead */}
-          <GovHeader org={org} />
+          <GovHeader org={letterhead} />
 
           {/* Memo + Date */}
           <div className="flex justify-between items-start mt-4 mb-4">
@@ -148,10 +169,10 @@ export default function BankAdviceDocument({
 
           {/* Recipient */}
           <div className="mb-5 text-ink-2 space-y-0.5">
-            <p className="font-semibold">{RECIPIENT.title}</p>
-            <p>{RECIPIENT.org}</p>
-            <p>{RECIPIENT.branch}</p>
-            <p>{RECIPIENT.address}</p>
+            <p className="font-semibold">{recipient.designation}</p>
+            <p>{recipient.bank}</p>
+            <p>{recipient.branch}</p>
+            <p>{recipient.address}।</p>
           </div>
 
           {/* Subject */}

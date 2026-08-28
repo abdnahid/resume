@@ -75,10 +75,23 @@ export async function POST(req: Request) {
 
   const office = await prisma.office.findUnique({
     where: { id: targetOffice },
-    select: { id: true, nameEn: true, nameBn: true },
+    select: {
+      id: true,
+      nameEn: true,
+      nameBn: true,
+      bankAccount: { include: { bank: true } },
+    },
   });
   if (!office) {
     return NextResponse.json({ error: "Office not found" }, { status: 404 });
+  }
+  if (!office.bankAccount) {
+    return NextResponse.json(
+      {
+        error: `${office.nameEn} has no salary bank account set, so the advice cannot be addressed. Set one under Office Setup first.`,
+      },
+      { status: 400 },
+    );
   }
 
   const deposit = isoToDisplay(String(depositDate));
@@ -143,6 +156,13 @@ export async function POST(req: Request) {
       month,
       year,
       officeId: office.id,
+      // Snapshotted, not looked up on render: an advice is a record of what was
+      // sent, so a branch that changes later must not rewrite an old letter.
+      bankNameBn: office.bankAccount.bank.nameBn,
+      branchNameBn: office.bankAccount.branchNameBn,
+      branchAddressBn: office.bankAccount.branchAddressBn,
+      recipientDesignationBn: office.bankAccount.recipientDesignationBn,
+      drawnOnAccountNo: office.bankAccount.accountNo,
       chequeNo,
       chequeDate: chequeDisplay,
       depositDate: deposit,
