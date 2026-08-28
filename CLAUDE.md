@@ -110,6 +110,51 @@ else is INTERNAL only.
 - **OTP is not enabled.** `sendOTP` throws by design. The schema already carries
   `mobileVerifiedAt`, so SMS drops in without a migration.
 
+## Salary
+
+Fixation is **versioned**, and that is the whole design. An employee has many
+`SalaryFixation` rows over their service, not one.
+
+- **One version per fiscal year is the ordinary case** — 1 July to 30 June. A
+  special increment, a promotion or a punishment mid-year raises a *new* version
+  from its own effective date; the version it displaces is truncated to the day
+  before and stamped `supersededAt`. Nothing is ever overwritten.
+- **A version that has been paid cannot be edited.** `SalaryProcess` rows point
+  at the version they were paid from, so editing one would restate a disbursed
+  salary. The route refuses with 409 and tells the operator to raise a new
+  version instead.
+- **A month is paid from the version in force on its last day**, not from
+  whatever is current now — so back-processing an earlier month after an
+  increment still pays that month's structure. `supersededAt` is deliberately
+  *not* a disqualifier there.
+- **The chain is fixation → `SalaryProcess` → bank advice.** `SalaryProcess`
+  snapshots basic/gross/deduction/net; the bank advice sums `netSalary` over a
+  month. Change what a fixation pays and everything downstream follows.
+
+**A fixation is basic salary plus heads.** Basic comes from the versioned
+`PayScale` grid (`grade` × `step`); every allowance and deduction is a
+`SalaryHead` attached as a `SalaryFixationItem`. Items snapshot the head's
+`basis` and `value` at save time, so editing a head later never rewrites a
+settled fixation.
+
+- **Heads are data, not code.** Superadmin manages them at
+  `/hr/listing/salary-heads`. Three bases: `fixed`, `percent_of_basic`, and
+  `house_rent_rule` — the last consults the government slab table for the
+  employee's office zone (`Office.houseRentZone`), a percent of basic with a
+  floor. Head management is superadmin-only on purpose: an officeadmin who could
+  invent allowances could raise their own office's pay.
+- **`lib/salary/` splits the same way `lib/store/` does (D9).**
+  `compute.ts` and `dates.ts` are Prisma-free and imported by the fixation
+  modal; `queries.ts` is the server half. Importing `queries.ts` from a client
+  component drags `pg` into the browser bundle.
+- **`computeSheet()` is called by both the preview and the route.** That is why
+  the sheet an operator approves is the sheet that gets stored — do not add a
+  second calculation path.
+- **The pay scale is versioned too.** A new gazetted scale is a new `PayScale`
+  row; old ones are never deleted, because historical fixations must keep
+  resolving against the scale they were made under. A scale with no steps loaded
+  is `verified: false`, and fixation falls back to typing basic by hand.
+
 ## Conventions that have bitten us
 
 These are decisions D9, D10 and D14 in the plan. The first two cost a broken
@@ -165,6 +210,7 @@ npm run seed:bds       # BDS store catalogue — 6 divisions, 55 standards
 npm run seed:org       # organogram
 npm run seed:grades    # NPS-2015 grades onto OrgPost
 npm run seed:employees # employees
+npm run seed:salary    # pay scale, house rent slabs, office zones (reads utils/*.xlsx)
 ```
 
 Seeds are idempotent — they upsert on natural keys and are safe to re-run.

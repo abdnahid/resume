@@ -12,6 +12,7 @@
     "seed:org": "tsx prisma/seed-organogram.ts",
     "seed:grades": "tsx prisma/seed-grades.ts",
     "seed:employees": "tsx prisma/seed-employees.ts",
+    "seed:salary": "tsx prisma/seed-salary.ts",
     "migrate:postings": "tsx prisma/migrate-postings.ts"
   },
   "dependencies": {

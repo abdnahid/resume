@@ -316,13 +316,15 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
                 <col className="w-36" />
                 <col />
                 <col className="w-56" />
+                <col className="w-28" />
+                <col className="w-28" />
                 <col className="w-32" />
                 <col className="w-32" />
                 <col className="w-36" />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {["ID", "Employee", "Office", "Net Salary", "Issue Date", "Actions"].map((h) => (
+                  {["ID", "Employee", "Office", "Gross", "Deductions", "Net Salary", "Issue Date", "Actions"].map((h) => (
                     <th
                       key={h}
                       className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-3 whitespace-nowrap"
@@ -364,6 +366,37 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
                           <p className="text-sm text-slate-600 font-bn-serif leading-snug">
                             {emp.current_job.office_bn}
                           </p>
+                        </td>
+
+                        {/* Gross — basic plus every allowance on the fixation */}
+                        <td className="px-4 py-4 align-top">
+                          {isProcessed ? (
+                            <div>
+                              <span className="text-sm text-slate-700 tabular-nums">
+                                {formatBDT(record!.gross_earning)}
+                              </span>
+                              <p className="text-[11px] text-slate-400 tabular-nums mt-0.5">
+                                basic {formatBDT(record!.basic_salary)}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-sm">—</span>
+                          )}
+                        </td>
+
+                        {/* Deductions */}
+                        <td className="px-4 py-4 align-top">
+                          {isProcessed ? (
+                            record!.total_deduction > 0 ? (
+                              <span className="text-sm text-red-600 tabular-nums">
+                                − {formatBDT(record!.total_deduction)}
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 text-sm">—</span>
+                            )
+                          ) : (
+                            <span className="text-slate-300 text-sm">—</span>
+                          )}
                         </td>
 
                         {/* Net Salary */}
@@ -430,7 +463,7 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-center text-slate-400 text-sm py-16">
+                    <td colSpan={8} className="text-center text-slate-400 text-sm py-16">
                       No records match your filters.
                     </td>
                   </tr>

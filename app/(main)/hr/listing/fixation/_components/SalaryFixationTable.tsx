@@ -208,6 +208,7 @@ export default function SalaryFixationTable({
                 <col />
                 <col className="w-5" />
                 <col className="w-32" />
+                <col className="w-32" />
                 <col className="w-65" />
                 <col className="w-10" />
                 <col className="w-10" />
@@ -219,6 +220,7 @@ export default function SalaryFixationTable({
                     "Employee",
                     "Grade",
                     "Basic Salary",
+                    "Net Salary",
                     "Valid Through",
                     "Status",
                     "Action",
@@ -279,6 +281,26 @@ export default function SalaryFixationTable({
                           <span className="text-sm font-medium text-slate-800 tabular-nums">
                             {formatBDT(emp.fixation.basicSalary)}
                           </span>
+                        </td>
+
+                        {/* Net Salary — basic plus allowances, less deductions.
+                            Equal to basic on a fixation raised before heads
+                            existed, which is correct: it had none. */}
+                        <td className="px-4 py-4 align-top">
+                          {emp.fixation.netSalary > 0 ? (
+                            <div>
+                              <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                                {formatBDT(emp.fixation.netSalary)}
+                              </span>
+                              {emp.fixation.totalDeduction > 0 && (
+                                <p className="text-[11px] text-red-500 tabular-nums mt-0.5">
+                                  − {formatBDT(emp.fixation.totalDeduction)} deducted
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-sm">—</span>
+                          )}
                         </td>
 
                         {/* Valid Through */}

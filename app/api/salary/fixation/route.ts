@@ -2,9 +2,37 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  computeSheet,
+  headsToSheetInputs,
+  MAX_GRADE,
+  MIN_GRADE,
+  type FixationReason,
+} from "@/lib/salary/compute";
+import {
+  dateKey,
+  dayBefore,
+  lastDayOfMonth,
+  toStoredDate,
+} from "@/lib/salary/dates";
+import {
+  getActiveScale,
+  getEmployeeFixations,
+  getFixationContext,
+} from "@/lib/salary/queries";
 
 /**
- * Create or update an employee's salary fixation.
+ * Create, or edit, one version of an employee's salary fixation.
+ *
+ * Fixation is versioned. The ordinary case is one version per fiscal year from
+ * 1 July, but a special increment, a promotion or a punishment mid-year raises
+ * a new version from its own effective date, and the version it displaces is
+ * truncated to the day before and marked superseded. Nothing is overwritten,
+ * because `SalaryProcess` rows point at the version they were paid from.
+ *
+ * The sheet is computed here with the same `computeSheet()` the preview in
+ * `FixationModal` calls, so what an operator checks is by construction what
+ * gets stored.
  *
  * Mirrors the gate on `/hr/listing/fixation` itself: superadmin sees every
  * office, officeadmin only their own. `middleware.ts` already refuses clients
@@ -12,66 +40,107 @@ import { prisma } from "@/lib/prisma";
  * does not depend on a cookie being readable (D12).
  */
 
-/** NPS-2015 runs grade 1 (highest) to grade 20. */
-const MIN_GRADE = 1;
-const MAX_GRADE = 20;
-
-/** Only these two are stored. `expired` is computed from `validThru` at read
- *  time, and `not_found` simply means no row exists — see `lib/db.ts`. */
+/** Only these two are stored. `expired` is computed at read time — see
+ *  `effectiveStatus()` in `lib/salary/queries.ts`. */
 const STORED_STATUSES = ["active", "inactive"] as const;
 type StoredStatus = (typeof STORED_STATUSES)[number];
 
-/**
- * Every other fixation date in this database is `MM-DD-YYYY`, so that is what
- * we store. `<input type="date">` hands us `YYYY-MM-DD`, so accept both.
- * Returns null when the string is not a real calendar date.
- */
-function toStoredDate(input: unknown): string | null {
-  if (typeof input !== "string") return null;
+const REASONS: FixationReason[] = [
+  "annual",
+  "initial",
+  "increment",
+  "promotion",
+  "punishment",
+  "correction",
+];
 
-  let y: number, m: number, d: number;
-  const ymd = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const mdy = input.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+type Gate =
+  | { ok: false; response: NextResponse }
+  | { ok: true; role: string; username: string };
 
-  if (ymd) [y, m, d] = [Number(ymd[1]), Number(ymd[2]), Number(ymd[3])];
-  else if (mdy) [m, d, y] = [Number(mdy[1]), Number(mdy[2]), Number(mdy[3])];
-  else return null;
-
-  // Reject 02-31 and friends — Date rolls them over silently.
-  const probe = new Date(Date.UTC(y, m - 1, d));
-  if (
-    probe.getUTCFullYear() !== y ||
-    probe.getUTCMonth() !== m - 1 ||
-    probe.getUTCDate() !== d
-  ) {
-    return null;
-  }
-
-  return `${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}-${y}`;
-}
-
-/** `MM-DD-YYYY` → comparable number. Assumes an already-validated string. */
-function dateKey(stored: string): number {
-  const [m, d, y] = stored.split("-").map(Number);
-  return y * 10000 + m * 100 + d;
-}
-
-export async function POST(req: Request) {
+/** Session + role + INTERNAL. Shared by both handlers. */
+async function gate(): Promise<Gate> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (
     !session ||
     (session.user as { accountType?: string }).accountType !== "INTERNAL"
   ) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
 
   const role = (session.user as { role?: string }).role ?? "employee";
   if (role !== "superadmin" && role !== "officeadmin") {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Only an administrator can set salary fixation." },
+        { status: 403 },
+      ),
+    };
+  }
+  return { ok: true, role, username: session.user.username ?? "" };
+}
+
+/**
+ * An officeadmin may only touch salaries inside their own office. Refusing
+ * with 404 rather than 403 keeps other offices' rosters unconfirmable.
+ */
+async function findEmployeeInScope(
+  employeeId: string,
+  role: string,
+  username: string,
+) {
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { id: true, officeId: true },
+  });
+  if (!employee) return null;
+
+  if (role === "officeadmin") {
+    const admin = await prisma.employee.findUnique({
+      where: { id: username },
+      select: { officeId: true },
+    });
+    if (!admin || admin.officeId !== employee.officeId) return null;
+  }
+  return employee;
+}
+
+// ─── GET: the form's context and the employee's version history ─────────────
+
+export async function GET(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.response;
+
+  const employeeId = new URL(req.url).searchParams.get("employeeId");
+  if (!employeeId) {
     return NextResponse.json(
-      { error: "Only an administrator can set salary fixation." },
-      { status: 403 },
+      { error: "employeeId is required" },
+      { status: 400 },
     );
   }
+
+  const employee = await findEmployeeInScope(employeeId, g.role, g.username);
+  if (!employee) {
+    return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+  }
+
+  const [context, versions] = await Promise.all([
+    getFixationContext(employeeId),
+    getEmployeeFixations(employeeId),
+  ]);
+
+  return NextResponse.json({ context, versions });
+}
+
+// ─── POST: save a version ──────────────────────────────────────────────────
+
+export async function POST(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.response;
 
   let body: Record<string, unknown>;
   try {
@@ -80,8 +149,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { employeeId, grade, basicSalary, validFrom, validThru, salaryStatus } =
-    body;
+  const {
+    employeeId,
+    fixationId,
+    grade,
+    step,
+    basicSalary,
+    validFrom,
+    validThru,
+    salaryStatus,
+    reason,
+    note,
+    items,
+  } = body;
 
   if (typeof employeeId !== "string" || !employeeId) {
     return NextResponse.json(
@@ -90,22 +170,65 @@ export async function POST(req: Request) {
     );
   }
 
+  const employee = await findEmployeeInScope(employeeId, g.role, g.username);
+  if (!employee) {
+    return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+  }
+
+  // ── Grade and step ───────────────────────────────────────────────────────
   const gradeNum = Number(grade);
   if (!Number.isInteger(gradeNum) || gradeNum < MIN_GRADE || gradeNum > MAX_GRADE) {
     return NextResponse.json(
-      { error: `Grade must be a whole number between ${MIN_GRADE} and ${MAX_GRADE}.` },
+      {
+        error: `Grade must be a whole number between ${MIN_GRADE} and ${MAX_GRADE}.`,
+      },
       { status: 400 },
     );
   }
 
-  const salaryNum = Number(basicSalary);
-  if (!Number.isInteger(salaryNum) || salaryNum <= 0) {
-    return NextResponse.json(
-      { error: "Basic salary must be a whole number greater than zero." },
-      { status: 400 },
+  const scale = await getActiveScale();
+
+  let stepNum: number | null = null;
+  let resolvedBasic: number;
+
+  if (step !== undefined && step !== null && step !== "") {
+    // Deriving basic from the scale grid.
+    stepNum = Number(step);
+    if (!Number.isInteger(stepNum) || stepNum < 0) {
+      return NextResponse.json({ error: "Step must be a whole number." }, { status: 400 });
+    }
+    if (!scale || !scale.verified) {
+      return NextResponse.json(
+        {
+          error:
+            "No verified pay scale is loaded, so basic salary cannot be derived from a step. Enter the basic salary instead.",
+        },
+        { status: 400 },
+      );
+    }
+    const cell = scale.steps.find(
+      (s) => s.grade === gradeNum && s.step === stepNum,
     );
+    if (!cell) {
+      return NextResponse.json(
+        { error: `The ${scale.code} grid has no step ${stepNum} for grade ${gradeNum}.` },
+        { status: 400 },
+      );
+    }
+    resolvedBasic = cell.amount;
+  } else {
+    // Typed by hand — the fallback while no verified scale exists.
+    const typed = Number(basicSalary);
+    if (!Number.isInteger(typed) || typed <= 0) {
+      return NextResponse.json(
+        { error: "Basic salary must be a whole number greater than zero." },
+        { status: 400 },
+      );
+    }
+    resolvedBasic = typed;
   }
 
+  // ── Dates ────────────────────────────────────────────────────────────────
   const from = toStoredDate(validFrom);
   const thru = toStoredDate(validThru);
   if (!from) {
@@ -121,45 +244,188 @@ export async function POST(req: Request) {
     );
   }
 
-  const status: StoredStatus = STORED_STATUSES.includes(
-    salaryStatus as StoredStatus,
-  )
+  const status: StoredStatus = STORED_STATUSES.includes(salaryStatus as StoredStatus)
     ? (salaryStatus as StoredStatus)
     : "active";
 
-  const employee = await prisma.employee.findUnique({
-    where: { id: employeeId },
-    select: { id: true, officeId: true },
-  });
-  if (!employee) {
+  const reasonValue: FixationReason = REASONS.includes(reason as FixationReason)
+    ? (reason as FixationReason)
+    : "annual";
+
+  // ── Heads ────────────────────────────────────────────────────────────────
+  if (items !== undefined && !Array.isArray(items)) {
+    return NextResponse.json({ error: "items must be an array." }, { status: 400 });
+  }
+
+  const selected: { headId: number; value: number | null }[] = [];
+  for (const raw of (items ?? []) as unknown[]) {
+    const it = raw as { headId?: unknown; value?: unknown };
+    const headId = Number(it.headId);
+    if (!Number.isInteger(headId)) {
+      return NextResponse.json({ error: "Each item needs a headId." }, { status: 400 });
+    }
+    const value =
+      it.value === null || it.value === undefined || it.value === ""
+        ? null
+        : Number(it.value);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      return NextResponse.json(
+        { error: "A head's amount or percentage cannot be negative." },
+        { status: 400 },
+      );
+    }
+    if (selected.some((s) => s.headId === headId)) {
+      return NextResponse.json(
+        { error: "The same head is listed twice." },
+        { status: 400 },
+      );
+    }
+    selected.push({ headId, value: value === null ? null : Math.round(value) });
+  }
+
+  const context = await getFixationContext(employeeId);
+  if (!context) {
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });
   }
 
-  // An officeadmin may only fix salaries inside their own office. Refusing with
-  // 404 rather than 403 keeps other offices' rosters unconfirmable.
-  if (role === "officeadmin") {
-    const admin = await prisma.employee.findUnique({
-      where: { id: session.user.username ?? "" },
-      select: { officeId: true },
+  const unknownHead = selected.find(
+    (s) => !context.heads.some((h) => h.id === s.headId),
+  );
+  if (unknownHead) {
+    return NextResponse.json(
+      { error: `Head ${unknownHead.headId} does not exist or is retired.` },
+      { status: 400 },
+    );
+  }
+
+  // ── The sheet — the same call the preview makes ─────────────────────────
+  const sheet = computeSheet({
+    basicSalary: resolvedBasic,
+    zone: context.zone,
+    heads: headsToSheetInputs(context.heads, selected),
+    slabs: context.slabs,
+  });
+
+  if (sheet.netSalary < 0) {
+    return NextResponse.json(
+      { error: "Deductions exceed gross pay — this fixation would pay a negative salary." },
+      { status: 400 },
+    );
+  }
+
+  // ── Versioning ───────────────────────────────────────────────────────────
+  const existing = await getEmployeeFixations(employeeId);
+
+  // Editing an existing version in place.
+  if (fixationId !== undefined && fixationId !== null) {
+    const target = existing.find((v) => v.id === Number(fixationId));
+    if (!target) {
+      return NextResponse.json({ error: "Fixation not found" }, { status: 404 });
+    }
+    if (target.isLocked) {
+      return NextResponse.json(
+        {
+          error:
+            "A salary month has already been processed against this fixation, so it can no longer be edited. Raise a new version instead — it will supersede this one from its own effective date.",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  const targetId = fixationId === undefined || fixationId === null ? null : Number(fixationId);
+
+  // Versions this one displaces: still in force, and overlapping the new range.
+  const overlapping = existing.filter(
+    (v) =>
+      v.id !== targetId &&
+      !v.supersededAt &&
+      dateKey(v.validFrom) <= dateKey(thru) &&
+      dateKey(from) <= dateKey(v.validThru),
+  );
+
+  // A month already paid against a version cannot fall inside the new range —
+  // that would silently restate a salary that has been disbursed.
+  for (const v of overlapping.filter((v) => v.isLocked)) {
+    const processed = await prisma.salaryProcess.findMany({
+      where: { fixationId: v.id },
+      select: { month: true, year: true },
     });
-    if (!admin || admin.officeId !== employee.officeId) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    const clash = processed.find((pr) => {
+      const end = lastDayOfMonth(pr.month, pr.year);
+      return end !== null && dateKey(end) >= dateKey(from);
+    });
+    if (clash) {
+      return NextResponse.json(
+        {
+          error: `${clash.month} ${clash.year} has already been processed against the current fixation. A new version must start after the last processed month.`,
+        },
+        { status: 409 },
+      );
     }
   }
 
   const data = {
     grade: gradeNum,
-    basicSalary: salaryNum,
+    step: stepNum,
+    basicSalary: resolvedBasic,
     validFrom: from,
     validThru: thru,
     salaryStatus: status,
+    reason: reasonValue,
+    note: typeof note === "string" && note.trim() ? note.trim() : null,
+    grossEarning: sheet.grossEarning,
+    totalDeduction: sheet.totalDeduction,
+    netSalary: sheet.netSalary,
+    scaleId: stepNum !== null && scale ? scale.id : (scale?.id ?? null),
   };
 
-  const saved = await prisma.salaryFixation.upsert({
-    where: { employeeId },
-    update: data,
-    create: { employeeId, ...data },
+  const lines = [...sheet.earnings, ...sheet.deductions].map((l) => ({
+    headId: l.headId,
+    kind: l.kind,
+    basis: l.basis,
+    value: l.basis === "house_rent_rule" ? null : (l.value ?? 0),
+    amount: l.amount,
+    sortOrder: l.sortOrder,
+  }));
+
+  const saved = await prisma.$transaction(async (tx) => {
+    // Truncate the versions this one displaces to the day before it starts.
+    // A version that started on or after the new one is fully replaced.
+    for (const v of overlapping) {
+      const startsBefore = dateKey(v.validFrom) < dateKey(from);
+      await tx.salaryFixation.update({
+        where: { id: v.id },
+        data: {
+          validThru: startsBefore ? dayBefore(from) : v.validThru,
+          supersededAt: new Date(),
+        },
+      });
+    }
+
+    if (targetId !== null) {
+      await tx.salaryFixationItem.deleteMany({ where: { fixationId: targetId } });
+      return tx.salaryFixation.update({
+        where: { id: targetId },
+        data: { ...data, items: { create: lines } },
+        include: { items: true },
+      });
+    }
+
+    return tx.salaryFixation.create({
+      data: {
+        employeeId,
+        ...data,
+        createdBy: g.username || null,
+        items: { create: lines },
+      },
+      include: { items: true },
+    });
   });
 
-  return NextResponse.json({ fixation: saved });
+  return NextResponse.json({
+    fixation: saved,
+    sheet,
+    superseded: overlapping.map((v) => v.id),
+  });
 }

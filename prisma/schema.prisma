@@ -71,6 +71,45 @@ enum SalaryStatus {
   inactive
 }
 
+/// Which side of a salary sheet a head sits on.
+enum SalaryHeadKind {
+  earning
+  deduction
+}
+
+/// How a head's amount is worked out at fixation time.
+enum SalaryHeadBasis {
+  /// A taka amount, taken from the head's default or overridden per employee.
+  fixed
+  /// A whole percent of the fixation's basic salary.
+  percent_of_basic
+  /// The government slab table — a percent of basic with a floor, chosen by the
+  /// employee's office zone. See `HouseRentRule`.
+  house_rent_rule
+}
+
+/// Why a fixation version was raised. Every version records one, so the reason
+/// an employee's pay changed mid-year is on the record rather than in a note.
+enum FixationReason {
+  /// The 1 July fiscal-year fixation — the ordinary case.
+  annual
+  initial
+  increment
+  promotion
+  punishment
+  correction
+}
+
+/// Zones of the government's monthly house rent rate table.
+/// Source: `utils/rent.xlsx`.
+enum HouseRentZone {
+  dhaka
+  /// Chittagong, Khulna, Rajshahi, Sylhet, Barisal, Rangpur, Gazipur,
+  /// Narayanganj — the table names these eight explicitly.
+  divisional_city
+  other_district
+}
+
 enum IdCardBatchStatus {
   pending
   issued
@@ -194,8 +233,8 @@ model User {
   accountType AccountType @default(INTERNAL)
 
   /// better-auth's phone-number plugin is mapped onto these two columns.
-  mobile         String?  @unique
-  mobileVerified Boolean  @default(false)
+  mobile           String?   @unique
+  mobileVerified   Boolean   @default(false)
   /// §2.6 — present and nullable from day one so OTP drops in without a migration.
   mobileVerifiedAt DateTime?
 
@@ -247,15 +286,19 @@ model Verification {
 // ─── Office ───────────────────────────────────────────────────────────────────
 
 model Office {
-  id         Int        @id
-  type       OfficeType
-  nameEn     String
-  nameBn     String
-  officeHead String
-  addressEn  String
-  addressBn  String
-  phone      String?
-  email      String?
+  id            Int            @id
+  type          OfficeType
+  nameEn        String
+  nameBn        String
+  /// Which column of the government house rent table this office falls in.
+  /// Null means unclassified — house rent cannot be computed for its staff
+  /// until someone sets it. See `npm run seed:salary`.
+  houseRentZone HouseRentZone?
+  officeHead    String
+  addressEn     String
+  addressBn     String
+  phone         String?
+  email         String?
 
   employees Employee[]
   postings  Posting[]
@@ -362,7 +405,7 @@ model Employee {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Sub-tables
-  fixation         SalaryFixation?
+  fixations        SalaryFixation[]
   salaryHistory    SalaryHistory[]
   salaryProcesses  SalaryProcess[]
   workHistory      WorkHistory[]
@@ -382,18 +425,172 @@ model Employee {
   disciplinaryActions DisciplinaryAction[]
 }
 
+// ─── Pay scale (versioned) ───────────────────────────────────────────────────
+
+/// A national pay scale. NPS-2015 is the one in force; when a new scale is
+/// gazetted it arrives as another row and nothing here is ever deleted — a
+/// fixation made in 2019 has to keep resolving against the scale it was made
+/// under, or the salary history stops reconciling.
+model PayScale {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  nameEn        String
+  nameBn        String
+  effectiveFrom String
+  effectiveTo   String?
+  /// The scale new fixations default to. Exactly one row should carry this.
+  isActive      Boolean  @default(false)
+  /// False until the step amounts have been loaded from the gazette and
+  /// checked. Fixation refuses to derive a basic salary from an unverified
+  /// scale and falls back to manual entry — see `lib/salary/compute.ts`.
+  verified      Boolean  @default(false)
+  incrementNote String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  steps          PayScaleStep[]
+  houseRentRules HouseRentRule[]
+  fixations      SalaryFixation[]
+
+  @@index([isActive])
+}
+
+/// One cell of the scale grid: what grade G pays at step S.
+/// Step 0 is the grade's initial basic; each further step is one annual
+/// increment.
+model PayScaleStep {
+  id     Int @id @default(autoincrement())
+  grade  Int
+  step   Int
+  amount Int
+
+  scaleId Int
+  scale   PayScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@unique([scaleId, grade, step])
+  @@index([scaleId, grade])
+}
+
+/// The government's monthly house rent slabs, keyed to the scale version they
+/// were published alongside. A percent of basic, floored at `minAmount`.
+/// Source: `utils/rent.xlsx`.
+model HouseRentRule {
+  id        Int           @id @default(autoincrement())
+  zone      HouseRentZone
+  minBasic  Int
+  /// Null means the open-ended top slab ("35501 and above").
+  maxBasic  Int?
+  percent   Int
+  minAmount Int
+
+  scaleId Int
+  scale   PayScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@unique([scaleId, zone, minBasic])
+  @@index([scaleId, zone])
+}
+
+// ─── Salary heads ────────────────────────────────────────────────────────────
+
+/// An allowance or deduction that can be attached to a fixation. The catalogue
+/// is data, not code — heads are created and edited from
+/// `/hr/listing/salary-heads`, so a new allowance needs no deployment.
+model SalaryHead {
+  id           Int             @id @default(autoincrement())
+  code         String          @unique
+  nameEn       String
+  nameBn       String
+  kind         SalaryHeadKind
+  basis        SalaryHeadBasis
+  /// Taka amount when `basis = fixed`, whole percent when `percent_of_basic`,
+  /// unused when `house_rent_rule` (the slab table supplies both).
+  defaultValue Int?
+  /// Pre-attached to every new fixation. An operator can still drop it from an
+  /// individual employee — this only decides what the form opens with.
+  isDefault    Boolean         @default(false)
+  /// Retired heads stay in the table so old fixations still name them, but
+  /// stop being offered on new ones.
+  isActive     Boolean         @default(true)
+  sortOrder    Int             @default(0)
+  note         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  items SalaryFixationItem[]
+
+  @@index([kind, sortOrder])
+}
+
 // ─── Salary Fixation ─────────────────────────────────────────────────────────
 
+/// One version of an employee's salary structure. The ordinary case is one per
+/// fiscal year from 1 July, but an increment, a promotion or a punishment mid-
+/// year raises a new version from its own effective date and marks the previous
+/// one superseded. Rows are never overwritten once a month has been processed
+/// against them.
 model SalaryFixation {
-  id           Int          @id @default(autoincrement())
+  id           Int            @id @default(autoincrement())
   grade        Int
+  /// Which rung of the grade the basic came from. Null when the basic was
+  /// typed by hand — no verified scale loaded, or a deliberate override.
+  step         Int?
   basicSalary  Int
   validFrom    String
   validThru    String
-  salaryStatus SalaryStatus @default(active)
+  salaryStatus SalaryStatus   @default(active)
+  reason       FixationReason @default(annual)
+  note         String?
 
-  employeeId String   @unique
+  /// The sheet as saved. Snapshotted so that editing a head's rate, or
+  /// correcting a scale, can never silently restate what an employee was
+  /// actually fixed at.
+  grossEarning   Int @default(0)
+  totalDeduction Int @default(0)
+  netSalary      Int @default(0)
+
+  /// Set when a later version takes over. The version in force is the row with
+  /// `supersededAt = null` whose date range covers today.
+  supersededAt DateTime?
+
+  createdAt DateTime @default(now())
+  // `@default(now())` as well as `@updatedAt`: the 11 fixation rows that
+  // predate versioning need a value for this column on backfill.
+  updatedAt DateTime @default(now()) @updatedAt
+  createdBy String?
+
+  scaleId Int?
+  scale   PayScale? @relation(fields: [scaleId], references: [id])
+
+  employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  items     SalaryFixationItem[]
+  processes SalaryProcess[]
+
+  @@index([employeeId, validFrom])
+  @@index([employeeId, supersededAt])
+}
+
+/// One line of a fixation's salary sheet. `basis` and `value` are snapshotted
+/// from the head at save time, so editing the head afterwards leaves settled
+/// fixations alone.
+model SalaryFixationItem {
+  id        Int             @id @default(autoincrement())
+  kind      SalaryHeadKind
+  basis     SalaryHeadBasis
+  /// The percent or taka figure the line was computed from. Null for
+  /// `house_rent_rule`, where the slab table supplies both inputs.
+  value     Int?
+  amount    Int
+  sortOrder Int             @default(0)
+
+  fixationId Int
+  fixation   SalaryFixation @relation(fields: [fixationId], references: [id], onDelete: Cascade)
+
+  headId Int
+  head   SalaryHead @relation(fields: [headId], references: [id])
+
+  @@unique([fixationId, headId])
 }
 
 // ─── Salary History ───────────────────────────────────────────────────────────
@@ -412,12 +609,24 @@ model SalaryHistory {
 
 // ─── Salary Process ───────────────────────────────────────────────────────────
 
+/// One employee's pay for one month, computed from the fixation in force on
+/// the last day of that month. The totals are snapshotted rather than derived
+/// on read, because the bank advice is generated from them and has to keep
+/// showing what was actually paid.
 model SalaryProcess {
-  id        Int    @id @default(autoincrement())
-  netSalary Int
-  issueDate String
-  month     String
-  year      String
+  id             Int    @id @default(autoincrement())
+  basicSalary    Int    @default(0)
+  grossEarning   Int    @default(0)
+  totalDeduction Int    @default(0)
+  netSalary      Int
+  issueDate      String
+  month          String
+  year           String
+
+  /// The fixation version this month was paid from. Kept so a payslip can be
+  /// rebuilt line by line even after a later version supersedes it.
+  fixationId Int?
+  fixation   SalaryFixation? @relation(fields: [fixationId], references: [id])
 
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)

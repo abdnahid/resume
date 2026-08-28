@@ -15,13 +15,37 @@ export type EmployeeStatus = "active" | "retired" | "prl" | "inactive";
 export type PostingStatus = "pending" | "active";
 export type SalaryStatus = "active" | "expired" | "not_found" | "inactive";
 
+/**
+ * The fixation version in force for an employee today. Fixation is versioned —
+ * an employee has many rows over their service — so this is the one that
+ * currently decides their pay, not the only one that exists. The full list is
+ * `getEmployeeFixations()` in `lib/salary/queries.ts`.
+ */
 export type FixationRecord = {
+  /** Null when the employee has no fixation at all. */
+  id: number | null;
   grade: number;
+  /** Rung of the grade the basic came from; null when typed by hand. */
+  step: number | null;
   basicSalary: number;
   validFrom: string;
   validThru: string;
   salaryStatus: SalaryStatus;
+  reason: FixationReason;
+  grossEarning: number;
+  totalDeduction: number;
+  netSalary: number;
+  /** How many versions this employee has on record. */
+  versionCount: number;
 };
+
+export type FixationReason =
+  | "annual"
+  | "initial"
+  | "increment"
+  | "promotion"
+  | "punishment"
+  | "correction";
 
 export type WorkHistoryRow = {
   sl: number;
@@ -187,6 +211,9 @@ export type EmployeeRecord = Employee & { org: OrgInfo };
 
 export type SalaryProcessRecord = {
   employee_id: string;
+  basic_salary: number;
+  gross_earning: number;
+  total_deduction: number;
   net_salary: number;
   issue_date: string; // MM-DD-YYYY
   month: string;

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck, Layers } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -18,6 +18,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Employees",        href: "/hr/listing",               icon: Users      },
       { label: "Salary Fixation",  href: "/hr/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
+      { label: "Salary Heads",     href: "/hr/listing/salary-heads",  icon: Layers,     roles: ["superadmin"] },
       { label: "Processed Salary", href: "/hr/listing/salary",        icon: Banknote   },
       { label: "Bank Advice",      href: "/hr/listing/bank-advice",   icon: FileIcon   },
       { label: "ID Cards",         href: "/hr/listing/id-cards",      icon: CreditCard, roles: ["superadmin"] },

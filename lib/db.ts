@@ -57,11 +57,18 @@ export const DEFAULT_EMPLOYEE_ID = "20105010089"; // Shahed Reza (has full data)
 // ─── Defaults for optional fields ─────────────────────────────────────────────
 
 const DEFAULT_FIXATION: FixationRecord = {
+  id: null,
   grade: 0,
+  step: null,
   basicSalary: 0,
   validFrom: "",
   validThru: "",
   salaryStatus: "not_found",
+  reason: "annual",
+  grossEarning: 0,
+  totalDeduction: 0,
+  netSalary: 0,
+  versionCount: 0,
 };
 
 const EMPTY_ADDRESS: AddressBlock = {
@@ -91,8 +98,10 @@ const BLOOD_GROUP: Record<string, string> = {
 function computeFixationStatus(
   validThru: string,
   stored: string,
+  supersededAt: Date | null,
 ): SalaryStatus {
   if (stored === "inactive") return "inactive";
+  if (supersededAt) return "expired";
 
   // Parse MM-DD-YYYY (employees.json / seed format) or YYYY-MM-DD
   let expiry: Date | null = null;
@@ -110,13 +119,64 @@ function computeFixationStatus(
   return "active";
 }
 
-function mapFixation(f: SalaryFixation): FixationRecord {
+/** `MM-DD-YYYY` → a comparable integer. Returns 0 for an unparseable string. */
+function fixationDateKey(stored: string): number {
+  const m = stored.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!m) return 0;
+  return Number(m[3]) * 10000 + Number(m[1]) * 100 + Number(m[2]);
+}
+
+/**
+ * Pick the fixation version in force today out of an employee's history, and
+ * flatten it to the single record the listing screens expect.
+ *
+ * "In force" is: not superseded, not inactive, and today falls inside its
+ * date range. If nothing covers today — the usual case for an employee whose
+ * last fixation lapsed — the most recent version is returned instead, so the
+ * table can show it as Expired rather than pretending no fixation exists.
+ */
+function mapFixation(rows: SalaryFixation[]): FixationRecord {
+  if (!rows.length) return DEFAULT_FIXATION;
+
+  const today = fixationDateKey(
+    (() => {
+      const t = new Date();
+      return `${String(t.getMonth() + 1).padStart(2, "0")}-${String(
+        t.getDate(),
+      ).padStart(2, "0")}-${t.getFullYear()}`;
+    })(),
+  );
+
+  const byRecency = [...rows].sort(
+    (a, b) => fixationDateKey(b.validFrom) - fixationDateKey(a.validFrom) || b.id - a.id,
+  );
+
+  const inForce =
+    byRecency.find(
+      (f) =>
+        !f.supersededAt &&
+        f.salaryStatus !== "inactive" &&
+        fixationDateKey(f.validFrom) <= today &&
+        today <= fixationDateKey(f.validThru),
+    ) ?? byRecency[0];
+
   return {
-    grade: f.grade,
-    basicSalary: f.basicSalary,
-    validFrom: f.validFrom,
-    validThru: f.validThru,
-    salaryStatus: computeFixationStatus(f.validThru, f.salaryStatus),
+    id: inForce.id,
+    grade: inForce.grade,
+    step: inForce.step,
+    basicSalary: inForce.basicSalary,
+    validFrom: inForce.validFrom,
+    validThru: inForce.validThru,
+    salaryStatus: computeFixationStatus(
+      inForce.validThru,
+      inForce.salaryStatus,
+      inForce.supersededAt,
+    ),
+    reason: inForce.reason,
+    grossEarning: inForce.grossEarning,
+    totalDeduction: inForce.totalDeduction,
+    netSalary: inForce.netSalary,
+    versionCount: rows.length,
   };
 }
 
@@ -249,7 +309,7 @@ function mapPostingToWorkHistory(p: Posting & {
 type FullDbEmployee = DbEmployee & {
   office: DbOffice;
   currentPosting: CurrentPosting | null;
-  fixation: SalaryFixation | null;
+  fixations: SalaryFixation[];
   salaryHistory: SalaryHistory[];
   workHistory: WorkHistory[];
   postings: (Posting & { orgPost: OrgPost | null; office: DbOffice })[];
@@ -266,7 +326,7 @@ type FullDbEmployee = DbEmployee & {
 type ListingDbEmployee = DbEmployee & {
   office: DbOffice;
   currentPosting: CurrentPosting | null;
-  fixation: SalaryFixation | null;
+  fixations: SalaryFixation[];
 };
 
 // ─── Core mapper ──────────────────────────────────────────────────────────────
@@ -355,7 +415,7 @@ function mapEmployee(
       present: mapAddress(full?.presentAddress),
       permanent: mapAddress(full?.permanentAddress),
     },
-    fixation: emp.fixation ? mapFixation(emp.fixation) : DEFAULT_FIXATION,
+    fixation: mapFixation(emp.fixations),
     salary_history: full ? full.salaryHistory.map(mapSalaryHistory) : [],
     work_history: full ? [...postingRows, ...legacyRows] : [],
     education: full ? full.educations.map(mapEducation) : [],
@@ -403,7 +463,7 @@ export async function getEmployees(options?: {
     where,
     include: {
       office: true,
-      fixation: true,
+      fixations: true,
       postings: CURRENT_POSTING_INCLUDE,
     },
     orderBy: { id: "asc" },
@@ -433,7 +493,7 @@ export async function getEmployeeRecord(id: string): Promise<EmployeeRecord> {
     where: { id },
     include: {
       office: true,
-      fixation: true,
+      fixations: true,
       postings: {
         include: {
           orgPost: { include: { unit: { include: { parent: true } } } },
@@ -489,6 +549,9 @@ export async function getSalaryProcessRecords(filter?: {
   });
   return rows.map((r) => ({
     employee_id: r.employeeId,
+    basic_salary: r.basicSalary,
+    gross_earning: r.grossEarning,
+    total_deduction: r.totalDeduction,
     net_salary: r.netSalary,
     issue_date: r.issueDate,
     month: r.month,
