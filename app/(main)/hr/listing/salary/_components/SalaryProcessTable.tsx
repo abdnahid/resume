@@ -172,6 +172,50 @@ type Props = {
 
 export default function SalaryProcessTable({ employees, salaryProcesses, role }: Props) {
   const canProcess = role === "superadmin" || role === "officeadmin";
+  const router = useRouter();
+
+  /** Employee id whose PDF is currently being built, so its button can wait. */
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [slipError, setSlipError] = useState<string | null>(null);
+
+  /**
+   * Fetch the slip PDF and hand it to the browser as a download.
+   *
+   * Puppeteer needs a moment, hence the per-row pending state. If the server
+   * cannot build it, the slip page opens instead so the operator can still
+   * print it from the browser.
+   */
+  async function downloadSlip(employeeId: string, month: string, year: string) {
+    setDownloading(employeeId);
+    setSlipError(null);
+    try {
+      const res = await fetch(
+        `/api/salary/slip/${employeeId}/pdf?month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`,
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not build the PDF");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payslip-${employeeId}-${month}-${year}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setSlipError(
+        `${e instanceof Error ? e.message : "Download failed"} — opening the slip so you can print it instead.`,
+      );
+      router.push(
+        `/hr/listing/salary/slip/${employeeId}?month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`,
+      );
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   // ── Period state ───────────────────────────────────────────────────────────
 
@@ -308,6 +352,12 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
           )}
         </div>
 
+        {slipError && (
+          <p className="mb-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-800">
+            {slipError}
+          </p>
+        )}
+
         {/* ── Table ──────────────────────────────────────────────────────── */}
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
@@ -427,9 +477,11 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                title="View Slip"
+                                title="View salary slip"
                                 onClick={() =>
-                                  console.log("View slip:", emp.id, selectedMonth, selectedYear)
+                                  router.push(
+                                    `/hr/listing/salary/slip/${emp.id}?month=${encodeURIComponent(record!.month)}&year=${encodeURIComponent(record!.year)}`,
+                                  )
                                 }
                                 className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
                               >
@@ -437,13 +489,16 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
                               </button>
                               <button
                                 type="button"
-                                title="Download"
-                                onClick={() =>
-                                  console.log("Download slip:", emp.id, selectedMonth, selectedYear)
-                                }
-                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 transition-all duration-150 cursor-pointer"
+                                title="Download salary slip as PDF"
+                                disabled={downloading === emp.id}
+                                onClick={() => downloadSlip(emp.id, record!.month, record!.year)}
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 disabled:cursor-wait transition-all duration-150 cursor-pointer"
                               >
-                                <Download size={14} />
+                                {downloading === emp.id ? (
+                                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                                ) : (
+                                  <Download size={14} />
+                                )}
                               </button>
                             </div>
                           ) : canProcess ? (

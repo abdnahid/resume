@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "@/lib/pdf";
 
 export async function GET(
   req: Request,
@@ -36,10 +36,7 @@ export async function GET(
     })
     .filter((c) => c.name && c.value);
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
+  const browser = await launchBrowser();
 
   try {
     const page = await browser.newPage();

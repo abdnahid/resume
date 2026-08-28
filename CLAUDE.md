@@ -154,6 +154,16 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   processed while a later one already is; `DELETE /api/salary/process` removes
   one so you can. Deleting is refused once the advice is issued, and any arrear
   the deleted month settled goes back to pending — otherwise the money vanishes.
+- **The salary slip is read, never recomputed.** `lib/salary/slip.ts` reads the
+  `SalaryProcess` row and the fixation version it names, so a slip keeps showing
+  what was actually paid after a later fixation supersedes that one.
+  `/hr/listing/salary/slip/[id]?month=&year=` serves both the on-screen view and
+  the PDF — its toolbar is `print:hidden`, so Puppeteer renders the same page
+  and there is no second layout to keep in step.
+- **PDF rendering goes through `launchBrowser()` in `lib/pdf.ts`**, never
+  `puppeteer.launch()` directly. Puppeteer's bundled Chromium is often absent;
+  the helper falls back to a system Chrome and honours
+  `PUPPETEER_EXECUTABLE_PATH`.
 - **An issued advice freezes its month.** That is what keeps the stored totals
   and the entries recomputed from `SalaryProcess` from ever drifting apart, so
   no separate snapshot table is needed.
