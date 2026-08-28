@@ -154,7 +154,6 @@ export async function POST(req: Request) {
     fixationId,
     grade,
     step,
-    basicSalary,
     validFrom,
     validThru,
     salaryStatus,
@@ -188,45 +187,43 @@ export async function POST(req: Request) {
 
   const scale = await getActiveScale();
 
-  let stepNum: number | null = null;
-  let resolvedBasic: number;
-
-  if (step !== undefined && step !== null && step !== "") {
-    // Deriving basic from the scale grid.
-    stepNum = Number(step);
-    if (!Number.isInteger(stepNum) || stepNum < 0) {
-      return NextResponse.json({ error: "Step must be a whole number." }, { status: 400 });
-    }
-    if (!scale || !scale.verified) {
-      return NextResponse.json(
-        {
-          error:
-            "No verified pay scale is loaded, so basic salary cannot be derived from a step. Enter the basic salary instead.",
-        },
-        { status: 400 },
-      );
-    }
-    const cell = scale.steps.find(
-      (s) => s.grade === gradeNum && s.step === stepNum,
+  // Basic salary is never typed. It is the government scale's figure for the
+  // grade and step, full stop — a half salary or a lost increment is a verdict
+  // applied on top, not a number an operator invents. `basicSalary` in the
+  // request body is ignored; only `step` decides.
+  if (!scale || !scale.verified) {
+    return NextResponse.json(
+      {
+        error:
+          "No verified pay scale is loaded, so basic salary cannot be resolved. Run `npm run seed:salary` first.",
+      },
+      { status: 400 },
     );
-    if (!cell) {
-      return NextResponse.json(
-        { error: `The ${scale.code} grid has no step ${stepNum} for grade ${gradeNum}.` },
-        { status: 400 },
-      );
-    }
-    resolvedBasic = cell.amount;
-  } else {
-    // Typed by hand — the fallback while no verified scale exists.
-    const typed = Number(basicSalary);
-    if (!Number.isInteger(typed) || typed <= 0) {
-      return NextResponse.json(
-        { error: "Basic salary must be a whole number greater than zero." },
-        { status: 400 },
-      );
-    }
-    resolvedBasic = typed;
   }
+
+  if (step === undefined || step === null || step === "") {
+    return NextResponse.json(
+      { error: "Choose a step — basic salary comes from the pay scale, not by hand." },
+      { status: 400 },
+    );
+  }
+
+  const stepNum = Number(step);
+  if (!Number.isInteger(stepNum) || stepNum < 0) {
+    return NextResponse.json({ error: "Step must be a whole number." }, { status: 400 });
+  }
+
+  const cell = scale.steps.find(
+    (s) => s.grade === gradeNum && s.step === stepNum,
+  );
+  if (!cell) {
+    return NextResponse.json(
+      { error: `The ${scale.code} grid has no step ${stepNum} for grade ${gradeNum}.` },
+      { status: 400 },
+    );
+  }
+  const scaleBasic = cell.amount;
+  const resolvedBasic = scaleBasic;
 
   // ── Dates ────────────────────────────────────────────────────────────────
   const from = toStoredDate(validFrom);
@@ -377,7 +374,7 @@ export async function POST(req: Request) {
     grossEarning: sheet.grossEarning,
     totalDeduction: sheet.totalDeduction,
     netSalary: sheet.netSalary,
-    scaleId: stepNum !== null && scale ? scale.id : (scale?.id ?? null),
+    scaleId: scale.id,
   };
 
   const lines = [...sheet.earnings, ...sheet.deductions].map((l) => ({

@@ -152,8 +152,17 @@ settled fixation.
   second calculation path.
 - **The pay scale is versioned too.** A new gazetted scale is a new `PayScale`
   row; old ones are never deleted, because historical fixations must keep
-  resolving against the scale they were made under. A scale with no steps loaded
-  is `verified: false`, and fixation falls back to typing basic by hand.
+  resolving against the scale they were made under.
+- **Basic salary is never typed.** It is the grid's figure for the grade and
+  step. A reduced salary is a court verdict applied on top, not a number an
+  operator invents. The route ignores any `basicSalary` in the request body.
+- **The NPS-2015 grid lives in `prisma/data/nps-2015.ts`** as the generating
+  rule, not 350 loose numbers: an increment is `rate`% of the *current* basic
+  **rounded up** to the next 10, where the rate is 3.75% at grade 2, 4% at
+  grades 3–4, 4.5% at grade 5 and 5% from grade 6 down. `buildGrade()` throws
+  if a grade's series does not land on its published maximum, so the seed fails
+  loudly rather than paying wrong money. `utils/payscale.xlsx` overrides it if
+  present.
 
 ## Conventions that have bitten us
 

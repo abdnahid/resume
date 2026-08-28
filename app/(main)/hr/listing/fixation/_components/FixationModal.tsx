@@ -129,7 +129,20 @@ export default function FixationModal({
         setMode("new");
         setReason("annual");
         setGrade(String(inForce.grade));
-        setStep(inForce.step === null ? "" : String(inForce.step));
+        // Versions fixed before the grid was loaded carry no step. Recover it
+        // when the stored basic happens to be a rung; otherwise leave it unset
+        // and let `offGridBasic` explain why.
+        setStep(
+          inForce.step !== null
+            ? String(inForce.step)
+            : String(
+                ctx.steps.find(
+                  (s) =>
+                    s.grade === inForce.grade &&
+                    s.amount === inForce.basicSalary,
+                )?.step ?? "",
+              ),
+        );
         setBasicSalary(String(inForce.basicSalary));
         setValidFrom(fy.from);
         setValidThru(fy.thru);
@@ -171,7 +184,16 @@ export default function FixationModal({
     if (next === "edit" && current) {
       setReason(current.reason);
       setGrade(String(current.grade));
-      setStep(current.step === null ? "" : String(current.step));
+      setStep(
+        current.step !== null
+          ? String(current.step)
+          : String(
+              (context?.steps ?? []).find(
+                (s) =>
+                  s.grade === current.grade && s.amount === current.basicSalary,
+              )?.step ?? "",
+            ),
+      );
       setBasicSalary(String(current.basicSalary));
       setValidFrom(current.validFrom);
       setValidThru(current.validThru);
@@ -193,16 +215,31 @@ export default function FixationModal({
   }
 
   // ── The sheet, recomputed on every keystroke ──────────────────────────────
+  // Basic salary is the scale's figure for the grade and step. It is never
+  // typed — a reduced salary is a court verdict applied on top, not a number
+  // an operator invents.
   const resolvedBasic = useMemo(() => {
-    if (hasScale && step !== "" && grade !== "") {
-      const cell = context!.steps.find(
-        (s) => s.grade === Number(grade) && s.step === Number(step),
-      );
-      if (cell) return cell.amount;
-    }
-    const typed = Number(basicSalary);
-    return Number.isFinite(typed) && typed > 0 ? Math.round(typed) : 0;
-  }, [hasScale, step, grade, basicSalary, context]);
+    if (!context || grade === "" || step === "") return 0;
+    const cell = context.steps.find(
+      (s) => s.grade === Number(grade) && s.step === Number(step),
+    );
+    return cell?.amount ?? 0;
+  }, [step, grade, context]);
+
+  /**
+   * A stored basic that is not a rung on the grade's scale — the six legacy
+   * rows fixed before the grid was loaded. Surfaced so the operator is told to
+   * put the employee back on scale rather than silently losing the old figure.
+   */
+  const offGridBasic = useMemo(() => {
+    if (!context || step !== "" || grade === "") return null;
+    const stored = Number(basicSalary);
+    if (!Number.isFinite(stored) || stored <= 0) return null;
+    const onGrid = context.steps.some(
+      (s) => s.grade === Number(grade) && s.amount === stored,
+    );
+    return onGrid ? null : stored;
+  }, [context, step, grade, basicSalary]);
 
   const sheet: SalarySheet | null = useMemo(() => {
     if (!context) return null;
@@ -219,14 +256,6 @@ export default function FixationModal({
       slabs: context.slabs,
     });
   }, [context, resolvedBasic, lines]);
-
-  // Keep the typed basic in step with the chosen scale rung, so the field
-  // always shows what will actually be stored.
-  useEffect(() => {
-    if (hasScale && step !== "" && resolvedBasic > 0) {
-      setBasicSalary(String(resolvedBasic));
-    }
-  }, [hasScale, step, resolvedBasic]);
 
   if (!employee) return null;
 
@@ -265,11 +294,9 @@ export default function FixationModal({
   // ── Validation before the preview stage ───────────────────────────────────
   function validate(): string | null {
     if (grade === "") return "Choose a grade.";
-    if (resolvedBasic <= 0) {
-      return hasScale
-        ? "Choose a step, or enter a basic salary."
-        : "Enter a basic salary.";
-    }
+    if (!hasScale) return "No verified pay scale is loaded.";
+    if (step === "") return "Choose a step — basic salary comes from the scale.";
+    if (resolvedBasic <= 0) return "That grade and step is not on the scale.";
     if (!validFrom) return "Choose an effective-from date.";
     if (!validThru) return "Choose a valid-through date.";
     if (validThru < validFrom) return "Valid through cannot be earlier than valid from.";
@@ -298,8 +325,7 @@ export default function FixationModal({
           employeeId: employee.id,
           fixationId: mode === "edit" && current ? current.id : undefined,
           grade,
-          step: hasScale && step !== "" ? step : undefined,
-          basicSalary: resolvedBasic,
+          step,
           validFrom,
           validThru,
           salaryStatus: status,
@@ -583,7 +609,9 @@ export default function FixationModal({
                 {context.scale && (
                   <span className="text-[11px] text-slate-400">
                     {context.scale.code}
-                    {!hasScale && " · scale not loaded"}
+                    {context.scale.incrementNote
+                      ? ` · ${context.scale.incrementNote}`
+                      : ""}
                   </span>
                 )}
               </div>
@@ -618,39 +646,45 @@ export default function FixationModal({
                     onChange={(e) => setStep(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none cursor-pointer disabled:bg-slate-50 disabled:text-slate-300 disabled:cursor-not-allowed"
                   >
-                    <option value="">
-                      {hasScale ? "By hand" : "Not available"}
+                    <option value="" disabled>
+                      {hasScale ? "Select" : "Scale not loaded"}
                     </option>
                     {gradeSteps.map((s) => (
                       <option key={s.step} value={s.step}>
-                        {s.step === 0 ? "Initial" : `Step ${s.step}`} ·{" "}
+                        {s.step === 0 ? "Initial" : `Increment ${s.step}`} ·{" "}
                         {s.amount.toLocaleString("en-BD")}
                       </option>
                     ))}
                   </select>
                 </label>
 
-                <label className="block">
+                <div className="block">
                   <span className="text-xs font-medium text-slate-500">
                     Amount (৳)
                   </span>
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    readOnly={hasScale && step !== ""}
-                    value={basicSalary}
-                    onChange={(e) => setBasicSalary(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 tabular-nums focus:border-slate-400 focus:outline-none read-only:bg-slate-50 read-only:text-slate-500"
-                  />
-                </label>
+                  <div className="mt-1 w-full rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-700">
+                    {resolvedBasic > 0 ? (
+                      resolvedBasic.toLocaleString("en-BD")
+                    ) : (
+                      <span className="text-slate-300">From the scale</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {!hasScale && (
                 <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  No verified pay scale is loaded, so basic salary is entered by
-                  hand and nothing checks it against the government grid. Load
-                  the gazette scale to switch on grade-and-step selection.
+                  No verified pay scale is loaded, so fixation cannot resolve a
+                  basic salary. Run <code>npm run seed:salary</code>.
+                </p>
+              )}
+
+              {hasScale && offGridBasic !== null && (
+                <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  The stored basic of ৳{offGridBasic.toLocaleString("en-BD")} is
+                  not a step on the grade {grade || "—"} scale — it predates the
+                  grid being loaded. Choose the correct step to put this employee
+                  back on scale.
                 </p>
               )}
             </div>

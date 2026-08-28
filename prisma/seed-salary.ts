@@ -21,6 +21,7 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as XLSX from "xlsx";
+import { buildGrid } from "./data/nps-2015";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import "dotenv/config";
@@ -146,53 +147,59 @@ async function seedHouseRent(scaleId: number): Promise<number> {
 // ─── Pay scale steps ─────────────────────────────────────────────────────────
 
 /**
- * Accepts either shape:
- *   long  — columns headed grade / step / amount (or "basic")
- *   grid  — first column the grade, remaining columns the steps in order
+ * Seed the pay scale grid.
+ *
+ * The NPS-2015 grid is generated from the verified rule in
+ * `prisma/data/nps-2015.ts` (read out of `utils/Increment-Chart-2015.pdf`),
+ * which asserts each grade lands on its published maximum.
+ *
+ * `utils/payscale.xlsx` still wins if present, so a future scale — or a
+ * correction — can be dropped in without a code change. It accepts either
+ * shape: columns headed grade / step / amount, or one row per grade with the
+ * steps across.
  */
-async function seedScaleSteps(scaleId: number): Promise<number> {
+async function seedScaleSteps(scaleId: number): Promise<{ count: number; source: string }> {
   const file = path.join(UTILS, "payscale.xlsx");
   const grid = readGrid(file);
-  if (!grid) {
-    console.log(
-      "  ! utils/payscale.xlsx not found — scale left unverified with no steps.\n" +
-        "    Fixation will ask for basic salary by hand until it is supplied.",
-    );
-    return 0;
-  }
 
-  const header = grid[0].map((c) => c.toLowerCase());
-  const gradeCol = header.findIndex((c) => c.includes("grade"));
-  const stepCol = header.findIndex((c) => c.includes("step"));
-  const amountCol = header.findIndex((c) => c.includes("amount") || c.includes("basic"));
+  let rows: { grade: number; step: number; amount: number }[];
+  let source: string;
 
-  const rows: { grade: number; step: number; amount: number }[] = [];
+  if (grid) {
+    const header = grid[0].map((c) => c.toLowerCase());
+    const gradeCol = header.findIndex((c) => c.includes("grade"));
+    const stepCol = header.findIndex((c) => c.includes("step"));
+    const amountCol = header.findIndex((c) => c.includes("amount") || c.includes("basic"));
 
-  if (gradeCol !== -1 && stepCol !== -1 && amountCol !== -1) {
-    // Long format.
-    for (const r of grid.slice(1)) {
-      const grade = Number(r[gradeCol]);
-      const step = Number(r[stepCol]);
-      const amount = Number(String(r[amountCol]).replace(/,/g, ""));
-      if (!Number.isInteger(grade) || !Number.isInteger(step) || !amount) continue;
-      rows.push({ grade, step, amount });
-    }
-  } else {
-    // Grid format: one row per grade, one column per step.
-    for (const r of grid.slice(1)) {
-      const grade = Number(String(r[0]).replace(/[^\d]/g, ""));
-      if (!Number.isInteger(grade) || grade < 1 || grade > 20) continue;
-      let step = 0;
-      for (const cell of r.slice(1)) {
-        const amount = Number(String(cell).replace(/,/g, ""));
-        if (!amount) continue;
+    rows = [];
+    if (gradeCol !== -1 && stepCol !== -1 && amountCol !== -1) {
+      for (const r of grid.slice(1)) {
+        const grade = Number(r[gradeCol]);
+        const step = Number(r[stepCol]);
+        const amount = Number(String(r[amountCol]).replace(/,/g, ""));
+        if (!Number.isInteger(grade) || !Number.isInteger(step) || !amount) continue;
         rows.push({ grade, step, amount });
-        step++;
+      }
+    } else {
+      for (const r of grid.slice(1)) {
+        const grade = Number(String(r[0]).replace(/[^\d]/g, ""));
+        if (!Number.isInteger(grade) || grade < 1 || grade > 20) continue;
+        let step = 0;
+        for (const cell of r.slice(1)) {
+          const amount = Number(String(cell).replace(/,/g, ""));
+          if (!amount) continue;
+          rows.push({ grade, step, amount });
+          step++;
+        }
       }
     }
+    if (!rows.length) throw new Error("payscale.xlsx: no usable rows found");
+    source = "utils/payscale.xlsx";
+  } else {
+    // Throws if any grade fails to land on its published maximum.
+    rows = buildGrid();
+    source = "the verified NPS-2015 chart rule";
   }
-
-  if (!rows.length) throw new Error("payscale.xlsx: no usable rows found");
 
   for (const row of rows) {
     await p.payScaleStep.upsert({
@@ -201,7 +208,7 @@ async function seedScaleSteps(scaleId: number): Promise<number> {
       create: { scaleId, ...row },
     });
   }
-  return rows.length;
+  return { count: rows.length, source };
 }
 
 // ─── Office zones ────────────────────────────────────────────────────────────
@@ -299,6 +306,34 @@ async function backfillLegacyFixations(): Promise<number> {
   return legacy.length;
 }
 
+/**
+ * Fixations made before the pay scale grid existed carry no `step`. Where the
+ * stored basic is exactly a rung of its grade, recover the step so the row is
+ * on scale; where it is not, leave it null — the fixation screen then asks an
+ * operator to pick the right step rather than guessing on their behalf.
+ */
+async function backfillFixationSteps(scaleId: number): Promise<{ matched: number; offGrid: number }> {
+  const [rows, steps] = await Promise.all([
+    p.salaryFixation.findMany({ where: { step: null }, select: { id: true, grade: true, basicSalary: true } }),
+    p.payScaleStep.findMany({ where: { scaleId } }),
+  ]);
+  let matched = 0;
+  let offGrid = 0;
+  for (const f of rows) {
+    const cell = steps.find((s) => s.grade === f.grade && s.amount === f.basicSalary);
+    if (!cell) {
+      offGrid++;
+      continue;
+    }
+    await p.salaryFixation.update({
+      where: { id: f.id },
+      data: { step: cell.step, scaleId },
+    });
+    matched++;
+  }
+  return { matched, offGrid };
+}
+
 /** Same story for salary months processed before the breakdown existed. */
 async function backfillLegacyProcesses(): Promise<number> {
   const legacy = await p.salaryProcess.findMany({
@@ -336,7 +371,7 @@ async function main() {
   console.log(`  pay scale        ${scale.code} (id ${scale.id})`);
 
   const steps = await seedScaleSteps(scale.id);
-  if (steps) console.log(`  scale steps      ${steps} rows`);
+  console.log(`  scale steps      ${steps.count} rows from ${steps.source}`);
 
   // A scale is only trusted once its grid is loaded.
   const stepCount = await p.payScaleStep.count({ where: { scaleId: scale.id } });
@@ -357,6 +392,16 @@ async function main() {
       `${zones.divisional_city.length} divisional city · ` +
       `${zones.other_district.length} other district`,
   );
+  const stepsFixed = await backfillFixationSteps(scale.id);
+  if (stepsFixed.matched || stepsFixed.offGrid) {
+    console.log(
+      `  fixation steps   ${stepsFixed.matched} recovered from the grid` +
+        (stepsFixed.offGrid
+          ? `, ${stepsFixed.offGrid} left off-grid (re-fix them on screen)`
+          : ""),
+    );
+  }
+
   const fixationsFixed = await backfillLegacyFixations();
   const processesFixed = await backfillLegacyProcesses();
   if (fixationsFixed || processesFixed) {
@@ -372,12 +417,6 @@ async function main() {
         "        divisional office, but rent.xlsx does not list Mymensingh among\n" +
         "        the eight cities in its middle column. Change it by hand if that\n" +
         "        is wrong.",
-    );
-  }
-  if (!stepCount) {
-    console.log(
-      "\n  ! The pay scale has no steps and is marked unverified.\n" +
-        "    Drop the gazette grid in utils/payscale.xlsx and re-run.",
     );
   }
   console.log("\nDone.");
