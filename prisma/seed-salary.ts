@@ -22,7 +22,7 @@ import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as XLSX from "xlsx";
 import { buildGrid } from "./data/nps-2015";
-import { numberToBengaliWords } from "../lib/bengali";
+import { generateMemoNo, numberToBengaliWords } from "../lib/bengali";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import "dotenv/config";
@@ -359,7 +359,10 @@ async function backfillLegacyProcesses(): Promise<number> {
  * Guarded on `officeId: null`, so a re-run never touches a real advice.
  */
 async function backfillBankAdviceOffices(): Promise<number> {
-  const head = await p.office.findFirst({ where: { type: "head" }, select: { id: true } });
+  const head = await p.office.findFirst({
+    where: { type: "head" },
+    select: { id: true, nameBn: true },
+  });
   if (!head) return 0;
 
   const legacy = await p.bankAdvice.findMany({ where: { officeId: null } });
@@ -373,6 +376,7 @@ async function backfillBankAdviceOffices(): Promise<number> {
       where: { id: a.id },
       data: {
         officeId: head.id,
+        memoNo: generateMemoNo(a.month, a.year, head.nameBn),
         totalAmount: total,
         totalInWords: numberToBengaliWords(total),
         employeeCount: rows.length,

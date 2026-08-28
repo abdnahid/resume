@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { numberToBengaliWords, generateMemoNo } from "@/lib/bengali";
 import {
+  employeesOfOffice,
   monthOrder,
   resolvePayrollScope,
   type PayrollScope,
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
   }
 
   const processes = await prisma.salaryProcess.findMany({
-    where: { month, year, employee: { officeId: office.id } },
+    where: { month, year, employee: employeesOfOffice(office.id) },
     select: { netSalary: true },
   });
   if (processes.length === 0) {
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
 
   const advice = await prisma.bankAdvice.create({
     data: {
-      memoNo: generateMemoNo(month, year),
+      memoNo: generateMemoNo(month, year, office.nameBn),
       month,
       year,
       officeId: office.id,

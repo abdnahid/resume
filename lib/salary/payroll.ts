@@ -30,6 +30,35 @@ export function monthOrder(month: string, year: string | number): number {
   return Number(year) * 12 + (MONTH_IDX[month] ?? 0);
 }
 
+// ─── Which employees belong to an office ─────────────────────────────────────
+
+/**
+ * The one definition of "this office's staff", used by every screen that scopes
+ * by office — the fixation list, payroll, and the bank advice.
+ *
+ * The **current posting** decides, not the legacy `Employee.officeId`: a
+ * transfer is recorded as a posting, and the old column can be left behind. One
+ * employee in this database is already in that state — `officeId` says one
+ * office while their live posting says another — and without this they would
+ * appear on one office's fixation screen and in another office's bank advice.
+ *
+ * Employees with no current posting at all fall back to `Employee.officeId`,
+ * so nobody becomes invisible to every office and therefore unpayable.
+ */
+export function employeesOfOffice(officeId: number) {
+  return {
+    OR: [
+      { postings: { some: { relievedAt: null, officeId } } },
+      {
+        AND: [
+          { postings: { none: { relievedAt: null } } },
+          { officeId },
+        ],
+      },
+    ],
+  };
+}
+
 // ─── Who may act on which office ─────────────────────────────────────────────
 
 export type PayrollScope = {
@@ -52,10 +81,20 @@ export async function resolvePayrollScope(
 
   const admin = await prisma.employee.findUnique({
     where: { id: username },
-    select: { officeId: true },
+    select: {
+      officeId: true,
+      postings: {
+        where: { relievedAt: null },
+        select: { officeId: true },
+        take: 1,
+      },
+    },
   });
   if (!admin) return null;
-  return { officeId: admin.officeId, pinned: true };
+  // Their live posting, falling back to the legacy column — the same rule
+  // `employeesOfOffice()` applies to everyone else.
+  const officeId = admin.postings[0]?.officeId ?? admin.officeId;
+  return { officeId, pinned: true };
 }
 
 /** Offices the user may run payroll for, for the picker. */
@@ -90,7 +129,7 @@ export async function processedMonths(
 ): Promise<ProcessedMonth[]> {
   const [rows, advices] = await Promise.all([
     prisma.salaryProcess.findMany({
-      where: { employee: { officeId } },
+      where: { employee: employeesOfOffice(officeId) },
       select: { month: true, year: true, netSalary: true, arrearAmount: true },
     }),
     prisma.bankAdvice.findMany({
@@ -170,9 +209,10 @@ export async function activeFixationCounts(
   officeIds: number[],
 ): Promise<Map<number, number>> {
   const employees = await prisma.employee.findMany({
-    where: { officeId: { in: officeIds } },
+    where: { OR: officeIds.map((id) => employeesOfOffice(id)) },
     select: {
       officeId: true,
+      postings: { where: { relievedAt: null }, select: { officeId: true }, take: 1 },
       fixations: {
         where: { supersededAt: null, salaryStatus: { not: "inactive" } },
         select: { validFrom: true, validThru: true },
@@ -193,7 +233,9 @@ export async function activeFixationCounts(
     const inForce = e.fixations.some(
       (f) => key(f.validFrom) <= today && today <= key(f.validThru),
     );
-    if (inForce) counts.set(e.officeId, (counts.get(e.officeId) ?? 0) + 1);
+    if (!inForce) continue;
+    const office = e.postings[0]?.officeId ?? e.officeId;
+    counts.set(office, (counts.get(office) ?? 0) + 1);
   }
   return counts;
 }

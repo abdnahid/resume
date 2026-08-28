@@ -58,8 +58,33 @@ export function numberToBengaliWords(n: number): string {
 }
 
 // #বিএসটিআই/ঢাকা/এপ্রিল/২০২৬
-export function generateMemoNo(month: string, year: string): string {
-  return `বিএসটিআই/ঢাকা/${BENGALI_MONTHS[month] ?? month}/${toBengaliDigits(year)}`;
+/**
+ * The short Bengali label that identifies an office in a memo number.
+ *
+ * Offices are named "<unit>, বিএসটিআই, <city>", so the city is the last
+ * segment — except where two offices share a city. Head Office and DMI are both
+ * in ঢাকা, so a unit that is not a generic "… কার্যালয়" is used instead of the
+ * city, which keeps every label distinct.
+ */
+export function memoOfficeLabel(officeNameBn: string): string {
+  const parts = officeNameBn.split(",").map((x) => x.trim()).filter(Boolean);
+  if (parts.length === 0) return officeNameBn;
+  const unit = parts[0];
+  if (!unit.includes("কার্যালয়")) return unit;
+  return parts[parts.length - 1];
+}
+
+/**
+ * A memo number for one office's advice. The office used to be hardcoded as
+ * ঢাকা, so every office's letter carried a Dhaka memo.
+ */
+export function generateMemoNo(
+  month: string,
+  year: string,
+  officeNameBn?: string | null,
+): string {
+  const office = officeNameBn ? memoOfficeLabel(officeNameBn) : "ঢাকা";
+  return `বিএসটিআই/${office}/${BENGALI_MONTHS[month] ?? month}/${toBengaliDigits(year)}`;
 }
 
 // 468502 → "৪৬৮,৫০২.০০"

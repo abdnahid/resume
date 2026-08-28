@@ -17,6 +17,7 @@ import {
   lastDayOfMonth,
   toStoredDate,
 } from "@/lib/salary/dates";
+import { employeesOfOffice, resolvePayrollScope } from "@/lib/salary/payroll";
 import {
   getActiveScale,
   getEmployeeFixations,
@@ -102,11 +103,17 @@ async function findEmployeeInScope(
   if (!employee) return null;
 
   if (role === "officeadmin") {
-    const admin = await prisma.employee.findUnique({
-      where: { id: username },
-      select: { officeId: true },
+    // Scoped by `employeesOfOffice()` — the same definition the fixation list,
+    // payroll and the bank advice use, so an officeadmin can act on exactly the
+    // people they can see. Comparing `Employee.officeId` directly disagreed
+    // with the list for anyone transferred by posting.
+    const scope = await resolvePayrollScope(role, username);
+    if (!scope || scope.officeId === null) return null;
+    const inScope = await prisma.employee.findFirst({
+      where: { AND: [{ id: employeeId }, employeesOfOffice(scope.officeId)] },
+      select: { id: true },
     });
-    if (!admin || admin.officeId !== employee.officeId) return null;
+    if (!inScope) return null;
   }
   return employee;
 }

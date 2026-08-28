@@ -135,6 +135,18 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   cheque and its letter names itself. An officeadmin is pinned to their own
   office whatever the request body says; a superadmin must name one.
   `lib/salary/payroll.ts` holds the scoping and sequencing.
+- **`employeesOfOffice()` is the one definition of "this office's staff"**, and
+  every office-scoped query uses it — the fixation list, payroll, the advice and
+  their routes. The **current posting** decides, not `Employee.officeId`: a
+  transfer is recorded as a posting and the legacy column can be left behind.
+  Someone with no current posting falls back to the column, so nobody becomes
+  invisible to every office and therefore unpayable. The two must never be
+  compared directly — an employee visible on one office's screen and payable by
+  another is the bug this prevents.
+- **Scope on the id you were given.** `getEmployees()` once filtered only when
+  `role: "officeadmin"` was passed *as well as* `officeId`, so a caller that
+  supplied only an `officeId` listed all 402 employees. It now scopes on
+  `officeId` or `employeeId` whenever either is present.
 - **Processing needs superadmin or officeadmin.** The gate was once
   `accountType === "INTERNAL"` alone, which let any member of staff run payroll
   for the whole institute.

@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { employeesOfOffice } from "./salary/payroll";
 import type {
   Employee,
   EmployeeRecord,
@@ -451,13 +452,21 @@ export async function getUserOfficeId(userId: string): Promise<number | null> {
 export async function getEmployees(options?: {
   role?: string;
   officeId?: number;
+  /** Scope to one employee — what a non-admin may see of the roster. */
+  employeeId?: string;
 }): Promise<Employee[]> {
-  // Office admin: only employees with a current (active or pending) posting at their office
-  // Super admin / unscoped: all employees
+  // Scoped whenever an officeId is given — it used to require `role` to be
+  // passed as well, so a caller that supplied only an officeId (the fixation
+  // screen) silently listed every employee in the institute.
+  //
+  // `employeesOfOffice()` is the shared definition: current posting first,
+  // falling back to the legacy `Employee.officeId` for anyone without one.
   const where =
-    options?.role === "officeadmin" && options.officeId !== undefined
-      ? { postings: { some: { relievedAt: null, officeId: options.officeId } } }
-      : undefined;
+    options?.officeId !== undefined
+      ? employeesOfOffice(options.officeId)
+      : options?.employeeId !== undefined
+        ? { id: options.employeeId }
+        : undefined;
 
   const rows = await prisma.employee.findMany({
     where,
@@ -538,7 +547,7 @@ export async function getSalaryProcessRecords(filter?: {
 }): Promise<SalaryProcessRecord[]> {
   const where =
     filter?.officeId !== undefined
-      ? { employee: { officeId: filter.officeId } }
+      ? { employee: employeesOfOffice(filter.officeId) }
       : filter?.employeeId !== undefined
         ? { employeeId: filter.employeeId }
         : undefined;
@@ -586,12 +595,22 @@ export async function getSalaryProcessMonths(filter?: {
   const [all, advices] = await Promise.all([
     prisma.salaryProcess.findMany({
       where: filter?.officeId !== undefined
-        ? { employee: { officeId: filter.officeId } }
+        ? { employee: employeesOfOffice(filter.officeId) }
         : undefined,
       select: {
         month: true,
         year: true,
-        employee: { select: { officeId: true, office: { select: { nameEn: true } } } },
+        employee: {
+          select: {
+            officeId: true,
+            office: { select: { nameEn: true } },
+            postings: {
+              where: { relievedAt: null },
+              select: { officeId: true, office: { select: { nameEn: true } } },
+              take: 1,
+            },
+          },
+        },
       },
     }),
     prisma.bankAdvice.findMany({ select: { month: true, year: true, officeId: true } }),
@@ -601,7 +620,9 @@ export async function getSalaryProcessMonths(filter?: {
 
   const map = new Map<string, SalaryProcessMonth>();
   for (const r of all) {
-    const officeId = r.employee.officeId;
+    const posting = r.employee.postings[0] ?? null;
+    const officeId = posting?.officeId ?? r.employee.officeId;
+    const officeName = posting?.office.nameEn ?? r.employee.office.nameEn;
     const key = `${r.month}|${r.year}|${officeId}`;
     const entry = map.get(key);
     if (entry) entry.count++;
@@ -611,7 +632,7 @@ export async function getSalaryProcessMonths(filter?: {
         year: r.year,
         count: 1,
         officeId,
-        officeNameEn: r.employee.office.nameEn,
+        officeNameEn: officeName,
         hasAdvice: issued.has(key),
       });
   }
@@ -697,7 +718,7 @@ export async function getBankAdviceEntries(
     where: {
       month,
       year,
-      ...(officeId != null ? { employee: { officeId } } : {}),
+      ...(officeId != null ? { employee: employeesOfOffice(officeId) } : {}),
     },
     include: {
       employee: {

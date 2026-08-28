@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { covers, dateKey, lastDayOfMonth, todayStored } from "@/lib/salary/dates";
 import {
+  employeesOfOffice,
   monthsBlocking,
   processedMonths,
   resolvePayrollScope,
@@ -227,7 +228,14 @@ export async function POST(req: Request) {
       include: { fixations: true },
     });
 
-    if (!emp || emp.officeId !== office.officeId) {
+    // Scoped the same way as the bulk path: an employee transferred by posting
+    // belongs to the office they are posted to, not the one the legacy column
+    // still names.
+    const inScope = await prisma.employee.findFirst({
+      where: { AND: [{ id: employeeId }, employeesOfOffice(office.officeId)] },
+      select: { id: true },
+    });
+    if (!emp || !inScope) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
     if (!emp.fixations.length) {
@@ -253,7 +261,7 @@ export async function POST(req: Request) {
 
   // ── Bulk mode, scoped to the office ────────────────────────────────────────
   const employees = await prisma.employee.findMany({
-    where: { officeId: office.officeId },
+    where: employeesOfOffice(office.officeId),
     include: { fixations: true },
   });
 
@@ -328,7 +336,7 @@ export async function DELETE(req: Request) {
   }
 
   const rows = await prisma.salaryProcess.findMany({
-    where: { month, year, employee: { officeId: office.officeId } },
+    where: { month, year, employee: employeesOfOffice(office.officeId) },
     select: { id: true },
   });
   if (!rows.length) {
