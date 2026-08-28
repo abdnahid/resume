@@ -27,7 +27,12 @@ import {
   type FixationVersion,
   type SalarySheet,
 } from "@/lib/salary/compute";
-import { fiscalYear, toInputDate } from "@/lib/salary/dates";
+import {
+  dateKey,
+  fiscalYear,
+  toInputDate,
+  toStoredDate,
+} from "@/lib/salary/dates";
 
 /**
  * Salary fixation, as a compilation of building blocks.
@@ -81,6 +86,10 @@ export default function FixationModal({
   const [grade, setGrade] = useState("");
   const [step, setStep] = useState("");
   const [basicSalary, setBasicSalary] = useState("");
+  // Always the stored `MM-DD-YYYY` form, never the `YYYY-MM-DD` an
+  // `<input type="date">` emits. Mixing the two silently broke both the
+  // date check and the verdict lookup, since neither can be compared or
+  // parsed without knowing which form it is holding.
   const [validFrom, setValidFrom] = useState("");
   const [validThru, setValidThru] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
@@ -318,7 +327,9 @@ export default function FixationModal({
     if (resolvedBasic <= 0) return "That grade and step is not on the scale.";
     if (!validFrom) return "Choose an effective-from date.";
     if (!validThru) return "Choose a valid-through date.";
-    if (validThru < validFrom) return "Valid through cannot be earlier than valid from.";
+    if (dateKey(validThru) < dateKey(validFrom)) {
+      return "Valid through cannot be earlier than valid from.";
+    }
     return null;
   }
 
@@ -638,8 +649,8 @@ export default function FixationModal({
                 </span>
                 <input
                   type="date"
-                  value={toInputDate(validFrom) || validFrom}
-                  onChange={(e) => setValidFrom(e.target.value)}
+                  value={toInputDate(validFrom)}
+                  onChange={(e) => setValidFrom(toStoredDate(e.target.value) ?? "")}
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 tabular-nums focus:border-slate-400 focus:outline-none cursor-pointer"
                 />
               </label>
@@ -650,8 +661,8 @@ export default function FixationModal({
                 </span>
                 <input
                   type="date"
-                  value={toInputDate(validThru) || validThru}
-                  onChange={(e) => setValidThru(e.target.value)}
+                  value={toInputDate(validThru)}
+                  onChange={(e) => setValidThru(toStoredDate(e.target.value) ?? "")}
                   className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 tabular-nums focus:border-slate-400 focus:outline-none cursor-pointer"
                 />
               </label>
