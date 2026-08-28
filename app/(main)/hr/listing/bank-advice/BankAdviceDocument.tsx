@@ -38,9 +38,12 @@ function buildBodyText(advice: BankAdviceRecord, entryCount: number) {
   const bnDepositDate = toBengaliDigits(advice.depositDate);
   const bnCount = toBengaliDigits(entryCount);
   const bnAmount = formatBDTBengali(advice.totalAmount);
+  // The letter used to say "প্রধান কার্যালয়" whatever office it was paying,
+  // while the list beneath it covered every office in the institute.
+  const officeName = advice.officeNameBn ?? "প্রধান কার্যালয়";
 
   return (
-    `উপর্যুক্ত বিষয়ের প্রেক্ষিতে জানানো যাচ্ছে যে, বিএসটিআই প্রধান কার্যালয়ের কর্মকর্তা ও ` +
+    `উপর্যুক্ত বিষয়ের প্রেক্ষিতে জানানো যাচ্ছে যে, বিএসটিআই ${officeName}-এর কর্মকর্তা ও ` +
     `কর্মচারীদের ${bnMonth}, ${bnYear} মাসের বেতন ভাতা পরিশোধের নিমিত্তে চলতি হিসাব নং- ${BSTI_ACCOUNT} এর ` +
     `একটি চেক নং-${advice.chequeNo}, তারিখ: ${bnChequeDate} টাকা ${bnAmount} ` +
     `(${advice.totalInWords} টাকা মাত্র) নিম্নে বর্ণিত তালিকার ${bnCount} জন কর্মকর্তা ও ` +
@@ -213,6 +216,11 @@ export default function BankAdviceDocument({
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-ink-2">
                       {formatBDT(row.salaryAllowance)}
+                      {row.arrearAmount > 0 && (
+                        <span className="block text-[10px] text-ink-3 font-normal">
+                          (বকেয়া {formatBDT(row.arrearAmount)} সহ)
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

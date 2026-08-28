@@ -2,7 +2,10 @@
 
 import { ArrowRight, PlusIcon, Zap } from "lucide-react";
 import { useState } from "react";
-import ProcessSalaryModal from "./ProcessSalaryModal";
+import ProcessSalaryModal, {
+  type PayrollOffice,
+  type ProcessedEntry,
+} from "./ProcessSalaryModal";
 import FixationModal from "./FixationModal";
 import {
   FilterSearch,
@@ -68,10 +71,14 @@ const EditIcon = () => (
 
 export default function SalaryFixationTable({
   employees,
-  lastProcessed,
+  offices,
+  processed,
+  pinned,
 }: {
   employees: Employee[];
-  lastProcessed: { month: string; year: string } | null;
+  offices: PayrollOffice[];
+  processed: ProcessedEntry[];
+  pinned: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [officeFilter, setOfficeFilter] = useState("");
@@ -84,7 +91,6 @@ export default function SalaryFixationTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [fixing, setFixing] = useState<Employee | null>(null);
 
-  const activeCount = employees.filter((e) => e.fixation.salaryStatus === "active").length;
 
   const OFFICES = [...new Set(employees.map((e) => e.current_job.office_bn))];
 
@@ -374,8 +380,9 @@ export default function SalaryFixationTable({
     <ProcessSalaryModal
       isOpen={modalOpen}
       onClose={() => setModalOpen(false)}
-      lastProcessed={lastProcessed}
-      activeCount={activeCount}
+      offices={offices}
+      processed={processed}
+      pinned={pinned}
     />
 
     <FixationModal

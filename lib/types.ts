@@ -224,6 +224,10 @@ export type SalaryProcessMonth = {
   month: string;
   year: string;
   count: number;
+  officeId: number;
+  officeNameEn: string;
+  /** True once the advice for this office-month has been issued. */
+  hasAdvice: boolean;
 };
 
 export type BankAdviceRecord = {
@@ -238,6 +242,11 @@ export type BankAdviceRecord = {
   totalInWords: string;
   employeeCount: number;
   createdAt: string;    // ISO string
+  /** Which office's staff this advice pays. Null only on pre-migration rows. */
+  officeId: number | null;
+  officeNameEn: string | null;
+  officeNameBn: string | null;
+  officeAddressBn: string | null;
 };
 
 export type BankAdviceEntry = {
@@ -245,7 +254,10 @@ export type BankAdviceEntry = {
   name: string;
   designation: string;
   accountNo: string;
+  /** Net pay for the month, arrears included — what the bank must transfer. */
   salaryAllowance: number;
+  /** Arrears inside that figure, shown so the letter explains an odd total. */
+  arrearAmount: number;
 };
 
 // ─── Director General ───────────────────────────────────────────────────────────

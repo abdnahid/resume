@@ -576,21 +576,50 @@ const MONTH_ORDER: Record<string, number> = {
   December: 12,
 };
 
-export async function getSalaryProcessMonths(): Promise<SalaryProcessMonth[]> {
-  const all = await prisma.salaryProcess.findMany({
-    select: { month: true, year: true },
-  });
+/**
+ * Processed months, broken down **by office** — payroll and the bank advice are
+ * both per office, so a month is only "done" for one office at a time.
+ */
+export async function getSalaryProcessMonths(filter?: {
+  officeId?: number;
+}): Promise<SalaryProcessMonth[]> {
+  const [all, advices] = await Promise.all([
+    prisma.salaryProcess.findMany({
+      where: filter?.officeId !== undefined
+        ? { employee: { officeId: filter.officeId } }
+        : undefined,
+      select: {
+        month: true,
+        year: true,
+        employee: { select: { officeId: true, office: { select: { nameEn: true } } } },
+      },
+    }),
+    prisma.bankAdvice.findMany({ select: { month: true, year: true, officeId: true } }),
+  ]);
+
+  const issued = new Set(advices.map((a) => `${a.month}|${a.year}|${a.officeId}`));
+
   const map = new Map<string, SalaryProcessMonth>();
   for (const r of all) {
-    const key = `${r.month}|${r.year}`;
+    const officeId = r.employee.officeId;
+    const key = `${r.month}|${r.year}|${officeId}`;
     const entry = map.get(key);
     if (entry) entry.count++;
-    else map.set(key, { month: r.month, year: r.year, count: 1 });
+    else
+      map.set(key, {
+        month: r.month,
+        year: r.year,
+        count: 1,
+        officeId,
+        officeNameEn: r.employee.office.nameEn,
+        hasAdvice: issued.has(key),
+      });
   }
   return [...map.values()].sort(
     (a, b) =>
       Number(b.year) - Number(a.year) ||
-      MONTH_ORDER[b.month] - MONTH_ORDER[a.month],
+      MONTH_ORDER[b.month] - MONTH_ORDER[a.month] ||
+      a.officeId - b.officeId,
   );
 }
 
@@ -608,6 +637,8 @@ function mapAdvice(r: {
   totalInWords: string;
   employeeCount: number;
   createdAt: Date;
+  officeId: number | null;
+  office: { nameEn: string; nameBn: string; addressBn: string } | null;
 }): BankAdviceRecord {
   return {
     id: r.id,
@@ -621,11 +652,23 @@ function mapAdvice(r: {
     totalInWords: r.totalInWords,
     employeeCount: r.employeeCount,
     createdAt: r.createdAt.toISOString(),
+    officeId: r.officeId,
+    officeNameEn: r.office?.nameEn ?? null,
+    officeNameBn: r.office?.nameBn ?? null,
+    officeAddressBn: r.office?.addressBn ?? null,
   };
 }
 
-export async function getBankAdvices(): Promise<BankAdviceRecord[]> {
+const ADVICE_OFFICE = {
+  office: { select: { nameEn: true, nameBn: true, addressBn: true } },
+};
+
+export async function getBankAdvices(filter?: {
+  officeId?: number;
+}): Promise<BankAdviceRecord[]> {
   const rows = await prisma.bankAdvice.findMany({
+    where: filter?.officeId !== undefined ? { officeId: filter.officeId } : undefined,
+    include: ADVICE_OFFICE,
     orderBy: [{ year: "desc" }, { id: "desc" }],
   });
   return rows.map(mapAdvice);
@@ -634,16 +677,28 @@ export async function getBankAdvices(): Promise<BankAdviceRecord[]> {
 export async function getBankAdviceById(
   id: number,
 ): Promise<BankAdviceRecord | null> {
-  const r = await prisma.bankAdvice.findUnique({ where: { id } });
+  const r = await prisma.bankAdvice.findUnique({
+    where: { id },
+    include: ADVICE_OFFICE,
+  });
   return r ? mapAdvice(r) : null;
 }
 
+/**
+ * The payment list behind one advice. Scoped to the office — an advice pays its
+ * own office's staff, never the institute's.
+ */
 export async function getBankAdviceEntries(
   month: string,
   year: string,
+  officeId?: number | null,
 ): Promise<BankAdviceEntry[]> {
   const records = await prisma.salaryProcess.findMany({
-    where: { month, year },
+    where: {
+      month,
+      year,
+      ...(officeId != null ? { employee: { officeId } } : {}),
+    },
     include: {
       employee: {
         include: {
@@ -666,6 +721,7 @@ export async function getBankAdviceEntries(
       designation,
       accountNo: r.employee.bankAccountNo ?? "",
       salaryAllowance: r.netSalary,
+      arrearAmount: r.arrearAmount,
     };
   });
 }

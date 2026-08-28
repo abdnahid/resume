@@ -22,6 +22,7 @@ import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as XLSX from "xlsx";
 import { buildGrid } from "./data/nps-2015";
+import { numberToBengaliWords } from "../lib/bengali";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import "dotenv/config";
@@ -349,6 +350,38 @@ async function backfillLegacyProcesses(): Promise<number> {
   return legacy.length;
 }
 
+/**
+ * Bank advices predate per-office scoping. The two that exist were labelled
+ * Dhaka in their memo while totalling every office's staff, so they are pinned
+ * to Head Office and their totals recomputed from that office's rows alone —
+ * which is what the letter always claimed to be.
+ *
+ * Guarded on `officeId: null`, so a re-run never touches a real advice.
+ */
+async function backfillBankAdviceOffices(): Promise<number> {
+  const head = await p.office.findFirst({ where: { type: "head" }, select: { id: true } });
+  if (!head) return 0;
+
+  const legacy = await p.bankAdvice.findMany({ where: { officeId: null } });
+  for (const a of legacy) {
+    const rows = await p.salaryProcess.findMany({
+      where: { month: a.month, year: a.year, employee: { officeId: head.id } },
+      select: { netSalary: true },
+    });
+    const total = rows.reduce((sum, r) => sum + r.netSalary, 0);
+    await p.bankAdvice.update({
+      where: { id: a.id },
+      data: {
+        officeId: head.id,
+        totalAmount: total,
+        totalInWords: numberToBengaliWords(total),
+        employeeCount: rows.length,
+      },
+    });
+  }
+  return legacy.length;
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -400,6 +433,11 @@ async function main() {
           ? `, ${stepsFixed.offGrid} left off-grid (re-fix them on screen)`
           : ""),
     );
+  }
+
+  const advicesFixed = await backfillBankAdviceOffices();
+  if (advicesFixed) {
+    console.log(`  bank advices     ${advicesFixed} pinned to Head Office and re-totalled`);
   }
 
   const fixationsFixed = await backfillLegacyFixations();

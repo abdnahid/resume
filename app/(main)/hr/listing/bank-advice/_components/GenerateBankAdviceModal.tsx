@@ -33,11 +33,15 @@ export default function GenerateBankAdviceModal({
   onClose,
   generatedAdvices,
   salaryMonths,
+  offices,
+  pinned,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  generatedAdvices: Pick<BankAdviceRecord, "month" | "year">[];
+  generatedAdvices: Pick<BankAdviceRecord, "month" | "year" | "officeId">[];
   salaryMonths: SalaryProcessMonth[];
+  offices: { id: number; nameEn: string; nameBn: string }[];
+  pinned: boolean;
 }) {
   const router = useRouter();
   const now = new Date();
@@ -45,10 +49,15 @@ export default function GenerateBankAdviceModal({
   const currentMonth = now.getMonth() + 1;
   const minYear = currentYear - 3;
 
-  const generatedSet = new Set(generatedAdvices.map((a) => `${a.month} ${a.year}`));
+  const [officeId, setOfficeId] = useState<number | null>(offices[0]?.id ?? null);
+
+  // Everything below is per office: an advice for Khulna says nothing about
+  // whether Gazipur's has been issued.
+  const officeAdvices = generatedAdvices.filter((a) => a.officeId === officeId);
+  const generatedSet = new Set(officeAdvices.map((a) => `${a.month} ${a.year}`));
   const lastGenerated =
-    generatedAdvices.length > 0
-      ? generatedAdvices.reduce((max, a) =>
+    officeAdvices.length > 0
+      ? officeAdvices.reduce((max, a) =>
           toOrder(a.month, Number(a.year)) > toOrder(max.month, Number(max.year))
             ? a
             : max
@@ -56,7 +65,9 @@ export default function GenerateBankAdviceModal({
       : null;
 
   const salaryMap = new Map(
-    salaryMonths.map((m) => [`${m.month} ${m.year}`, m.count])
+    salaryMonths
+      .filter((m) => m.officeId === officeId)
+      .map((m) => [`${m.month} ${m.year}`, m.count])
   );
 
   function startYear() {
@@ -69,6 +80,7 @@ export default function GenerateBankAdviceModal({
   const [displayYear, setDisplayYear] = useState(startYear);
   const [selected, setSelected] = useState<string | null>(null);
   const [chequeNo, setChequeNo] = useState("");
+  const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [depositDate, setDepositDate] = useState<Date | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BankAdviceRecord | null>(null);
@@ -78,9 +90,11 @@ export default function GenerateBankAdviceModal({
 
   useEffect(() => {
     if (isOpen) {
+      setOfficeId(offices[0]?.id ?? null);
       setDisplayYear(startYear());
       setSelected(null);
       setChequeNo("");
+      setChequeDate(undefined);
       setDepositDate(undefined);
       setResult(null);
       setError(null);
@@ -115,20 +129,31 @@ export default function GenerateBankAdviceModal({
     setError(null);
   }
 
+  function toISO(d: Date) {
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+
   async function handleGenerate() {
-    if (!selected || !chequeNo.trim() || !depositDate) return;
+    if (!selected || !chequeNo.trim() || !depositDate || officeId === null) return;
     const [month, year] = selected.split(" ");
-    // Convert Date to YYYY-MM-DD for the API (which stores as DD-MM-YYYY)
-    const dd = String(depositDate.getDate()).padStart(2, "0");
-    const mm = String(depositDate.getMonth() + 1).padStart(2, "0");
-    const depositDateISO = `${depositDate.getFullYear()}-${mm}-${dd}`;
+    const depositDateISO = toISO(depositDate);
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/bank-advice/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, year, chequeNo: chequeNo.trim(), depositDate: depositDateISO }),
+        body: JSON.stringify({
+          month,
+          year,
+          officeId,
+          chequeNo: chequeNo.trim(),
+          // Used to be silently stamped "today" by the server.
+          chequeDate: chequeDate ? toISO(chequeDate) : undefined,
+          depositDate: depositDateISO,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
@@ -147,7 +172,10 @@ export default function GenerateBankAdviceModal({
   // hasSalary is informational only — the API is the authoritative check.
   // Page data may be stale if salary was processed after this page loaded.
   const canGenerate =
-    !!selected && chequeNo.trim().length > 0 && depositDate !== undefined;
+    !!selected &&
+    officeId !== null &&
+    chequeNo.trim().length > 0 &&
+    depositDate !== undefined;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -172,7 +200,10 @@ export default function GenerateBankAdviceModal({
               <CheckCircle2 size={28} className="text-emerald-500 shrink-0" />
               <div>
                 <p className="font-semibold text-slate-900">Generated Successfully</p>
-                <p className="text-sm text-slate-500">{result.month} {result.year}</p>
+                <p className="text-sm text-slate-500">
+                  {result.month} {result.year}
+                  {result.officeNameEn ? ` · ${result.officeNameEn}` : ""}
+                </p>
               </div>
             </div>
 
@@ -214,6 +245,25 @@ export default function GenerateBankAdviceModal({
         ) : (
           /* ── Selection state ───────────────────────────────────────── */
           <div className="px-5 py-4 space-y-4">
+
+            {/* Office */}
+            <label className="block">
+              <span className="text-[11px] font-semibold text-slate-500">Office</span>
+              <select
+                value={officeId ?? ""}
+                disabled={pinned || offices.length <= 1}
+                onChange={(e) => {
+                  setOfficeId(Number(e.target.value));
+                  setSelected(null);
+                  setError(null);
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none cursor-pointer disabled:bg-slate-50 disabled:cursor-not-allowed"
+              >
+                {offices.map((o) => (
+                  <option key={o.id} value={o.id}>{o.nameEn}</option>
+                ))}
+              </select>
+            </label>
 
             {/* Year navigation */}
             <div className="flex items-center justify-between select-none">
@@ -316,6 +366,15 @@ export default function GenerateBankAdviceModal({
                     className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono text-slate-800 placeholder:text-slate-300 focus:border-primary/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
                   />
                 </div>
+
+                <SingleDatePopover
+                  key={`cheque-${calendarKey}`}
+                  fieldTitle="Cheque Date"
+                  placeholder="Pick cheque date"
+                  defaultDate={chequeDate}
+                  getSelectedDate={(date) => setChequeDate(date)}
+                  lang="en-GB"
+                />
 
                 <SingleDatePopover
                   key={calendarKey}

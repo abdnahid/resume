@@ -18,7 +18,13 @@ export default async function BankAdviceDocumentPage({
   const advice = await getBankAdviceById(numId);
   if (!advice) notFound();
 
-  const entries = await getBankAdviceEntries(advice.month, advice.year);
+  // Scoped to the advice's own office — the letter pays that office's staff and
+  // nobody else's.
+  const entries = await getBankAdviceEntries(
+    advice.month,
+    advice.year,
+    advice.officeId,
+  );
 
   return (
     <div>

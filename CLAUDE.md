@@ -130,6 +130,21 @@ Fixation is **versioned**, and that is the whole design. An employee has many
 - **The chain is fixation → `SalaryProcess` → bank advice.** `SalaryProcess`
   snapshots basic/gross/deduction/net; the bank advice sums `netSalary` over a
   month. Change what a fixation pays and everything downstream follows.
+- **Payroll is per office, end to end.** Processing, the month sequence and the
+  advice are all scoped to one office — each pays its own staff on its own
+  cheque and its letter names itself. An officeadmin is pinned to their own
+  office whatever the request body says; a superadmin must name one.
+  `lib/salary/payroll.ts` holds the scoping and sequencing.
+- **Processing needs superadmin or officeadmin.** The gate was once
+  `accountType === "INTERNAL"` alone, which let any member of staff run payroll
+  for the whole institute.
+- **Months run in order, and going back means undoing.** A month cannot be
+  processed while a later one already is; `DELETE /api/salary/process` removes
+  one so you can. Deleting is refused once the advice is issued, and any arrear
+  the deleted month settled goes back to pending — otherwise the money vanishes.
+- **An issued advice freezes its month.** That is what keeps the stored totals
+  and the entries recomputed from `SalaryProcess` from ever drifting apart, so
+  no separate snapshot table is needed.
 
 **A fixation is basic salary plus heads.** Basic comes from the versioned
 `PayScale` grid (`grade` × `step`); every allowance and deduction is a

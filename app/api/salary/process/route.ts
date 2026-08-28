@@ -3,6 +3,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { covers, dateKey, lastDayOfMonth, todayStored } from "@/lib/salary/dates";
+import {
+  monthsBlocking,
+  processedMonths,
+  resolvePayrollScope,
+  type PayrollScope,
+} from "@/lib/salary/payroll";
 
 /**
  * Process one month's salary, for one employee or for everyone.
@@ -118,19 +124,67 @@ async function payMonth(
   });
 }
 
-export async function POST(req: Request) {
-  // Internal-only mutation. `middleware.ts` already refuses clients and
-  // anonymous callers on /api/*; this is the check that does not depend on a
-  // cookie being readable.
+type Gate =
+  | { ok: false; response: NextResponse }
+  | { ok: true; role: string; username: string; scope: PayrollScope };
+
+/**
+ * Salary processing writes money, so it is superadmin or officeadmin only.
+ *
+ * This check used to be `accountType === "INTERNAL"` alone, which let any
+ * member of staff — including a plain `employee` — process payroll for the
+ * whole institute.
+ */
+async function gate(): Promise<Gate> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (
     !session ||
     (session.user as { accountType?: string }).accountType !== "INTERNAL"
   ) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
 
-  const { month, year, employeeId } = await req.json();
+  const role = (session.user as { role?: string }).role ?? "employee";
+  const username = session.user.username ?? "";
+  const scope = await resolvePayrollScope(role, username);
+  if (!scope) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Only an administrator can process salary." },
+        { status: 403 },
+      ),
+    };
+  }
+  return { ok: true, role, username, scope };
+}
+
+/**
+ * Which office this request is for. An officeadmin is pinned to their own
+ * whatever they send; a superadmin must name one, because payroll and the bank
+ * advice that follows it are both per office.
+ */
+function resolveOffice(
+  scope: PayrollScope,
+  requested: unknown,
+): { ok: true; officeId: number } | { ok: false; error: string } {
+  if (scope.pinned) return { ok: true, officeId: scope.officeId! };
+
+  const n = Number(requested);
+  if (!Number.isInteger(n)) {
+    return { ok: false, error: "Choose which office to process." };
+  }
+  return { ok: true, officeId: n };
+}
+
+export async function POST(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.response;
+
+  const { month, year, employeeId, officeId } = await req.json();
 
   if (!month || !year) {
     return NextResponse.json(
@@ -147,7 +201,24 @@ export async function POST(req: Request) {
     );
   }
 
+  const office = resolveOffice(g.scope, officeId);
+  if (!office.ok) return NextResponse.json({ error: office.error }, { status: 400 });
+
   const issueDate = todayIssueDate();
+  const months = await processedMonths(office.officeId);
+
+  // ── Sequence: never leave a gap behind a processed month ────────────────
+  const blocking = monthsBlocking(months, String(month), String(year));
+  if (blocking.length) {
+    const names = blocking.map((b) => `${b.month} ${b.year}`).join(", ");
+    return NextResponse.json(
+      {
+        error: `${names} ${blocking.length === 1 ? "has" : "have"} already been processed for this office. Delete ${blocking.length === 1 ? "it" : "them"} before processing ${month} ${year}.`,
+        blocking: blocking.map((b) => ({ month: b.month, year: b.year, hasAdvice: b.hasAdvice })),
+      },
+      { status: 409 },
+    );
+  }
 
   // ── Single-employee mode ───────────────────────────────────────────────────
   if (employeeId) {
@@ -156,7 +227,7 @@ export async function POST(req: Request) {
       include: { fixations: true },
     });
 
-    if (!emp) {
+    if (!emp || emp.officeId !== office.officeId) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
     if (!emp.fixations.length) {
@@ -177,27 +248,31 @@ export async function POST(req: Request) {
     }
 
     const { arrearAmount } = await payMonth(emp.id, fixation, month, year, issueDate);
-
     return NextResponse.json({ processed: 1, skipped: 0, arrearAmount, month, year });
   }
 
-  // ── Bulk mode ──────────────────────────────────────────────────────────────
+  // ── Bulk mode, scoped to the office ────────────────────────────────────────
   const employees = await prisma.employee.findMany({
+    where: { officeId: office.officeId },
     include: { fixations: true },
   });
 
   let processed = 0;
-  let skipped = 0;
   let arrearsPaid = 0;
-  const skippedIds: string[] = [];
+  const skipped: { id: string; name: string; reason: string }[] = [];
 
   for (const emp of employees) {
     const fixation = emp.fixations.length
       ? versionForMonthEnd(emp.fixations, monthEnd)
       : null;
     if (!fixation) {
-      skipped++;
-      skippedIds.push(emp.id);
+      skipped.push({
+        id: emp.id,
+        name: emp.nameEn,
+        reason: emp.fixations.length
+          ? `no fixation in force at the end of ${month} ${year}`
+          : "no salary fixation set",
+      });
       continue;
     }
 
@@ -208,11 +283,72 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     processed,
-    skipped,
+    skipped: skipped.length,
     arrearsPaid,
-    // Capped: an unfixed roster of 400 would otherwise return a wall of ids.
-    skippedIds: skippedIds.slice(0, 20),
+    // Named, so an operator can chase the gaps rather than guess at a count.
+    skippedDetail: skipped.slice(0, 50),
     month,
     year,
   });
+}
+
+/**
+ * Undo a processed month for an office.
+ *
+ * Needed because processing is strictly sequential: to go back and process a
+ * month you missed, the later ones have to come off first. Refused once the
+ * bank advice has been issued — that letter has gone to the bank.
+ *
+ * Any arrear settled by the deleted month is returned to pending, or the money
+ * would simply vanish.
+ */
+export async function DELETE(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.response;
+
+  const { month, year, officeId } = await req.json();
+  if (!month || !year) {
+    return NextResponse.json({ error: "month and year are required" }, { status: 400 });
+  }
+
+  const office = resolveOffice(g.scope, officeId);
+  if (!office.ok) return NextResponse.json({ error: office.error }, { status: 400 });
+
+  const advice = await prisma.bankAdvice.findFirst({
+    where: { month, year, officeId: office.officeId },
+    select: { id: true, memoNo: true },
+  });
+  if (advice) {
+    return NextResponse.json(
+      {
+        error: `The bank advice for ${month} ${year} (${advice.memoNo}) has already been issued. Delete the advice first if this really needs to be undone.`,
+      },
+      { status: 409 },
+    );
+  }
+
+  const rows = await prisma.salaryProcess.findMany({
+    where: { month, year, employee: { officeId: office.officeId } },
+    select: { id: true },
+  });
+  if (!rows.length) {
+    return NextResponse.json(
+      { error: `${month} ${year} has not been processed for this office.` },
+      { status: 404 },
+    );
+  }
+  const ids = rows.map((r) => r.id);
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Return any arrears this month settled to pending, so they are paid again
+    // by whichever month is processed next.
+    const restored = await tx.salaryArrear.updateMany({
+      where: { paidInProcessId: { in: ids } },
+      data: { paidAt: null, paidInProcessId: null },
+    });
+    const deleted = await tx.salaryProcess.deleteMany({ where: { id: { in: ids } } });
+    return { deleted: deleted.count, arrearsRestored: restored.count };
+  });
+
+  return NextResponse.json({ ...result, month, year });
 }

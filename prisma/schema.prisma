@@ -340,8 +340,9 @@ model Office {
   phone         String?
   email         String?
 
-  employees Employee[]
-  postings  Posting[]
+  employees   Employee[]
+  postings    Posting[]
+  bankAdvices BankAdvice[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -931,6 +932,16 @@ model Award {
 
 // ─── Bank Advice ──────────────────────────────────────────────────────────────
 
+/// One office's salary advice to the bank for one month.
+///
+/// Per office, not per institute: each office pays its own staff on its own
+/// cheque, and the letter names that office. A single national row could not
+/// represent that — the two legacy rows were labelled Dhaka while totalling
+/// every office's staff.
+///
+/// Once an advice exists for a month, that office's salary for it can no longer
+/// be deleted and re-processed, so the stored totals and the entries computed
+/// from `SalaryProcess` cannot drift apart.
 model BankAdvice {
   id            Int      @id @default(autoincrement())
   memoNo        String
@@ -944,7 +955,12 @@ model BankAdvice {
   employeeCount Int
   createdAt     DateTime @default(now())
 
-  @@unique([month, year])
+  /// Nullable only so the two pre-existing rows could be migrated. Every advice
+  /// written from now on carries an office — the routes require it.
+  officeId Int?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  @@unique([month, year, officeId])
 }
 
 // ─── Director General ──────────────────────────────────────────────────────────

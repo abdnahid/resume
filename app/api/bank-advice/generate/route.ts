@@ -3,87 +3,148 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { numberToBengaliWords, generateMemoNo } from "@/lib/bengali";
+import {
+  monthOrder,
+  resolvePayrollScope,
+  type PayrollScope,
+} from "@/lib/salary/payroll";
 
-const MONTH_IDX: Record<string, number> = {
-  January: 1, February: 2, March: 3, April: 4,
-  May: 5, June: 6, July: 7, August: 8,
-  September: 9, October: 10, November: 11, December: 12,
-};
+/**
+ * Generate one office's bank advice for one month.
+ *
+ * Per office: each office pays its own staff on its own cheque, and the letter
+ * names that office. Previously this summed every processed employee in the
+ * institute into a single letter addressed from Head Office.
+ *
+ * The month must already be processed, and advices are issued in order for an
+ * office, so the bank never receives a later month before an earlier one.
+ */
 
-function toOrder(month: string, year: string) {
-  return Number(year) * 12 + (MONTH_IDX[month] ?? 0);
-}
-
-function todayDDMMYYYY(): string {
-  const d = new Date();
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}-${mm}-${d.getFullYear()}`;
-}
-
-// <input type="date"> returns YYYY-MM-DD → convert to DD-MM-YYYY for storage
-function isoToDisplay(isoDate: string): string {
-  const [y, m, d] = isoDate.split("-");
-  return `${d}-${m}-${y}`;
+// `<input type="date">` gives YYYY-MM-DD; the documents are all DD-MM-YYYY.
+function isoToDisplay(isoDate: string): string | null {
+  const m = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const probe = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  if (
+    probe.getUTCFullYear() !== Number(m[1]) ||
+    probe.getUTCMonth() !== Number(m[2]) - 1 ||
+    probe.getUTCDate() !== Number(m[3])
+  ) {
+    return null;
+  }
+  return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const role = (session.user as { role?: string })?.role ?? "employee";
-  if (role !== "superadmin" && role !== "officeadmin") {
+  if (
+    !session ||
+    (session.user as { accountType?: string }).accountType !== "INTERNAL"
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { month, year, chequeNo, depositDate } = await req.json();
+  const role = (session.user as { role?: string }).role ?? "employee";
+  const scope: PayrollScope | null = await resolvePayrollScope(
+    role,
+    session.user.username ?? "",
+  );
+  if (!scope) {
+    return NextResponse.json(
+      { error: "Only an administrator can generate a bank advice." },
+      { status: 403 },
+    );
+  }
+
+  const { month, year, chequeNo, chequeDate, depositDate, officeId } =
+    await req.json();
+
   if (!month || !year || !chequeNo || !depositDate) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const existing = await prisma.bankAdvice.findUnique({
-    where: { month_year: { month, year } },
+  // An officeadmin is pinned to their own office whatever they send.
+  const targetOffice = scope.pinned ? scope.officeId! : Number(officeId);
+  if (!Number.isInteger(targetOffice)) {
+    return NextResponse.json(
+      { error: "Choose which office this advice is for." },
+      { status: 400 },
+    );
+  }
+
+  const office = await prisma.office.findUnique({
+    where: { id: targetOffice },
+    select: { id: true, nameEn: true, nameBn: true },
+  });
+  if (!office) {
+    return NextResponse.json({ error: "Office not found" }, { status: 404 });
+  }
+
+  const deposit = isoToDisplay(String(depositDate));
+  if (!deposit) {
+    return NextResponse.json({ error: "Deposit date is not a real date." }, { status: 400 });
+  }
+  // The cheque date used to be silently "today"; it is now entered, and falls
+  // back to today only when omitted.
+  const cheque = chequeDate ? isoToDisplay(String(chequeDate)) : null;
+  if (chequeDate && !cheque) {
+    return NextResponse.json({ error: "Cheque date is not a real date." }, { status: 400 });
+  }
+  const chequeDisplay =
+    cheque ??
+    (() => {
+      const d = new Date();
+      return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+    })();
+
+  const existing = await prisma.bankAdvice.findFirst({
+    where: { month, year, officeId: office.id },
+    select: { id: true },
   });
   if (existing) {
     return NextResponse.json(
-      { error: "Bank advice already generated for this month" },
-      { status: 409 }
+      { error: `A bank advice for ${month} ${year} already exists for ${office.nameEn}.` },
+      { status: 409 },
     );
   }
 
-  const processedCount = await prisma.salaryProcess.count({ where: { month, year } });
-  if (processedCount === 0) {
+  const processes = await prisma.salaryProcess.findMany({
+    where: { month, year, employee: { officeId: office.id } },
+    select: { netSalary: true },
+  });
+  if (processes.length === 0) {
     return NextResponse.json(
-      { error: "No processed salary found for this month" },
-      { status: 404 }
+      { error: `No salary has been processed for ${office.nameEn} in ${month} ${year}.` },
+      { status: 404 },
     );
   }
 
-  // Linear fence: can't skip ahead past lastGenerated + 1
-  const allAdvices = await prisma.bankAdvice.findMany({
+  // Advices go to the bank in order, per office.
+  const previous = await prisma.bankAdvice.findMany({
+    where: { officeId: office.id },
     select: { month: true, year: true },
   });
-  if (allAdvices.length > 0) {
-    const lastOrder = Math.max(...allAdvices.map((a) => toOrder(a.month, a.year)));
-    if (toOrder(month, year) > lastOrder + 1) {
+  if (previous.length > 0) {
+    const lastOrder = Math.max(...previous.map((a) => monthOrder(a.month, a.year)));
+    if (monthOrder(month, year) > lastOrder + 1) {
       return NextResponse.json(
-        { error: "Must generate in order. Complete the previous month first." },
-        { status: 400 }
+        { error: "Advices must be issued in order. Complete the previous month first." },
+        { status: 400 },
       );
     }
   }
 
-  const processes = await prisma.salaryProcess.findMany({ where: { month, year } });
   const totalAmount = processes.reduce((s, p) => s + p.netSalary, 0);
 
   const advice = await prisma.bankAdvice.create({
     data: {
-      memoNo:       generateMemoNo(month, year),
+      memoNo: generateMemoNo(month, year),
       month,
       year,
+      officeId: office.id,
       chequeNo,
-      chequeDate:   todayDDMMYYYY(),
-      depositDate:  isoToDisplay(depositDate),
+      chequeDate: chequeDisplay,
+      depositDate: deposit,
       totalAmount,
       totalInWords: numberToBengaliWords(totalAmount),
       employeeCount: processes.length,

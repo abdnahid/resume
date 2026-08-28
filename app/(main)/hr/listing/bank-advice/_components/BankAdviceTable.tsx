@@ -154,10 +154,16 @@ function DeleteButton({
 export default function BankAdviceTable({
   bankAdvices,
   salaryMonths,
+  offices,
+  pinned,
   role,
 }: {
   bankAdvices: BankAdviceRecord[];
   salaryMonths: SalaryProcessMonth[];
+  /** Offices this user may issue an advice for. Empty for a read-only viewer. */
+  offices: { id: number; nameEn: string; nameBn: string }[];
+  /** True for an officeadmin — the office cannot be changed. */
+  pinned: boolean;
   role: string;
 }) {
   const router = useRouter();
@@ -220,9 +226,12 @@ export default function BankAdviceTable({
   const canGenerate = role === "superadmin" || role === "officeadmin";
   const canDelete = role === "superadmin";
 
+  // Keyed by office: an advice is per office, so September being done for
+  // Khulna says nothing about September for Gazipur.
   const generatedAdvices = bankAdvices.map((a) => ({
     month: a.month,
     year: a.year,
+    officeId: a.officeId,
   }));
 
   return (
@@ -232,6 +241,8 @@ export default function BankAdviceTable({
         onClose={() => setModalOpen(false)}
         generatedAdvices={generatedAdvices}
         salaryMonths={salaryMonths}
+        offices={offices}
+        pinned={pinned}
       />
 
       <div className="min-h-screen bg-slate-50 p-6 font-sans">
@@ -288,6 +299,7 @@ export default function BankAdviceTable({
                     {[
                       "Memo No",
                       "Period",
+                      "Office",
                       "Employees",
                       "Total (BDT)",
                       "Cheque No",
@@ -315,6 +327,11 @@ export default function BankAdviceTable({
                         </td>
                         <td className="px-4 py-4 align-top font-medium text-slate-800">
                           {advice.month} {advice.year}
+                        </td>
+                        <td className="px-4 py-4 align-top text-slate-600 text-sm">
+                          {advice.officeNameEn ?? (
+                            <span className="text-amber-600">Unassigned</span>
+                          )}
                         </td>
                         <td className="px-4 py-4 align-top text-slate-600 tabular-nums">
                           {advice.employeeCount}
@@ -353,7 +370,7 @@ export default function BankAdviceTable({
                   ) : (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="text-center text-slate-400 text-sm py-16"
                       >
                         {bankAdvices.length === 0

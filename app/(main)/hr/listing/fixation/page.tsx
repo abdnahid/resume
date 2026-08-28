@@ -1,15 +1,14 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getEmployees, getSalaryProcessRecords } from "@/lib/db";
+import { getEmployees } from "@/lib/db";
+import {
+  activeFixationCounts,
+  payrollOffices,
+  processedMonths,
+  resolvePayrollScope,
+} from "@/lib/salary/payroll";
 import SalaryFixationTable from "./_components/SalaryFixationTable";
-
-const MONTH_IDX: Record<string, number> = {
-  January: 1, February: 2, March: 3, April: 4,
-  May: 5, June: 6, July: 7, August: 8,
-  September: 9, October: 10, November: 11, December: 12,
-};
 
 export default async function FixationPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -17,31 +16,47 @@ export default async function FixationPage() {
   if (role !== "superadmin" && role !== "officeadmin") redirect("/hr/listing");
 
   const username = session?.user?.username ?? "";
+  const scope = await resolvePayrollScope(role, username);
+  if (!scope) redirect("/hr/listing");
 
-  let officeId: number | undefined;
-  if (role === "officeadmin") {
-    const emp = await prisma.employee.findUnique({
-      where: { id: username },
-      select: { officeId: true },
-    });
-    officeId = emp?.officeId ?? undefined;
-  }
+  const officeId = scope.officeId ?? undefined;
 
-  const [employees, salaryProcesses] = await Promise.all([
+  const [employees, offices] = await Promise.all([
     getEmployees(officeId !== undefined ? { officeId } : undefined),
-    getSalaryProcessRecords(officeId !== undefined ? { officeId } : undefined),
+    payrollOffices(scope),
   ]);
 
-  // Find the most recent processed month
-  let lastProcessed: { month: string; year: string } | null = null;
-  for (const r of salaryProcesses) {
-    if (!lastProcessed) { lastProcessed = r; continue; }
-    const ry = Number(r.year), ly = Number(lastProcessed.year);
-    const rm = MONTH_IDX[r.month], lm = MONTH_IDX[lastProcessed.month];
-    if (ry > ly || (ry === ly && rm > lm)) lastProcessed = r;
-  }
+  // How many staff each office would actually pay, so the modal can say so
+  // before a run rather than after it.
+  const activeByOffice = await activeFixationCounts(offices.map((o) => o.id));
+
+  // Every month already processed, per office — the modal's month grid, and
+  // what makes an out-of-order run refusable.
+  const processed = (
+    await Promise.all(
+      offices.map(async (o) => {
+        const months = await processedMonths(o.id);
+        return months.map((m) => ({
+          month: m.month,
+          year: m.year,
+          officeId: o.id,
+          count: m.employeeCount,
+          hasAdvice: m.hasAdvice,
+        }));
+      }),
+    )
+  ).flat();
 
   return (
-    <SalaryFixationTable employees={employees} lastProcessed={lastProcessed} />
+    <SalaryFixationTable
+      employees={employees}
+      offices={offices.map((o) => ({
+        id: o.id,
+        nameEn: o.nameEn,
+        activeCount: activeByOffice.get(o.id) ?? 0,
+      }))}
+      processed={processed}
+      pinned={scope.pinned}
+    />
   );
 }
