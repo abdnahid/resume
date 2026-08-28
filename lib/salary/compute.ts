@@ -65,6 +65,8 @@ export type SheetLine = SheetHead & {
   amount: number;
   /** How the amount was arrived at, for the preview. */
   basisNote: string;
+  /** Zeroed by a verdict. The line still shows, so the loss is visible. */
+  suppressed?: boolean;
 };
 
 export type SalarySheet = {
@@ -76,6 +78,8 @@ export type SalarySheet = {
   netSalary: number;
   /** Anything an operator should look at before submitting. Never fatal. */
   warnings: string[];
+  /** What a court verdict changed, if one is in force. */
+  verdictNotes: string[];
 };
 
 // ─── House rent ──────────────────────────────────────────────────────────────
@@ -110,6 +114,163 @@ export function houseRentFor(
   return { amount, slab, flooredUp: amount > byPercent };
 }
 
+// ─── Court verdicts ──────────────────────────────────────────────────────────
+
+export type VerdictClauseType =
+  | "reduce_increments"
+  | "withhold_increment"
+  | "demote_grade"
+  | "basic_percent"
+  | "suppress_allowances"
+  | "suppress_head";
+
+export type VerdictClause = {
+  type: VerdictClauseType;
+  value: number | null;
+  headId: number | null;
+};
+
+export type ActiveVerdict = {
+  id: number;
+  orderNo: string;
+  summary: string;
+  /** See `CaseVerdict.reduceDerivedAllowances` — answers "rest remains same". */
+  reduceDerivedAllowances: boolean;
+  clauses: VerdictClause[];
+};
+
+export const CLAUSE_LABEL: Record<VerdictClauseType, string> = {
+  reduce_increments: "Reduce increments",
+  withhold_increment: "Withhold increment",
+  demote_grade: "Demote to grade",
+  basic_percent: "Percentage of basic",
+  suppress_allowances: "Cancel all allowances",
+  suppress_head: "Cancel one allowance or deduction",
+};
+
+/** What a clause's `value` means, for the entry form. */
+export const CLAUSE_VALUE_HINT: Record<VerdictClauseType, string | null> = {
+  reduce_increments: "How many increments to come down",
+  withhold_increment: "For how many years",
+  demote_grade: "The grade to be paid on",
+  basic_percent: "Percent of basic to pay (50 = half)",
+  suppress_allowances: null,
+  suppress_head: null,
+};
+
+export type VerdictEffect = {
+  /** The grade and step actually paid, after demotion and lost increments. */
+  grade: number;
+  step: number;
+  /** The scale figure for that grade and step, before any percentage cut. */
+  scaleBasic: number;
+  /** What is actually paid as basic. */
+  basicSalary: number;
+  /** The figure percentage-based heads are computed on. */
+  percentBase: number;
+  /** Heads that the verdict silences. */
+  suppressedHeadIds: number[];
+  suppressAllAllowances: boolean;
+  /** Human-readable account of what the verdict did, for the preview. */
+  notes: string[];
+};
+
+/**
+ * Work out what a verdict does to a grade and step, before any head is priced.
+ *
+ * Order is fixed and matters:
+ *   1. `demote_grade`   — changes which column of the grid we read
+ *   2. `reduce_increments` — moves down that column
+ *   3. resolve the scale basic for the resulting grade and step
+ *   4. `basic_percent`  — cuts what is paid, and (only if the verdict says so)
+ *                         the base that percentage allowances are priced on
+ *   5. suppression clauses — recorded here, applied when the sheet is built
+ *
+ * `withhold_increment` deliberately does nothing here: it constrains the *next*
+ * annual fixation rather than this one's arithmetic, and is surfaced to the
+ * operator instead.
+ */
+export function applyVerdict(
+  grade: number,
+  step: number,
+  steps: ScaleStep[],
+  verdict: ActiveVerdict | null,
+): VerdictEffect {
+  const notes: string[] = [];
+  let effGrade = grade;
+  let effStep = step;
+
+  const clauseOf = (t: VerdictClauseType) =>
+    verdict?.clauses.find((c) => c.type === t) ?? null;
+
+  const demote = clauseOf("demote_grade");
+  if (demote?.value != null) {
+    effGrade = demote.value;
+    notes.push(`Paid on grade ${effGrade} instead of grade ${grade}.`);
+  }
+
+  const reduce = clauseOf("reduce_increments");
+  if (reduce?.value != null && reduce.value > 0) {
+    const before = effStep;
+    effStep = Math.max(0, effStep - reduce.value);
+    notes.push(
+      `Down ${reduce.value} increment${reduce.value === 1 ? "" : "s"} — step ${before} to ${effStep}.`,
+    );
+  }
+
+  // A demoted grade may not have as many rungs; fall back to its highest.
+  const column = stepsForGrade(steps, effGrade);
+  let cell = column.find((s) => s.step === effStep);
+  if (!cell && column.length) {
+    cell = column[column.length - 1];
+    notes.push(
+      `Grade ${effGrade} has no step ${effStep}; paid at its top step ${cell.step}.`,
+    );
+    effStep = cell.step;
+  }
+  const scaleBasic = cell?.amount ?? 0;
+
+  let basicSalary = scaleBasic;
+  let percentBase = scaleBasic;
+
+  const pct = clauseOf("basic_percent");
+  if (pct?.value != null) {
+    basicSalary = Math.round((scaleBasic * pct.value) / 100);
+    notes.push(`Basic paid at ${pct.value}% — ৳${basicSalary.toLocaleString("en-BD")} of ৳${scaleBasic.toLocaleString("en-BD")}.`);
+    if (verdict?.reduceDerivedAllowances) {
+      percentBase = basicSalary;
+      notes.push("Percentage allowances follow the reduced basic.");
+    } else {
+      notes.push("Percentage allowances stay on the full scale basic.");
+    }
+  }
+
+  const suppressAll = Boolean(clauseOf("suppress_allowances"));
+  if (suppressAll) notes.push("All allowances cancelled.");
+
+  const suppressedHeadIds = (verdict?.clauses ?? [])
+    .filter((c) => c.type === "suppress_head" && c.headId != null)
+    .map((c) => c.headId as number);
+
+  const withhold = clauseOf("withhold_increment");
+  if (withhold?.value != null) {
+    notes.push(
+      `Increment withheld for ${withhold.value} year${withhold.value === 1 ? "" : "s"} — do not advance the step at the next annual fixation.`,
+    );
+  }
+
+  return {
+    grade: effGrade,
+    step: effStep,
+    scaleBasic,
+    basicSalary,
+    percentBase,
+    suppressedHeadIds,
+    suppressAllAllowances: suppressAll,
+    notes,
+  };
+}
+
 // ─── The sheet ───────────────────────────────────────────────────────────────
 
 export type ComputeInput = {
@@ -118,6 +279,18 @@ export type ComputeInput = {
   zone: HouseRentZone | null;
   heads: SheetHead[];
   slabs: HouseRentSlab[];
+  /**
+   * What percentage-based heads are priced on. Defaults to `basicSalary`, and
+   * differs only under a verdict that cuts the basic while leaving allowances
+   * on the full scale figure.
+   */
+  percentBase?: number;
+  /** Cancels every allowance. Basic and deductions stand. */
+  suppressAllAllowances?: boolean;
+  /** Cancels these heads by id, whichever side they sit on. */
+  suppressedHeadIds?: number[];
+  /** Shown on the sheet so the operator can see the verdict is in play. */
+  verdictNotes?: string[];
 };
 
 /**
@@ -129,10 +302,19 @@ export function computeSheet({
   zone,
   heads,
   slabs,
+  percentBase,
+  suppressAllAllowances = false,
+  suppressedHeadIds = [],
+  verdictNotes = [],
 }: ComputeInput): SalarySheet {
   const warnings: string[] = [];
   const earnings: SheetLine[] = [];
   const deductions: SheetLine[] = [];
+
+  // Percentage heads normally price off the basic being paid; a verdict can
+  // hold them on the full scale figure instead.
+  const pctBase = percentBase ?? basicSalary;
+  const suppressed = new Set(suppressedHeadIds);
 
   const ordered = [...heads].sort(
     (a, b) => a.sortOrder - b.sortOrder || a.headId - b.headId,
@@ -154,8 +336,11 @@ export function computeSheet({
 
       case "percent_of_basic": {
         const pct = head.value ?? 0;
-        amount = Math.max(0, Math.round((basicSalary * pct) / 100));
-        basisNote = `${pct}% of basic`;
+        amount = Math.max(0, Math.round((pctBase * pct) / 100));
+        basisNote =
+          pctBase === basicSalary
+            ? `${pct}% of basic`
+            : `${pct}% of the full scale basic`;
         if (head.value === null) {
           warnings.push(`${head.nameEn} has no percentage set — counted as ৳0.`);
         }
@@ -171,12 +356,12 @@ export function computeSheet({
           );
           break;
         }
-        const rent = houseRentFor(basicSalary, zone, slabs);
+        const rent = houseRentFor(pctBase, zone, slabs);
         if (!rent) {
           amount = 0;
           basisNote = "No rate slab covers this basic";
           warnings.push(
-            `${head.nameEn} could not be computed: no ${ZONE_LABEL[zone]} slab covers a basic of ৳${basicSalary.toLocaleString("en-BD")}.`,
+            `${head.nameEn} could not be computed: no ${ZONE_LABEL[zone]} slab covers a basic of ৳${pctBase.toLocaleString("en-BD")}.`,
           );
           break;
         }
@@ -188,7 +373,21 @@ export function computeSheet({
       }
     }
 
-    const line: SheetLine = { ...head, amount, basisNote };
+    // Suppression is applied last, and keeps the line visible at zero rather
+    // than dropping it — an operator has to be able to see what the verdict
+    // took away.
+    let suppressedBy: string | null = null;
+    if (suppressed.has(head.headId)) {
+      suppressedBy = "Cancelled by verdict";
+    } else if (suppressAllAllowances && head.kind === "earning") {
+      suppressedBy = "All allowances cancelled by verdict";
+    }
+    if (suppressedBy) {
+      basisNote = `${suppressedBy} (was ৳${amount.toLocaleString("en-BD")})`;
+      amount = 0;
+    }
+
+    const line: SheetLine = { ...head, amount, basisNote, suppressed: Boolean(suppressedBy) };
     if (head.kind === "earning") earnings.push(line);
     else deductions.push(line);
   }
@@ -212,6 +411,7 @@ export function computeSheet({
     totalDeduction,
     netSalary,
     warnings,
+    verdictNotes,
   };
 }
 
@@ -276,6 +476,18 @@ export type FixationContext = {
   heads: SalaryHeadRecord[];
   zone: HouseRentZone | null;
   officeName: string;
+  /**
+   * Every verdict against this employee that has not been revoked, with the
+   * window it bites for. Both the preview and the save route pick the one
+   * covering the fixation's effective date, so a punishment that outlives a
+   * fiscal year still shapes next year's annual fixation.
+   */
+  verdicts: DatedVerdict[];
+};
+
+export type DatedVerdict = ActiveVerdict & {
+  effectiveFrom: string;
+  effectiveTo: string | null;
 };
 
 /** One saved line, as read back for display. */
@@ -328,6 +540,10 @@ export type FixationVersion = {
   items: FixationItemRecord[];
   /** True when a salary month has been processed against this version. */
   isLocked: boolean;
+  /** Set when the version exists because of a court verdict. Not hand-editable. */
+  verdictId: number | null;
+  /** The verdict's order number, for display. */
+  verdictOrderNo: string | null;
 };
 
 /**
@@ -356,4 +572,30 @@ export function headsToSheetInputs(
     });
   }
   return inputs;
+}
+
+/**
+ * The verdict in force on a date. Used by both the fixation preview and the
+ * save route, so a punishment that spans a fiscal-year boundary keeps applying
+ * when next year's annual fixation is raised.
+ *
+ * Dates are the stored `MM-DD-YYYY` form; compared as integers to avoid pulling
+ * a date library into this half.
+ */
+export function verdictOn(
+  verdicts: DatedVerdict[],
+  on: string,
+): DatedVerdict | null {
+  const key = (d: string) => {
+    const [m, dd, y] = d.split("-").map(Number);
+    return y * 10000 + m * 100 + dd;
+  };
+  const k = key(on);
+  return (
+    verdicts.find(
+      (v) =>
+        key(v.effectiveFrom) <= k &&
+        (v.effectiveTo === null || k <= key(v.effectiveTo)),
+    ) ?? null
+  );
 }

@@ -12,6 +12,7 @@ import {
   todayStored,
 } from "@/lib/salary/dates";
 import type {
+  DatedVerdict,
   FixationContext,
   FixationItemRecord,
   FixationReason,
@@ -126,6 +127,7 @@ const FIXATION_INCLUDE = {
     orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
   },
   _count: { select: { processes: true } },
+  verdict: { select: { id: true, orderNo: true } },
 };
 
 type FixationRow = {
@@ -154,6 +156,8 @@ type FixationRow = {
     head: { code: string; nameEn: string; nameBn: string };
   }[];
   _count: { processes: number };
+  verdictId: number | null;
+  verdict: { id: number; orderNo: string } | null;
 };
 
 /**
@@ -202,6 +206,8 @@ function mapVersion(f: FixationRow): FixationVersion {
     createdBy: f.createdBy,
     items,
     isLocked: f._count.processes > 0,
+    verdictId: f.verdictId,
+    verdictOrderNo: f.verdict?.orderNo ?? null,
   };
 }
 
@@ -240,15 +246,33 @@ export function versionInForce(
 export async function getFixationContext(
   employeeId: string,
 ): Promise<FixationContext | null> {
-  const [employee, scale, heads] = await Promise.all([
+  const [employee, scale, heads, verdictRows] = await Promise.all([
     prisma.employee.findUnique({
       where: { id: employeeId },
       select: { office: { select: { nameEn: true, houseRentZone: true } } },
     }),
     getActiveScale(),
     getSalaryHeads({ activeOnly: true }),
+    prisma.caseVerdict.findMany({
+      where: { case: { employeeId }, revokedOn: null },
+      include: { clauses: true },
+    }),
   ]);
   if (!employee) return null;
+
+  const verdicts: DatedVerdict[] = verdictRows.map((v) => ({
+    id: v.id,
+    orderNo: v.orderNo,
+    summary: v.summary,
+    reduceDerivedAllowances: v.reduceDerivedAllowances,
+    effectiveFrom: v.effectiveFrom,
+    effectiveTo: v.effectiveTo,
+    clauses: v.clauses.map((c) => ({
+      type: c.type,
+      value: c.value,
+      headId: c.headId,
+    })),
+  }));
 
   return {
     scale: scale
@@ -266,5 +290,6 @@ export async function getFixationContext(
     heads,
     zone: employee.office?.houseRentZone ?? null,
     officeName: employee.office?.nameEn ?? "",
+    verdicts,
   };
 }

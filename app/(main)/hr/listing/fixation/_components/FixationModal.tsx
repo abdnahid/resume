@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
+  Gavel,
   History,
   Lock,
   Plus,
@@ -14,10 +15,12 @@ import {
 } from "lucide-react";
 import type { Employee } from "@/lib/types";
 import {
+  applyVerdict,
   computeSheet,
   FIXATION_REASONS,
   headsToSheetInputs,
   stepsForGrade,
+  verdictOn,
   ZONE_LABEL,
   type FixationContext,
   type FixationReason,
@@ -241,10 +244,23 @@ export default function FixationModal({
     return onGrid ? null : stored;
   }, [context, step, grade, basicSalary]);
 
+  /** The verdict in force on the date this version takes effect, if any. */
+  const activeVerdict = useMemo(() => {
+    if (!context || !validFrom) return null;
+    return verdictOn(context.verdicts, validFrom);
+  }, [context, validFrom]);
+
   const sheet: SalarySheet | null = useMemo(() => {
     if (!context) return null;
+    const effect = applyVerdict(
+      grade === "" ? 0 : Number(grade),
+      step === "" ? 0 : Number(step),
+      context.steps,
+      activeVerdict,
+    );
     return computeSheet({
-      basicSalary: resolvedBasic,
+      basicSalary: activeVerdict ? effect.basicSalary : resolvedBasic,
+      percentBase: activeVerdict ? effect.percentBase : resolvedBasic,
       zone: context.zone,
       heads: headsToSheetInputs(
         context.heads,
@@ -254,8 +270,11 @@ export default function FixationModal({
         })),
       ),
       slabs: context.slabs,
+      suppressAllAllowances: effect.suppressAllAllowances,
+      suppressedHeadIds: effect.suppressedHeadIds,
+      verdictNotes: effect.notes,
     });
-  }, [context, resolvedBasic, lines]);
+  }, [context, resolvedBasic, lines, activeVerdict, grade, step]);
 
   if (!employee) return null;
 
@@ -473,6 +492,19 @@ export default function FixationModal({
           <div className="px-6 py-5 space-y-4">
             <SalarySheetView sheet={sheet} employee={employee} />
 
+            {sheet.verdictNotes.length > 0 && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 space-y-1">
+                <p className="flex items-center gap-2 text-xs font-semibold text-red-800">
+                  <Gavel size={13} /> Applied by court verdict
+                </p>
+                {sheet.verdictNotes.map((n, i) => (
+                  <p key={i} className="text-xs text-red-700 pl-5">
+                    {n}
+                  </p>
+                ))}
+              </div>
+            )}
+
             {sheet.warnings.length > 0 && (
               <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 space-y-1">
                 {sheet.warnings.map((w, i) => (
@@ -530,24 +562,56 @@ export default function FixationModal({
                 </button>
                 <button
                   type="button"
-                  disabled={current.isLocked}
+                  disabled={current.isLocked || current.verdictId !== null}
                   onClick={() => switchMode("edit")}
                   title={
-                    current.isLocked
-                      ? "A salary month has been processed against this version, so it can no longer be edited."
-                      : undefined
+                    current.verdictId !== null
+                      ? "This version comes from a court verdict. Lift or amend the verdict in case management instead."
+                      : current.isLocked
+                        ? "A salary month has been processed against this version, so it can no longer be edited."
+                        : undefined
                   }
                   className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${
-                    current.isLocked
+                    current.isLocked || current.verdictId !== null
                       ? "border border-slate-100 text-slate-300 cursor-not-allowed"
                       : mode === "edit"
                         ? "bg-primary text-white cursor-pointer"
                         : "border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer"
                   }`}
                 >
-                  {current.isLocked && <Lock size={11} className="inline mr-1" />}
+                  {(current.isLocked || current.verdictId !== null) && (
+                    <Lock size={11} className="inline mr-1" />
+                  )}
                   Correct the current one
                 </button>
+              </div>
+            )}
+
+            {activeVerdict && !current?.verdictId && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3">
+                <p className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+                  <Gavel size={14} />
+                  Verdict {activeVerdict.orderNo} is in force on {validFrom}
+                </p>
+                <p className="text-[11px] text-amber-800 mt-1">
+                  {activeVerdict.summary} — its clauses are applied to the sheet
+                  below and to whatever is saved.
+                </p>
+              </div>
+            )}
+
+            {current?.verdictId && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3">
+                <p className="flex items-center gap-2 text-xs font-semibold text-red-800">
+                  <Gavel size={14} />
+                  Under court verdict {current.verdictOrderNo}
+                </p>
+                <p className="text-[11px] text-red-700 mt-1">
+                  Pay is currently set by that order, not by this form. A new
+                  version raised here will take over from its effective date —
+                  to restore normal pay instead, lift the verdict in case
+                  management.
+                </p>
               </div>
             )}
 
@@ -925,8 +989,10 @@ function SalarySheetView({
           </tr>
 
           {sheet.earnings.map((l) => (
-            <tr key={l.headId}>
-              <td className="px-4 py-2.5 text-slate-700">{l.nameEn}</td>
+            <tr key={l.headId} className={l.suppressed ? "bg-red-50/40" : undefined}>
+              <td className={`px-4 py-2.5 ${l.suppressed ? "text-slate-400 line-through" : "text-slate-700"}`}>
+                {l.nameEn}
+              </td>
               <td className="px-4 py-2.5 text-right text-[11px] text-slate-400">
                 {l.basisNote}
               </td>

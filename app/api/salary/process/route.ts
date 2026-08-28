@@ -67,6 +67,57 @@ function processData(f: FixationRow) {
   };
 }
 
+/**
+ * Write one month's pay, settling any arrears outstanding for the employee.
+ *
+ * Arrears are pay a verdict withheld that a later order made good. They are
+ * added on top of the fixation's net and stamped as paid in the same
+ * transaction, so an arrear can never be paid twice or silently dropped. The
+ * bank advice needs no changes — it has always summed `netSalary`.
+ */
+async function payMonth(
+  employeeId: string,
+  fixation: FixationRow,
+  month: string,
+  year: string,
+  issueDate: string,
+): Promise<{ arrearAmount: number }> {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.salaryProcess.findUnique({
+      where: { employeeId_month_year: { employeeId, month, year } },
+      select: { id: true, arrearAmount: true },
+    });
+    // Already processed — re-running a month must not pay arrears twice.
+    if (existing) return { arrearAmount: existing.arrearAmount };
+
+    const pending = await tx.salaryArrear.findMany({
+      where: { employeeId, paidAt: null },
+    });
+    const arrearAmount = pending.reduce((sum, a) => sum + a.amount, 0);
+    const base = processData(fixation);
+
+    const row = await tx.salaryProcess.create({
+      data: {
+        employeeId,
+        issueDate,
+        month,
+        year,
+        ...base,
+        arrearAmount,
+        netSalary: base.netSalary + arrearAmount,
+      },
+    });
+
+    if (pending.length) {
+      await tx.salaryArrear.updateMany({
+        where: { id: { in: pending.map((a) => a.id) } },
+        data: { paidAt: new Date(), paidInProcessId: row.id },
+      });
+    }
+    return { arrearAmount };
+  });
+}
+
 export async function POST(req: Request) {
   // Internal-only mutation. `middleware.ts` already refuses clients and
   // anonymous callers on /api/*; this is the check that does not depend on a
@@ -125,19 +176,9 @@ export async function POST(req: Request) {
       );
     }
 
-    await prisma.salaryProcess.upsert({
-      where: { employeeId_month_year: { employeeId: emp.id, month, year } },
-      update: {},
-      create: {
-        employeeId: emp.id,
-        issueDate,
-        month,
-        year,
-        ...processData(fixation),
-      },
-    });
+    const { arrearAmount } = await payMonth(emp.id, fixation, month, year, issueDate);
 
-    return NextResponse.json({ processed: 1, skipped: 0, month, year });
+    return NextResponse.json({ processed: 1, skipped: 0, arrearAmount, month, year });
   }
 
   // ── Bulk mode ──────────────────────────────────────────────────────────────
@@ -147,6 +188,7 @@ export async function POST(req: Request) {
 
   let processed = 0;
   let skipped = 0;
+  let arrearsPaid = 0;
   const skippedIds: string[] = [];
 
   for (const emp of employees) {
@@ -159,23 +201,15 @@ export async function POST(req: Request) {
       continue;
     }
 
-    await prisma.salaryProcess.upsert({
-      where: { employeeId_month_year: { employeeId: emp.id, month, year } },
-      update: {},
-      create: {
-        employeeId: emp.id,
-        issueDate,
-        month,
-        year,
-        ...processData(fixation),
-      },
-    });
+    const { arrearAmount } = await payMonth(emp.id, fixation, month, year, issueDate);
+    arrearsPaid += arrearAmount;
     processed++;
   }
 
   return NextResponse.json({
     processed,
     skipped,
+    arrearsPaid,
     // Capped: an unfixed roster of 400 would otherwise return a wall of ids.
     skippedIds: skippedIds.slice(0, 20),
     month,

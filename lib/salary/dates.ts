@@ -112,3 +112,13 @@ export function covers(from: string, thru: string, on: string): boolean {
   const k = dateKey(on);
   return dateKey(from) <= k && k <= dateKey(thru);
 }
+
+/** The day after `stored`. The mirror of `dayBefore`. */
+export function nextDay(stored: StoredDate): StoredDate {
+  const [m, d, y] = stored.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() + 1);
+  return `${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    t.getUTCDate(),
+  ).padStart(2, "0")}-${t.getUTCFullYear()}`;
+}

@@ -3,10 +3,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  applyVerdict,
   computeSheet,
   headsToSheetInputs,
   MAX_GRADE,
   MIN_GRADE,
+  verdictOn,
   type FixationReason,
 } from "@/lib/salary/compute";
 import {
@@ -295,12 +297,23 @@ export async function POST(req: Request) {
     );
   }
 
+  // ── A verdict in force on the effective date shapes the sheet ───────────
+  // A punishment often outlives the fiscal year it started in, so the annual
+  // fixation raised next July has to keep applying it. Both this and the
+  // preview call `verdictOn()` with the same dates, so they cannot disagree.
+  const verdict = verdictOn(context.verdicts, from);
+  const effect = applyVerdict(gradeNum, stepNum, scale.steps, verdict);
+
   // ── The sheet — the same call the preview makes ─────────────────────────
   const sheet = computeSheet({
-    basicSalary: resolvedBasic,
+    basicSalary: verdict ? effect.basicSalary : resolvedBasic,
+    percentBase: verdict ? effect.percentBase : resolvedBasic,
     zone: context.zone,
     heads: headsToSheetInputs(context.heads, selected),
     slabs: context.slabs,
+    suppressAllAllowances: effect.suppressAllAllowances,
+    suppressedHeadIds: effect.suppressedHeadIds,
+    verdictNotes: effect.notes,
   });
 
   if (sheet.netSalary < 0) {
@@ -324,6 +337,15 @@ export async function POST(req: Request) {
         {
           error:
             "A salary month has already been processed against this fixation, so it can no longer be edited. Raise a new version instead — it will supersede this one from its own effective date.",
+        },
+        { status: 409 },
+      );
+    }
+    if (target.verdictId) {
+      return NextResponse.json(
+        {
+          error:
+            "This version exists because of a court verdict and cannot be edited by hand. Lift or amend the verdict in case management and the fixation follows.",
         },
         { status: 409 },
       );
@@ -363,9 +385,11 @@ export async function POST(req: Request) {
   }
 
   const data = {
-    grade: gradeNum,
-    step: stepNum,
-    basicSalary: resolvedBasic,
+    // A demotion clause changes which grade is actually paid; record what was
+    // paid, not what was ordered on paper.
+    grade: verdict ? effect.grade : gradeNum,
+    step: verdict ? effect.step : stepNum,
+    basicSalary: sheet.basicSalary,
     validFrom: from,
     validThru: thru,
     salaryStatus: status,
@@ -375,6 +399,7 @@ export async function POST(req: Request) {
     totalDeduction: sheet.totalDeduction,
     netSalary: sheet.netSalary,
     scaleId: scale.id,
+    verdictId: verdict?.id ?? null,
   };
 
   const lines = [...sheet.earnings, ...sheet.deductions].map((l) => ({

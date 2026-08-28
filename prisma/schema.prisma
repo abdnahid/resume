@@ -34,6 +34,10 @@ enum Role {
   superadmin
   officeadmin
   data_entry
+  /// Handles court and departmental cases for staff across every office, and is
+  /// the only role besides superadmin that may record a verdict. Carries no
+  /// other administrative power.
+  case_officer
   employee
   /// Inert. Clients are gated by `accountType`, not by role — this exists so a
   /// client row never reads as `employee` and trips an internal role check.
@@ -98,6 +102,42 @@ enum FixationReason {
   promotion
   punishment
   correction
+}
+
+/// Where a case is being heard.
+enum CaseForum {
+  departmental
+  administrative_tribunal
+  civil_court
+  criminal_court
+  high_court
+  appellate_division
+}
+
+enum CaseStatus {
+  open
+  under_trial
+  verdict_given
+  under_appeal
+  closed
+}
+
+/// What a verdict does to an employee's pay. Every clause is applied by
+/// `applyVerdict()` in `lib/salary/compute.ts`, in the fixed order documented
+/// there — order matters, since a demotion changes which grid a step reads.
+enum VerdictClauseType {
+  /// Move down `value` increments on the same grade. Floors at the initial step.
+  reduce_increments
+  /// Stay on the current step for `value` more annual fixations.
+  withhold_increment
+  /// Resolve basic from grade `value` instead of the substantive grade.
+  demote_grade
+  /// Pay `value`% of the scale basic — 50 for a half salary.
+  basic_percent
+  /// Every allowance falls away; deductions and basic stand.
+  suppress_allowances
+  /// One named head falls away. `headId` says which.
+  suppress_head
 }
 
 /// Zones of the government's monthly house rent rate table.
@@ -406,6 +446,8 @@ model Employee {
 
   // Sub-tables
   fixations        SalaryFixation[]
+  cases            EmployeeCase[]
+  arrears          SalaryArrear[]
   salaryHistory    SalaryHistory[]
   salaryProcesses  SalaryProcess[]
   workHistory      WorkHistory[]
@@ -516,7 +558,8 @@ model SalaryHead {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
-  items SalaryFixationItem[]
+  items          SalaryFixationItem[]
+  verdictClauses VerdictClause[]
 
   @@index([kind, sortOrder])
 }
@@ -561,6 +604,18 @@ model SalaryFixation {
   scaleId Int?
   scale   PayScale? @relation(fields: [scaleId], references: [id])
 
+  /// Set when this version exists because of a verdict, rather than an ordinary
+  /// fixation. Such a version is not editable by hand — lift the verdict.
+  verdictId Int?
+  verdict   CaseVerdict? @relation(fields: [verdictId], references: [id])
+
+  /// The version this one displaced. Only set on verdict-derived versions, and
+  /// only so an arrear can be worked out as `baseline.netSalary - netSalary`
+  /// without replaying the whole sheet.
+  baselineFixationId Int?
+  baselineFixation   SalaryFixation?  @relation("FixationBaseline", fields: [baselineFixationId], references: [id])
+  derivedFixations   SalaryFixation[] @relation("FixationBaseline")
+
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -593,6 +648,122 @@ model SalaryFixationItem {
   @@unique([fixationId, headId])
 }
 
+// ─── Case management ─────────────────────────────────────────────────────────
+
+/// A court or departmental case against an employee. Entered only by a
+/// `case_officer` or a superadmin — see `lib/salary/case-guard.ts`.
+model EmployeeCase {
+  id       Int        @id @default(autoincrement())
+  caseNo   String     @unique
+  title    String
+  forum    CaseForum
+  status   CaseStatus @default(open)
+  filedOn  String
+  summary  String?
+  closedOn String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  verdicts CaseVerdict[]
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+}
+
+/// One verdict on a case, and the window it bites for.
+///
+/// Imposing a verdict raises fixation versions on its own — a punished version
+/// covering the window, and a restoring version for the day after it ends — so
+/// the salary chain needs no separate "is this employee punished" check.
+model CaseVerdict {
+  id            Int     @id @default(autoincrement())
+  orderNo       String
+  verdictDate   String
+  effectiveFrom String
+  /// Null means the punishment stands until it is revoked.
+  effectiveTo   String?
+  summary       String
+
+  /// How a `basic_percent` clause treats allowances that are a percentage of
+  /// basic. False (the default) computes them on the **full scale basic**, so
+  /// "half the basic only, rest remains same" behaves literally. True reduces
+  /// them along with the basic.
+  reduceDerivedAllowances Boolean @default(false)
+
+  /// Set when an appeal succeeds, or the order is withdrawn.
+  revokedOn      String?
+  revokedReason  String?
+  /// Whether the revoking order also directed that withheld pay be made good.
+  arrearsOrdered Boolean @default(false)
+
+  caseId Int
+  case   EmployeeCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  clauses   VerdictClause[]
+  fixations SalaryFixation[]
+  arrears   SalaryArrear[]
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([caseId])
+}
+
+/// One operative clause of a verdict.
+model VerdictClause {
+  id    Int               @id @default(autoincrement())
+  type  VerdictClauseType
+  /// Increments, years, target grade or percent, depending on `type`.
+  value Int?
+
+  /// Only for `suppress_head`.
+  headId Int?
+  head   SalaryHead? @relation(fields: [headId], references: [id])
+
+  verdictId Int
+  verdict   CaseVerdict @relation(fields: [verdictId], references: [id], onDelete: Cascade)
+
+  @@index([verdictId])
+}
+
+/// Pay withheld under a verdict that a later order made good.
+///
+/// Computed as a difference, not by replaying history: a verdict-derived
+/// fixation records the version it displaced (`baselineFixationId`), so the
+/// arrear for a month is that baseline's net less what was actually paid.
+/// Settled by adding it to the next month processed for the employee.
+model SalaryArrear {
+  id        Int    @id @default(autoincrement())
+  amount    Int
+  reason    String
+  /// Inclusive range of months the arrear makes good, for the audit trail.
+  fromMonth String
+  fromYear  String
+  toMonth   String
+  toYear    String
+
+  paidAt          DateTime?
+  paidInProcessId Int?
+  paidInProcess   SalaryProcess? @relation(fields: [paidInProcessId], references: [id])
+
+  verdictId Int?
+  verdict   CaseVerdict? @relation(fields: [verdictId], references: [id])
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([employeeId, paidAt])
+}
+
 // ─── Salary History ───────────────────────────────────────────────────────────
 
 model SalaryHistory {
@@ -622,6 +793,10 @@ model SalaryProcess {
   issueDate      String
   month          String
   year           String
+
+  /// Arrears settled in this month, on top of the fixation's own net.
+  arrearAmount Int            @default(0)
+  arrears      SalaryArrear[]
 
   /// The fixation version this month was paid from. Kept so a payslip can be
   /// rebuilt line by line even after a later version supersedes it.
