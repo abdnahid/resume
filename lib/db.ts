@@ -411,10 +411,12 @@ function mapEmployee(
     email: emp.email ?? "",
     photo_label: emp.photoLabel ?? undefined,
     status: emp.status as Employee["status"],
+    category: emp.category,
     wing: unitChain,
     current_job: {
       designation_bn: designationBn,
       designation_en: designationEn,
+      office_id:      officeRecord.id,
       office_bn:      officeRecord.nameBn,
       office_en:      officeRecord.nameEn,
       office_address_bn: officeRecord.addressBn,

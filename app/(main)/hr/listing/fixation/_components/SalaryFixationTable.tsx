@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, PlusIcon, Zap } from "lucide-react";
+import { ArrowRight, Lock, PlusIcon, Zap } from "lucide-react";
 import { useState } from "react";
 import ProcessSalaryModal, {
   type PayrollOffice,
@@ -75,11 +75,16 @@ export default function SalaryFixationTable({
   offices,
   processed,
   pinned,
+  dailyRates,
+  maxPaidDays,
 }: {
   employees: Employee[];
   offices: PayrollOffice[];
   processed: ProcessedEntry[];
   pinned: boolean;
+  /** Daily rate per office id — null where the office has no house rent zone. */
+  dailyRates: Record<number, number | null>;
+  maxPaidDays: number;
 }) {
   const [search, setSearch] = useState("");
   const [officeFilter, setOfficeFilter] = useState("");
@@ -89,6 +94,7 @@ export default function SalaryFixationTable({
   const [validFrom, setValidFrom] = useState<Date | undefined>(undefined);
   const [validTo, setValidTo] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [fixing, setFixing] = useState<Employee | null>(null);
 
@@ -126,8 +132,9 @@ export default function SalaryFixationTable({
         : false);
 
     const matchStatus = !statusFilter || emp.fixation.salaryStatus === statusFilter;
+    const matchCategory = !categoryFilter || emp.category === categoryFilter;
 
-    return matchSearch && matchOffice && matchGrade && matchValidity && matchStatus;
+    return matchSearch && matchOffice && matchGrade && matchValidity && matchStatus && matchCategory;
   });
 
   const officeOptions: FilterSelectOption[] = OFFICES.map((o) => ({
@@ -192,6 +199,18 @@ export default function SalaryFixationTable({
             name="validity-filter"
           />
           <FilterSelect
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            placeholder="All categories"
+            width="min-w-40"
+            options={[
+              { label: "Officer",     value: "officer" },
+              { label: "Staff",       value: "staff" },
+              { label: "Daily basis", value: "daily_basis" },
+              { label: "Outsourcing", value: "outsourcing" },
+            ]}
+          />
+          <FilterSelect
             value={statusFilter}
             onChange={setStatusFilter}
             placeholder="All statuses"
@@ -243,8 +262,13 @@ export default function SalaryFixationTable({
               <tbody className="divide-y divide-slate-50">
                 {filtered.length > 0 ? (
                   filtered.map((emp) => {
-                    const { label, className } =
-                      SALARY_STATUS_CONFIG[emp.fixation.salaryStatus];
+                    // Daily-basis staff have no fixation and never will, so the
+                    // row reports how they *are* paid rather than an empty one.
+                    const isDaily = emp.category === "daily_basis";
+                    const dailyRate = dailyRates[emp.current_job.office_id] ?? null;
+                    const { label, className } = isDaily
+                      ? { label: "Daily basis", className: "bg-sky-50 text-sky-700 ring-1 ring-sky-200" }
+                      : SALARY_STATUS_CONFIG[emp.fixation.salaryStatus];
                     return (
                       <tr
                         key={emp.id}
@@ -275,25 +299,58 @@ export default function SalaryFixationTable({
                           </p>
                         </td>
 
-                        {/* Grade */}
+                        {/* Grade — daily-basis staff are outside the pay scale */}
                         <td className="px-4 py-4 align-top">
-                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold">
-                            {emp.fixation.grade}
-                          </span>
+                          {isDaily ? (
+                            <span className="text-slate-300 text-sm">—</span>
+                          ) : (
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold">
+                              {emp.fixation.grade}
+                            </span>
+                          )}
                         </td>
 
-                        {/* Basic Salary */}
+                        {/* Basic salary, or the daily rate for those on it */}
                         <td className="px-4 py-4 align-top">
-                          <span className="text-sm font-medium text-slate-800 tabular-nums">
-                            {formatBDT(emp.fixation.basicSalary)}
-                          </span>
+                          {isDaily ? (
+                            dailyRate === null ? (
+                              <span className="text-xs text-amber-600">
+                                no rate — office has no zone
+                              </span>
+                            ) : (
+                              <div>
+                                <span className="text-sm font-medium text-slate-800 tabular-nums">
+                                  {formatBDT(dailyRate)}
+                                  <span className="text-slate-400 font-normal"> /day</span>
+                                </span>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  up to {maxPaidDays} days
+                                </p>
+                              </div>
+                            )
+                          ) : (
+                            <span className="text-sm font-medium text-slate-800 tabular-nums">
+                              {formatBDT(emp.fixation.basicSalary)}
+                            </span>
+                          )}
                         </td>
 
                         {/* Net Salary — basic plus allowances, less deductions.
                             Equal to basic on a fixation raised before heads
                             existed, which is correct: it had none. */}
                         <td className="px-4 py-4 align-top">
-                          {emp.fixation.netSalary > 0 ? (
+                          {isDaily ? (
+                            dailyRate === null ? (
+                              <span className="text-slate-300 text-sm">—</span>
+                            ) : (
+                              <span className="text-sm font-semibold text-slate-800 tabular-nums">
+                                {formatBDT(dailyRate * maxPaidDays)}
+                                <span className="block text-[11px] font-normal text-slate-400">
+                                  at {maxPaidDays} days
+                                </span>
+                              </span>
+                            )
+                          ) : emp.fixation.netSalary > 0 ? (
                             <div>
                               <span className="text-sm font-semibold text-slate-800 tabular-nums">
                                 {formatBDT(emp.fixation.netSalary)}
@@ -311,7 +368,11 @@ export default function SalaryFixationTable({
 
                         {/* Valid Through */}
                         <td className="px-4 py-4 align-top">
-                          {emp.fixation.validFrom ? (
+                          {isDaily ? (
+                            <span className="text-xs text-slate-400 italic">
+                              set by the office&apos;s zone rate
+                            </span>
+                          ) : emp.fixation.validFrom ? (
                             <div className="flex items-center gap-1.5 text-sm text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5 border border-slate-100">
                               <span className="tabular-nums">
                                 {emp.fixation.validFrom}
@@ -339,6 +400,15 @@ export default function SalaryFixationTable({
 
                         {/* Action */}
                         <td className="px-4 py-4 align-top">
+                          {isDaily ? (
+                            <span
+                              title="Daily-basis staff are outside the pay scale. Days worked are set when salary is processed."
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-100 text-xs font-medium text-slate-300 cursor-not-allowed"
+                            >
+                              <Lock size={12} />
+                              No fixation
+                            </span>
+                          ) : (
                           <button
                             type="button"
                             onClick={() => setFixing(emp)}
@@ -356,6 +426,7 @@ export default function SalaryFixationTable({
                               </>
                             )}
                           </button>
+                          )}
                         </td>
                       </tr>
                     );

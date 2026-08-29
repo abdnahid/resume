@@ -183,6 +183,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });
   }
 
+  // ── Daily-basis staff cannot be fixated ─────────────────────────────────
+  // They sit outside the national pay scale: no grade, no step, no allowances.
+  // Payroll already pays them by the day and ignores any fixation, so one saved
+  // here would never be paid — it would just sit on the fixation screen showing
+  // a salary that is not real.
+  const category = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: { category: true },
+  });
+  if (category?.category === "daily_basis") {
+    return NextResponse.json(
+      {
+        error:
+          "This employee is on daily basis, so they have no grade and cannot hold a salary fixation. Their pay is the daily rate for their office's zone, set under Office Setup, times the days credited when salary is processed.",
+      },
+      { status: 409 },
+    );
+  }
+
   // ── Grade and step ───────────────────────────────────────────────────────
   const gradeNum = Number(grade);
   if (!Number.isInteger(gradeNum) || gradeNum < MIN_GRADE || gradeNum > MAX_GRADE) {

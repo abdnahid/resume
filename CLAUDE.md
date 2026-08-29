@@ -127,6 +127,16 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   whatever is current now — so back-processing an earlier month after an
   increment still pays that month's structure. `supersededAt` is deliberately
   *not* a disqualifier there.
+- **Daily-basis staff cannot be fixated, and the route says so.** `POST
+  /api/salary/fixation` refuses `category: daily_basis` with 409. Without that
+  guard the screen happily created one — and because processing checks the
+  category *before* it looks for a fixation, the fixation was never paid: the
+  screen showed grade 9 at ৳28,100 a month while the payslip paid 22 × ৳800.
+  Not wrong money, but a record that lied, which is worse for being quiet.
+  They still appear on the fixation screen, showing their daily rate and a
+  disabled action rather than being hidden — a roster that silently omits 93
+  people raises more questions than it answers.
+
 - **Daily-basis staff are paid by the day, not by fixation.** `EmployeeCategory`
   splits the roster: `officer` (grades 1–11), `staff` (12–20), `daily_basis`
   (no grade at all) and `outsourcing`. Daily-basis pay is

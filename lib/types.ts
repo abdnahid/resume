@@ -17,6 +17,12 @@ export type OrgInfo = {
 };
 
 export type EmployeeStatus = "active" | "retired" | "prl" | "inactive";
+
+/**
+ * Which pay regime an employee is under. `daily_basis` staff hold no fixation
+ * — see `EmployeeCategory` in the schema.
+ */
+export type EmployeeCategory = "officer" | "staff" | "daily_basis" | "outsourcing";
 export type PostingStatus = "pending" | "active";
 export type SalaryStatus = "active" | "expired" | "not_found" | "inactive";
 
@@ -165,12 +171,16 @@ export type Employee = {
 
   // ─── Employment ──────────────────────────────────────────────────
   status: EmployeeStatus;
+  /** Which pay regime they are under; decides whether fixation applies at all. */
+  category: EmployeeCategory;
   wing: string;
 
   // ─── Current position ────────────────────────────────────────────
   current_job: {
     designation_bn: string;
     designation_en: string;
+    /** The office they are actually posted to — needed to price daily wages. */
+    office_id: number;
     office_bn: string;
     office_en: string;
     office_address_bn: string;
