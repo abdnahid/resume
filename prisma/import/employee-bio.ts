@@ -80,6 +80,51 @@ export function isValidEmail(s: unknown): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t);
 }
 
+/**
+ * Honorifics that carry no identity. Stripped before building a demo address so
+ * that half the roster does not come out as `md.islam`.
+ */
+const HONORIFICS = new Set([
+  "MD", "MOHAMMAD", "MOHAMMED", "MOHD", "MUHAMMAD", "MUHAMMED",
+  "MST", "MOSAMMAT", "MOSAMMAD", "MRS", "MR", "MS", "MISS", "DR", "ENGR", "ENG",
+  "জনাব",
+]);
+
+/**
+ * A stand-in address for someone whose email the export does not usefully
+ * carry — 56 employees have the literal string "00" in that field and three
+ * have "0".
+ *
+ * `first.last@example.com`, honorifics dropped. `example.com` is reserved by
+ * RFC 2606 and can never receive mail, so a placeholder cannot be mistaken for
+ * a real address or accidentally written to.
+ *
+ * Returns null when the name has no usable Latin letters — several names are
+ * recorded only in Bengali — and the caller falls back to the employee id.
+ */
+export function demoEmailLocalPart(nameEn: string): string | null {
+  const words = norm(nameEn)
+    // Drop parenthesised nicknames — "ALI AHMED (BABUL)" is Ali Ahmed, and
+    // taking the last word would make him ali.babul.
+    .replace(/\([^)]*\)/g, " ")
+    .toUpperCase()
+    .replace(/[^A-Z\s.]/g, " ")
+    .split(/[\s.]+/)
+    .filter(Boolean);
+
+  // Honorifics are only stripped from the front. "MD. MOKSEDUL ISLAM" is
+  // Mokseduf Islam, but "NUR MOHAMMAD" is a whole name — dropping MOHAMMAD
+  // wherever it appeared would leave him as just "nur".
+  let i = 0;
+  while (i < words.length - 1 && HONORIFICS.has(words[i])) i++;
+  const rest = words.slice(i);
+
+  if (!rest.length) return null;
+  const first = rest[0].toLowerCase();
+  const last = rest.length > 1 ? rest[rest.length - 1].toLowerCase() : "";
+  return last ? `${first}.${last}` : first;
+}
+
 /** The export spells this seven ways; the column is free text, so settle it. */
 export function normaliseNationality(s: unknown): string | null {
   return val(s) ? "Bangladeshi" : null;

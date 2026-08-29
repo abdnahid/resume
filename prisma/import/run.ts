@@ -19,7 +19,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import "dotenv/config";
 import { loadPostGrades } from "./grades";
-import { dedupe, normaliseRecord, type NormalisedEmployee } from "./employee-bio";
+import {
+  dedupe,
+  demoEmailLocalPart,
+  normaliseRecord,
+  type NormalisedEmployee,
+} from "./employee-bio";
 
 const p = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -36,27 +41,70 @@ const DEFAULT_PASSWORD = "bsti@123";
  * placeholder is synthesised the same way client mobile sign-ups do it (D16).
  * `displayEmail()` hides these; never mail one.
  */
-function placeholderEmail(id: string): string {
-  return `${id}@employee.bsti.invalid`;
-}
+export type ResolvedEmail = {
+  /** Unique — goes on `User.email`, which better-auth requires to be unique. */
+  login: string;
+  /** The contact address on `Employee.email`. Null only if truly unknown. */
+  contact: string | null;
+  /** True when the address was invented rather than taken from the export. */
+  demo: boolean;
+};
 
 /**
- * `User.email` is unique, so an address two people share can only go to one of
- * them. Four pairs on the roster share a real address; rather than pick a
- * winner, everyone in a colliding set gets a placeholder and keeps the real
- * address on `Employee.email`, which is only a contact field.
+ * Work out an address for every employee.
+ *
+ * Three cases, in order:
+ *
+ *  - A valid address nobody else has → used for both login and contact.
+ *  - A valid address shared with someone else (four pairs do) → the real
+ *    address stays as the contact, and the login gets a generated one, because
+ *    `User.email` is unique and picking a winner would be arbitrary.
+ *  - No usable address — 56 employees carry the literal "00" — → a generated
+ *    `first.last@example.com` for both.
+ *
+ * Generated addresses are deduplicated with a numeric suffix, so two people
+ * called Md. Abdul Karim become `abdul.karim` and `abdul.karim2`. Sorting by id
+ * first makes that assignment stable across runs rather than depending on the
+ * order the export happens to be in.
  */
-function loginEmails(employees: NormalisedEmployee[]): Map<string, string> {
-  const seen = new Map<string, number>();
+function resolveEmails(employees: NormalisedEmployee[]): Map<string, ResolvedEmail> {
+  const realCount = new Map<string, number>();
   for (const e of employees) {
     if (!e.email) continue;
     const k = e.email.toLowerCase();
-    seen.set(k, (seen.get(k) ?? 0) + 1);
+    realCount.set(k, (realCount.get(k) ?? 0) + 1);
   }
-  const out = new Map<string, string>();
+
+  // Real addresses are claimed first so a generated one can never collide.
+  const taken = new Set<string>();
   for (const e of employees) {
     const k = e.email?.toLowerCase();
-    out.set(e.id, k && seen.get(k) === 1 ? e.email! : placeholderEmail(e.id));
+    if (k && realCount.get(k) === 1) taken.add(k);
+  }
+
+  const out = new Map<string, ResolvedEmail>();
+  for (const e of [...employees].sort((a, b) => a.id.localeCompare(b.id))) {
+    const real = e.email?.toLowerCase();
+    if (real && realCount.get(real) === 1) {
+      out.set(e.id, { login: e.email!, contact: e.email!, demo: false });
+      continue;
+    }
+
+    const base = demoEmailLocalPart(e.nameEn || e.nameBn) ?? `emp${e.id}`;
+    let candidate = `${base}@example.com`;
+    let n = 1;
+    while (taken.has(candidate.toLowerCase())) {
+      n += 1;
+      candidate = `${base}${n}@example.com`;
+    }
+    taken.add(candidate.toLowerCase());
+
+    out.set(e.id, {
+      login: candidate,
+      // A shared real address is still a real contact; keep it.
+      contact: real ? e.email! : candidate,
+      demo: true,
+    });
   }
   return out;
 }
@@ -73,11 +121,11 @@ async function main() {
     const res = normaliseRecord(r, table);
     if (res.ok) employees.push(res.employee);
   }
-  const logins = loginEmails(employees);
-  const shared = employees.filter((e) => e.email && logins.get(e.id) !== e.email).length;
+  const emails = resolveEmails(employees);
+  const demo = [...emails.values()].filter((x) => x.demo).length;
   console.log(`Importing ${employees.length} employees…`);
-  if (shared) {
-    console.log(`  ${shared} share an address with someone else — those get a placeholder login email.\n`);
+  if (demo) {
+    console.log(`  ${demo} have no usable address in the export — generated first.last@example.com for them.\n`);
   }
 
   const password = await hashPassword(DEFAULT_PASSWORD);
@@ -99,7 +147,7 @@ async function main() {
           update: {
             name: e.nameBn || e.nameEn,
             username: e.id,
-            email: logins.get(e.id)!,
+            email: emails.get(e.id)!.login,
             accountType: "INTERNAL",
             // Role is deliberately not touched on update: roles are assigned in
             // the app, and an import must not silently demote an administrator.
@@ -107,7 +155,7 @@ async function main() {
           create: {
             id: userId,
             name: e.nameBn || e.nameEn,
-            email: logins.get(e.id)!,
+            email: emails.get(e.id)!.login,
             emailVerified: false,
             username: e.id,
             role: "employee",
@@ -147,7 +195,7 @@ async function main() {
           bloodGroup: (e.bloodGroup ?? null) as never,
           nid: e.nid,
           nationality: e.nationality,
-          email: e.email,
+          email: emails.get(e.id)!.contact,
           mobileHome: e.mobileHome,
           mobileOffice: e.mobileOffice,
           designationEn: e.designationEn,
