@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   X, ChevronLeft, ChevronRight, Zap, CheckCircle2, Trash2, AlertTriangle, Lock,
+  CalendarClock, ArrowLeft,
 } from "lucide-react";
 
 /**
@@ -42,6 +43,18 @@ export type ProcessedEntry = {
 export type PayrollOffice = { id: number; nameEn: string; activeCount: number };
 
 type MonthState = "available" | "future" | "processed" | "blocked" | "selected";
+
+/** A daily-basis worker and the days they are about to be credited. */
+type DailyStaff = {
+  id: string;
+  nameEn: string;
+  nameBn: string;
+  designationBn: string | null;
+  zone: string | null;
+  dailyRate: number | null;
+  days: number;
+  alreadyProcessed: boolean;
+};
 
 type ProcessResult = {
   processed: number;
@@ -86,6 +99,12 @@ export default function ProcessSalaryModal({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProcessedEntry | null>(null);
 
+  // Daily-basis staff are paid by the day, so their days are confirmed before
+  // anything is written. Everyone else is decided by their fixation.
+  const [dailyStaff, setDailyStaff] = useState<DailyStaff[] | null>(null);
+  const [maxDays, setMaxDays] = useState(22);
+  const [showDays, setShowDays] = useState(false);
+
   /** Months processed for the office currently in view. */
   const officeMonths = useMemo(
     () => processed.filter((p) => p.officeId === officeId),
@@ -114,6 +133,8 @@ export default function ProcessSalaryModal({
       setResult(null);
       setError(null);
       setConfirmDelete(null);
+      setShowDays(false);
+      setDailyStaff(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -122,6 +143,8 @@ export default function ProcessSalaryModal({
     setDisplayYear(startYear());
     setSelected(null);
     setConfirmDelete(null);
+    setShowDays(false);
+    setDailyStaff(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [officeId, processed]);
 
@@ -167,7 +190,37 @@ export default function ProcessSalaryModal({
     setSelected(state === "selected" ? null : `${month} ${displayYear}`);
   }
 
+  /**
+   * Step one: fetch the office's daily-basis staff so their days can be
+   * confirmed. An office with none goes straight to processing.
+   */
   async function handleProcess() {
+    if (!selected || officeId === null) return;
+    const [month, year] = selected.split(" ");
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/salary/process?officeId=${officeId}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`,
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not load daily-basis staff");
+      setMaxDays(data.maxDays ?? 22);
+      if (!data.staff?.length) {
+        await runProcess({});
+        return;
+      }
+      setDailyStaff(data.staff as DailyStaff[]);
+      setShowDays(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /** Step two: write the month. */
+  async function runProcess(days: Record<string, number>) {
     if (!selected || officeId === null) return;
     const [month, year] = selected.split(" ");
     setLoading(true);
@@ -176,17 +229,23 @@ export default function ProcessSalaryModal({
       const res = await fetch("/api/salary/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, year, officeId }),
+        body: JSON.stringify({ month, year, officeId, days }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Processing failed");
       setResult(data);
+      setShowDays(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
+  }
+
+  function setDays(id: string, value: string) {
+    const n = Math.max(0, Math.min(maxDays, Math.floor(Number(value) || 0)));
+    setDailyStaff((prev) => prev?.map((s) => (s.id === id ? { ...s, days: n } : s)) ?? prev);
   }
 
   async function handleDelete() {
@@ -286,6 +345,108 @@ export default function ProcessSalaryModal({
             >
               Done
             </button>
+          </div>
+        ) : showDays && dailyStaff ? (
+          /* ── Days for daily-basis staff ─────────────────────────────── */
+          <div className="px-5 py-4 space-y-4">
+            <div className="flex items-start gap-3">
+              <CalendarClock size={20} className="text-slate-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Days worked · {selMonth} {selYear}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {dailyStaff.length} daily-basis{" "}
+                  {dailyStaff.length === 1 ? "worker" : "workers"} at {office?.nameEn}.
+                  At most {maxDays} days may be paid in a month, so everyone
+                  starts there — reduce anyone who worked fewer.
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-50">
+              {dailyStaff.map((s) => (
+                <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-800 truncate">
+                      {s.nameEn}
+                      {s.alreadyProcessed && (
+                        <span className="ml-2 text-[10px] text-slate-400">already paid</span>
+                      )}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate font-bn-serif">
+                      {s.designationBn ?? "—"}
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-slate-400 tabular-nums w-20 text-right">
+                    {s.dailyRate === null ? (
+                      <span className="text-amber-600">no rate</span>
+                    ) : (
+                      `৳${s.dailyRate}/day`
+                    )}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={maxDays}
+                    value={s.days}
+                    onChange={(e) => setDays(s.id, e.target.value)}
+                    className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm text-right tabular-nums focus:border-slate-400 focus:outline-none"
+                  />
+                  <span className="text-sm font-medium text-slate-800 tabular-nums w-24 text-right">
+                    {s.dailyRate === null ? "—" : formatBDT(s.days * s.dailyRate)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-slate-900 text-white px-4 py-2.5">
+              <span className="text-xs text-slate-300">Daily-basis total</span>
+              <span className="text-sm font-semibold tabular-nums">
+                {formatBDT(
+                  dailyStaff.reduce((n, s) => n + (s.dailyRate ?? 0) * s.days, 0),
+                )}
+              </span>
+            </div>
+
+            {dailyStaff.some((s) => s.dailyRate === null) && (
+              <p className="flex gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                Some have no daily rate — their office has no house rent zone
+                set, and the rate follows the zone. They will be skipped.
+              </p>
+            )}
+
+            {error && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowDays(false); setError(null); }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft size={14} /> Back
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() =>
+                  runProcess(Object.fromEntries(dailyStaff.map((s) => [s.id, s.days])))
+                }
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <Zap size={14} />
+                )}
+                {loading ? "Processing…" : "Process"}
+              </button>
+            </div>
           </div>
         ) : confirmDelete ? (
           /* ── Undo a processed month ─────────────────────────────────── */

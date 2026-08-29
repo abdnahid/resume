@@ -13,6 +13,7 @@ import {
 } from "@/lib/salary/dates";
 import type {
   DatedVerdict,
+  HouseRentZone,
   FixationContext,
   FixationItemRecord,
   FixationReason,
@@ -292,4 +293,27 @@ export async function getFixationContext(
     officeName: employee.office?.nameEn ?? "",
     verdicts,
   };
+}
+
+// ─── Daily-basis rates ───────────────────────────────────────────────────────
+
+/**
+ * The daily-basis rates in force on a date, by zone.
+ *
+ * Versioned by effective date rather than by pay scale: the daily rate moves on
+ * its own government order.
+ */
+export async function getDailyRates(on: string = todayStored()) {
+  const rows = await prisma.dailyWageRate.findMany({
+    orderBy: { effectiveFrom: "desc" },
+  });
+  const k = dateKey(on);
+  const chosen = new Map<string, { zone: HouseRentZone; amount: number }>();
+  for (const r of rows) {
+    if (dateKey(r.effectiveFrom) > k) continue;
+    if (r.effectiveTo && dateKey(r.effectiveTo) < k) continue;
+    // Rows are newest-first, so the first match for a zone is the one in force.
+    if (!chosen.has(r.zone)) chosen.set(r.zone, { zone: r.zone, amount: r.amount });
+  }
+  return [...chosen.values()];
 }

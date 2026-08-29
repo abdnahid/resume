@@ -45,6 +45,9 @@ export type Payslip = {
   totalDeduction: number;
   /** Net from the fixation, before arrears. */
   netSalary: number;
+  /** Set for daily-basis staff, who are paid by the day rather than fixated. */
+  daysWorked: number | null;
+  dailyRate: number | null;
   arrearAmount: number;
   /** What the arrears made good, for the note on the slip. */
   arrearNote: string | null;
@@ -164,6 +167,8 @@ export async function getPayslip(
     grade: row.fixation?.grade ?? 0,
     step: row.fixation?.step ?? null,
     basicSalary: row.basicSalary,
+    daysWorked: row.daysWorked,
+    dailyRate: row.dailyRate,
     earnings,
     deductions,
     grossEarning: row.grossEarning,

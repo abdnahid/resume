@@ -99,6 +99,8 @@ async function main() {
           update: {
             name: e.nameBn || e.nameEn,
             username: e.id,
+            email: logins.get(e.id)!,
+            accountType: "INTERNAL",
             // Role is deliberately not touched on update: roles are assigned in
             // the app, and an import must not silently demote an administrator.
           },
@@ -117,7 +119,10 @@ async function main() {
 
         await tx.account.upsert({
           where: { id: `acc_${e.id}` },
-          update: {},
+          // The password is set on update as well as create. The roster being
+          // replaced is demo data whose accounts carry unknown hashes — leaving
+          // them alone locked the superadmin out of his own account.
+          update: { password, updatedAt: now },
           create: {
             id: `acc_${e.id}`,
             accountId: e.id,

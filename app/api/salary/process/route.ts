@@ -4,6 +4,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { covers, dateKey, lastDayOfMonth, todayStored } from "@/lib/salary/dates";
 import {
+  computeDailyPay,
+  DEFAULT_PAID_DAYS,
+  MAX_PAID_DAYS,
+  rateFor,
+} from "@/lib/salary/daily";
+import { getDailyRates } from "@/lib/salary/queries";
+import {
   employeesOfOffice,
   monthsBlocking,
   processedMonths,
@@ -82,9 +89,26 @@ function processData(f: FixationRow) {
  * transaction, so an arrear can never be paid twice or silently dropped. The
  * bank advice needs no changes — it has always summed `netSalary`.
  */
+/**
+ * What a daily-basis employee is paid: the zone rate times the days credited.
+ * They hold no fixation, so none of the fixation fields apply.
+ */
+function dailyProcessData(dailyRate: number, days: number) {
+  const pay = computeDailyPay(dailyRate, days);
+  return {
+    fixationId: null,
+    basicSalary: 0,
+    grossEarning: pay.netSalary,
+    totalDeduction: 0,
+    netSalary: pay.netSalary,
+    daysWorked: pay.daysWorked,
+    dailyRate: pay.dailyRate,
+  };
+}
+
 async function payMonth(
   employeeId: string,
-  fixation: FixationRow,
+  base: ReturnType<typeof processData> | ReturnType<typeof dailyProcessData>,
   month: string,
   year: string,
   issueDate: string,
@@ -101,7 +125,6 @@ async function payMonth(
       where: { employeeId, paidAt: null },
     });
     const arrearAmount = pending.reduce((sum, a) => sum + a.amount, 0);
-    const base = processData(fixation);
 
     const row = await tx.salaryProcess.create({
       data: {
@@ -181,11 +204,70 @@ function resolveOffice(
   return { ok: true, officeId: n };
 }
 
+/**
+ * The daily-basis staff of an office, so the process screen can show the days
+ * credited to each before anything is paid. Everyone starts at the 22-day
+ * ceiling; an operator edits only those who worked fewer.
+ */
+export async function GET(req: Request) {
+  const g = await gate();
+  if (!g.ok) return g.response;
+
+  const params = new URL(req.url).searchParams;
+  const office = resolveOffice(g.scope, params.get("officeId"));
+  if (!office.ok) return NextResponse.json({ error: office.error }, { status: 400 });
+
+  const month = params.get("month");
+  const year = params.get("year");
+  const monthEnd = month && year ? lastDayOfMonth(month, year) : null;
+
+  const [staff, rates] = await Promise.all([
+    prisma.employee.findMany({
+      where: { AND: [employeesOfOffice(office.officeId), { category: "daily_basis" }] },
+      select: {
+        id: true,
+        nameEn: true,
+        nameBn: true,
+        designationBn: true,
+        office: { select: { houseRentZone: true } },
+      },
+      orderBy: { id: "asc" },
+    }),
+    getDailyRates(monthEnd ?? todayStored()),
+  ]);
+
+  // What was paid last time this month ran, so re-processing shows the days
+  // that were actually credited rather than resetting to the default.
+  const already =
+    month && year
+      ? await prisma.salaryProcess.findMany({
+          where: { month, year, employeeId: { in: staff.map((s) => s.id) } },
+          select: { employeeId: true, daysWorked: true },
+        })
+      : [];
+  const paidDays = new Map(already.map((a) => [a.employeeId, a.daysWorked]));
+
+  return NextResponse.json({
+    maxDays: MAX_PAID_DAYS,
+    staff: staff.map((s) => ({
+      id: s.id,
+      nameEn: s.nameEn,
+      nameBn: s.nameBn,
+      designationBn: s.designationBn,
+      zone: s.office.houseRentZone,
+      dailyRate: rateFor(rates, s.office.houseRentZone),
+      days: paidDays.get(s.id) ?? DEFAULT_PAID_DAYS,
+      alreadyProcessed: paidDays.has(s.id),
+    })),
+  });
+}
+
 export async function POST(req: Request) {
   const g = await gate();
   if (!g.ok) return g.response;
 
-  const { month, year, employeeId, officeId } = await req.json();
+  const body = await req.json().catch(() => ({}));
+  const { month, year, employeeId, officeId } = body ?? {};
 
   if (!month || !year) {
     return NextResponse.json(
@@ -225,7 +307,7 @@ export async function POST(req: Request) {
   if (employeeId) {
     const emp = await prisma.employee.findUnique({
       where: { id: employeeId },
-      include: { fixations: true },
+      include: { fixations: true, office: { select: { houseRentZone: true } } },
     });
 
     // Scoped the same way as the bulk path: an employee transferred by posting
@@ -238,6 +320,27 @@ export async function POST(req: Request) {
     if (!emp || !inScope) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
+    if (emp.category === "daily_basis") {
+      const rates = await getDailyRates(monthEnd);
+      const rate = rateFor(rates, emp.office.houseRentZone);
+      if (rate === null) {
+        return NextResponse.json(
+          { error: "No daily-basis rate is configured for this employee's office zone." },
+          { status: 400 },
+        );
+      }
+      const days = (body?.days ?? {}) as Record<string, unknown>;
+      const requested = emp.id in days ? Number(days[emp.id]) : DEFAULT_PAID_DAYS;
+      const { arrearAmount } = await payMonth(
+        emp.id,
+        dailyProcessData(rate, requested),
+        month,
+        year,
+        issueDate,
+      );
+      return NextResponse.json({ processed: 1, skipped: 0, arrearAmount, month, year });
+    }
+
     if (!emp.fixations.length) {
       return NextResponse.json(
         { error: "No fixation record found. Set up salary fixation first." },
@@ -255,21 +358,52 @@ export async function POST(req: Request) {
       );
     }
 
-    const { arrearAmount } = await payMonth(emp.id, fixation, month, year, issueDate);
+    const { arrearAmount } = await payMonth(emp.id, processData(fixation), month, year, issueDate);
     return NextResponse.json({ processed: 1, skipped: 0, arrearAmount, month, year });
   }
 
   // ── Bulk mode, scoped to the office ────────────────────────────────────────
   const employees = await prisma.employee.findMany({
     where: employeesOfOffice(office.officeId),
-    include: { fixations: true },
+    include: { fixations: true, office: { select: { houseRentZone: true } } },
   });
+
+  // Days credited to daily-basis staff, keyed by employee id. Absent means the
+  // default; the screen sends only what an operator changed.
+  const days = (body?.days ?? {}) as Record<string, unknown>;
+  const rates = await getDailyRates(monthEnd);
 
   let processed = 0;
   let arrearsPaid = 0;
   const skipped: { id: string; name: string; reason: string }[] = [];
 
   for (const emp of employees) {
+    // ── Daily basis: no fixation, paid by the day ──
+    if (emp.category === "daily_basis") {
+      const rate = rateFor(rates, emp.office.houseRentZone);
+      if (rate === null) {
+        skipped.push({
+          id: emp.id,
+          name: emp.nameEn,
+          reason: emp.office.houseRentZone
+            ? `no daily rate configured for the ${emp.office.houseRentZone} zone`
+            : "this office has no house rent zone, so no daily rate applies",
+        });
+        continue;
+      }
+      const requested = emp.id in days ? Number(days[emp.id]) : DEFAULT_PAID_DAYS;
+      const { arrearAmount } = await payMonth(
+        emp.id,
+        dailyProcessData(rate, requested),
+        month,
+        year,
+        issueDate,
+      );
+      arrearsPaid += arrearAmount;
+      processed++;
+      continue;
+    }
+
     const fixation = emp.fixations.length
       ? versionForMonthEnd(emp.fixations, monthEnd)
       : null;
@@ -284,7 +418,7 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const { arrearAmount } = await payMonth(emp.id, fixation, month, year, issueDate);
+    const { arrearAmount } = await payMonth(emp.id, processData(fixation), month, year, issueDate);
     arrearsPaid += arrearAmount;
     processed++;
   }

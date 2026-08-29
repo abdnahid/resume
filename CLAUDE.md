@@ -127,6 +127,21 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   whatever is current now — so back-processing an earlier month after an
   increment still pays that month's structure. `supersededAt` is deliberately
   *not* a disqualifier there.
+- **Daily-basis staff are paid by the day, not by fixation.** `EmployeeCategory`
+  splits the roster: `officer` (grades 1–11), `staff` (12–20), `daily_basis`
+  (no grade at all) and `outsourcing`. Daily-basis pay is
+  `DailyWageRate` for the office's zone × days worked, capped at
+  `MAX_PAID_DAYS` (22) and defaulted to it — the process screen asks for days
+  before writing anything. They hold no `SalaryFixation` and never can, because
+  a fixation needs a grade.
+- **The category comes from the employee id, then the grade.** Ids are
+  `YYYY`+`CCC`+`NNNN` — joining year, entry code, serial — and code `103` is the
+  daily-basis series. Everyone else splits on grade. Only `daily_basis` is read
+  off the code, because the id records where someone *entered*: seven code-102
+  staff have since been promoted into officer posts and the id cannot change.
+- **Validate id structure, not just length.** BD mobile numbers are also 11
+  digits and the HR export has four of them in the id field. `parseEmployeeId()`
+  checks the joining year and a known entry code.
 - **The chain is fixation → `SalaryProcess` → bank advice.** `SalaryProcess`
   snapshots basic/gross/deduction/net; the bank advice sums `netSalary` over a
   month. Change what a fixation pays and everything downstream follows.
@@ -314,7 +329,11 @@ npm run seed:bds       # BDS store catalogue — 6 divisions, 55 standards
 npm run seed:org       # organogram
 npm run seed:grades    # NPS-2015 grades onto OrgPost
 npm run seed:employees # employees
-npm run seed:salary    # pay scale, house rent slabs, office zones (reads utils/*.xlsx)
+npm run seed:salary    # pay scale, house rent slabs, office zones, daily wage rates, banks
+
+npm run import:report    # dry run over utils/employee_bio.json — writes a report, no DB writes
+npm run import:employees # import/refresh employees from the HR export (upsert, never deletes)
+npm run import:retire    # remove employees the export does not contain (dry run without --yes)
 ```
 
 Seeds are idempotent — they upsert on natural keys and are safe to re-run.

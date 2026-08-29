@@ -33,6 +33,8 @@ export default function PayslipDocument({ slip }: { slip: Payslip }) {
   const [downloading, setDownloading] = useState(false);
 
   const bnMonth = BENGALI_MONTHS[slip.month] ?? slip.month;
+  // Daily-basis staff hold no fixation: no grade, no step, no allowances.
+  const isDaily = slip.dailyRate !== null;
   const totalPayable = slip.netSalary + slip.arrearAmount;
 
   async function download() {
@@ -123,10 +125,16 @@ export default function PayslipDocument({ slip }: { slip: Payslip }) {
               <tr>
                 <td className="py-1 text-ink-3">পদবী</td>
                 <td className="py-1 text-ink">{slip.employee.designationBn}</td>
-                <td className="py-1 text-ink-3">গ্রেড</td>
+                <td className="py-1 text-ink-3">{isDaily ? "ধরন" : "গ্রেড"}</td>
                 <td className="py-1 text-ink">
-                  {toBengaliDigits(slip.grade)}
-                  {slip.step !== null && ` (ধাপ ${toBengaliDigits(slip.step)})`}
+                  {isDaily ? (
+                    "দৈনিক ভিত্তিক"
+                  ) : (
+                    <>
+                      {toBengaliDigits(slip.grade)}
+                      {slip.step !== null && ` (ধাপ ${toBengaliDigits(slip.step)})`}
+                    </>
+                  )}
                 </td>
               </tr>
               <tr>
@@ -162,18 +170,30 @@ export default function PayslipDocument({ slip }: { slip: Payslip }) {
                     colSpan={2}
                     className="px-3 py-1.5 font-semibold text-ink-2 text-[13px]"
                   >
-                    বেতন ও ভাতাদি
+                    {isDaily ? "দৈনিক ভিত্তিক মজুরি" : "বেতন ও ভাতাদি"}
                   </td>
                 </tr>
 
-                <tr className="border-b border-rule">
-                  <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
-                    মূল বেতন
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-ink">
-                    {bdt(slip.basicSalary)}
-                  </td>
-                </tr>
+                {isDaily ? (
+                  <tr className="border-b border-rule">
+                    <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
+                      কর্মদিবস {toBengaliDigits(slip.daysWorked ?? 0)} দিন × দৈনিক{" "}
+                      {bdt(slip.dailyRate ?? 0)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink">
+                      {bdt((slip.daysWorked ?? 0) * (slip.dailyRate ?? 0))}
+                    </td>
+                  </tr>
+                ) : (
+                  <tr className="border-b border-rule">
+                    <td className="border-r border-rule px-3 py-2 pl-6 text-ink-2">
+                      মূল বেতন
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-ink">
+                      {bdt(slip.basicSalary)}
+                    </td>
+                  </tr>
+                )}
 
                 {slip.earnings.map((l, i) => (
                   <tr key={`e${i}`} className="border-b border-rule">
