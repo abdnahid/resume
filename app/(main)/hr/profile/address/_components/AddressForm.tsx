@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { BD_DIVISIONS } from "@/lib/bdGeoData";
 import { BD_POST_OFFICES } from "@/lib/bdPostOffices";
+import StepNavButton from "@/components/StepNavButton";
 
 const INPUT   = "w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 bg-background transition-colors";
 const SECTION = "text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border";
@@ -285,7 +286,7 @@ export default function AddressForm({
 
       <div className="flex items-center justify-between pb-8">
         {prevStep ? (
-          <button type="button" onClick={() => router.push("/hr/profile?step=" + prevStep)} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</button>
+          <StepNavButton href={"/hr/profile?step=" + prevStep} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</StepNavButton>
         ) : <div />}
         <div className="flex items-center gap-3">
           {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-600"><CheckCircle2 size={16} /> Saved</span>}

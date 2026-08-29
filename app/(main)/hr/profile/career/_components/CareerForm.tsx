@@ -6,6 +6,7 @@ import { Plus, Trash2, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 import type { OrgPostFlat, OrgRoot } from "@/lib/org";
 import SingleDatePopover from "../../../../_components/DateScape/SingleDatePopover";
 import { toDate, fromDate } from "@/lib/dateHelpers";
+import StepNavButton from "@/components/StepNavButton";
 
 const INPUT = "w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 bg-background transition-colors";
 const LABEL = "block text-sm font-medium text-foreground mb-1.5";
@@ -278,8 +279,8 @@ export default function CareerForm({
 
       {/* Step navigation */}
       <div className="flex items-center justify-between pt-4 pb-8">
-        {prevStep ? <button type="button" onClick={() => router.push("/hr/profile?step=" + prevStep)} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</button> : <div />}
-        {nextStep && <button type="button" onClick={() => router.push("/hr/profile?step=" + nextStep)} className="px-6 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors cursor-pointer">Continue →</button>}
+        {prevStep ? <StepNavButton href={"/hr/profile?step=" + prevStep} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</StepNavButton> : <div />}
+        {nextStep && <StepNavButton href={"/hr/profile?step=" + nextStep} className="px-6 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors cursor-pointer">Continue →</StepNavButton>}
       </div>
     </div>
   );

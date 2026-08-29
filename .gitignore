@@ -14,3 +14,6 @@ out
 # Build caches and desktop-environment cruft: pure churn across machines
 tsconfig.tsbuildinfo
 .directory
+
+# LibreOffice lock files — created while a spreadsheet in utils/ is open
+.~lock.*#

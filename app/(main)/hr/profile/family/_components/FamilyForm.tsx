@@ -5,6 +5,7 @@ import { CheckCircle2 } from "lucide-react";
 import RepeatingSection from "../../_components/RepeatingSection";
 import SingleDatePopover from "../../../../_components/DateScape/SingleDatePopover";
 import { toDate, fromDate } from "@/lib/dateHelpers";
+import StepNavButton from "@/components/StepNavButton";
 
 const INPUT = "w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 bg-background transition-colors";
 const INPUT_BN = INPUT + " font-bn-serif";
@@ -128,7 +129,7 @@ export default function FamilyForm({ maritalStatus, spouse: initSpouse, children
 
       {error && <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
       <div className="flex items-center justify-between pb-8">
-        {prevStep ? <button type="button" onClick={() => router.push("/hr/profile?step=" + prevStep)} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</button> : <div />}
+        {prevStep ? <StepNavButton href={"/hr/profile?step=" + prevStep} className="px-5 py-2.5 rounded-lg border border-border text-sm font-medium hover:bg-muted transition-colors cursor-pointer">← Previous</StepNavButton> : <div />}
         <div className="flex items-center gap-3">
           {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-600"><CheckCircle2 size={16} /> Saved</span>}
           <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors cursor-pointer">{saving ? "Saving…" : nextStep ? "Save & Next →" : "Save"}</button>

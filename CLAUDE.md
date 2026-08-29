@@ -312,6 +312,20 @@ build once.
   block; each module overrides `--primary` and friends via its theme class.
   Write `text-primary`, `bg-card`, `border-border` — never a hex value.
 
+- **Every route that can be slow needs a `loading.tsx`.** Next renders it the
+  instant a navigation starts, so without one a click does nothing visible until
+  the server component finishes — around a second on the fixation and employee
+  screens. `components/Skeleton.tsx` holds the pieces; a skeleton should echo
+  the shape of the page it stands in for, so content does not jump when it
+  lands. A `loading.tsx` covers its own segment and every nested one, so
+  `app/(main)/hr/loading.tsx` is the fallback and the heavy tables override it.
+
+- **`loading.tsx` does not fire for same-route navigation.** Moving between
+  profile wizard steps only changes `?step=`, so the segment never re-mounts.
+  Those use `StepNavButton`, which wraps `router.push` in `useTransition` —
+  that is what makes the pending state cover the navigation rather than just
+  the click.
+
 - **Don't ship dead links or dead buttons.** A nav entry that 404s is worse than
   no entry. Where a feature is not built yet, render it disabled with a short
   note saying when it arrives.
