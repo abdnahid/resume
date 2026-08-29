@@ -279,6 +279,35 @@ async function seedHouseRentHead() {
   });
 }
 
+// ─── Daily-basis wages ───────────────────────────────────────────────────────
+
+/**
+ * The daily rate for daily-basis staff, by the same three zones the house rent
+ * table uses — category 1 Dhaka, 2 the divisional cities, 3 the rest.
+ *
+ * At most 22 days a month may be paid; that ceiling lives in
+ * `lib/salary/daily.ts` with the calculation, not here.
+ */
+const DAILY_WAGE = [
+  { zone: "dhaka" as const, amount: 800 },
+  { zone: "divisional_city" as const, amount: 750 },
+  { zone: "other_district" as const, amount: 700 },
+];
+
+/** Rates take effect from the start of the current fiscal year. */
+const DAILY_WAGE_FROM = "07-01-2026";
+
+async function seedDailyWages(): Promise<number> {
+  for (const r of DAILY_WAGE) {
+    await p.dailyWageRate.upsert({
+      where: { zone_effectiveFrom: { zone: r.zone, effectiveFrom: DAILY_WAGE_FROM } },
+      update: { amount: r.amount },
+      create: { ...r, effectiveFrom: DAILY_WAGE_FROM, note: "Current daily-basis rate" },
+    });
+  }
+  return DAILY_WAGE.length;
+}
+
 // ─── Banking ─────────────────────────────────────────────────────────────────
 
 /**
@@ -526,6 +555,11 @@ async function main() {
           : ""),
     );
   }
+
+  const wages = await seedDailyWages();
+  console.log(
+    `  daily wages      ${wages} zone rates (${DAILY_WAGE.map((w) => w.amount).join("/")} per day, max 22 days)`,
+  );
 
   const banking = await seedBanking();
   console.log(

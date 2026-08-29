@@ -68,6 +68,18 @@ const BLOOD: Record<string, string> = {
   "AB+": "AB_pos", "AB-": "AB_neg", "O+": "O_pos", "O-": "O_neg",
 };
 
+/**
+ * Is this actually an address?
+ *
+ * The export puts junk in the email field — 56 employees carry the literal
+ * string "00" and three carry "0". Stored as-is they would be offered as a
+ * contact address, and `User.email` is unique, so the 56 would collide.
+ */
+export function isValidEmail(s: unknown): boolean {
+  const t = val(s);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t);
+}
+
 /** The export spells this seven ways; the column is free text, so settle it. */
 export function normaliseNationality(s: unknown): string | null {
   return val(s) ? "Bangladeshi" : null;
@@ -291,7 +303,7 @@ export function normaliseRecord(raw: any, table: PostGrade[]): NormaliseResult {
       bloodGroup: BLOOD[val(identity.blood_group)] ?? null,
       nid: opt(identity.nid),
       nationality: normaliseNationality(identity.nationality),
-      email: opt(contact.email),
+      email: isValidEmail(contact.email) ? val(contact.email) : null,
       mobileHome: opt(contact.personal_mobile),
       mobileOffice: opt(contact.office_phone),
       designationEn: opt(service.designation_en),

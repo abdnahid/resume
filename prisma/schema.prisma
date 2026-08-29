@@ -561,6 +561,38 @@ model HouseRentRule {
   @@index([scaleId, zone])
 }
 
+/// What a daily-basis worker is paid per day, by location.
+///
+/// Daily-basis staff sit outside the national pay scale entirely — no grade, no
+/// step, no allowances — so they cannot hold a `SalaryFixation`. Their pay is
+/// simply the rate for their office's zone times the days worked.
+///
+/// The zones are the same three the house rent table uses, which is why this
+/// keys on `HouseRentZone` rather than repeating the categories: category 1 is
+/// Dhaka, 2 the divisional cities, 3 everywhere else.
+///
+/// Versioned by effective date rather than hung off `PayScale`, because the
+/// daily rate is set by its own government order and moves independently of the
+/// pay scale.
+model DailyWageRate {
+  id Int @id @default(autoincrement())
+
+  zone   HouseRentZone
+  /// Taka per day.
+  amount Int
+
+  effectiveFrom String
+  /// Null while this is the rate in force.
+  effectiveTo   String?
+
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([zone, effectiveFrom])
+  @@index([zone])
+}
+
 // ─── Salary heads ────────────────────────────────────────────────────────────
 
 /// An allowance or deduction that can be attached to a fixation. The catalogue
@@ -864,6 +896,11 @@ model SalaryProcess {
   issueDate      String
   month          String
   year           String
+
+  /// Daily-basis pay: the days credited and the rate they were paid at.
+  /// Null for everyone on the pay scale, whose pay comes from a fixation.
+  daysWorked Int?
+  dailyRate  Int?
 
   /// Arrears settled in this month, on top of the fixation's own net.
   arrearAmount Int            @default(0)
