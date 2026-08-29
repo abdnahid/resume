@@ -13,6 +13,7 @@
     "seed:grades": "tsx prisma/seed-grades.ts",
     "seed:employees": "tsx prisma/seed-employees.ts",
     "seed:salary": "tsx prisma/seed-salary.ts",
+    "import:report": "tsx prisma/import/report.ts",
     "migrate:postings": "tsx prisma/migrate-postings.ts"
   },
   "dependencies": {

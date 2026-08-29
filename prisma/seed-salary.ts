@@ -316,7 +316,7 @@ const BRANCHES: Record<number, { branchBn: string; addressBn: string; account: s
   8:  { branchBn: "ফরিদপুর শাখা", addressBn: "মুজিব সড়ক, ফরিদপুর-৭৮০০", account: "০১০৮২০০০০১১০৮" },
   9:  { branchBn: "কক্সবাজার শাখা", addressBn: "প্রধান সড়ক, কক্সবাজার-৪৭০০", account: "০১০৯২০০০০১১০৯" },
   10: { branchBn: "কুষ্টিয়া শাখা", addressBn: "এন এস রোড, কুষ্টিয়া-৭০০০", account: "০১১০২০০০০১১১০" },
-  11: { branchBn: "নওগাঁ শাখা", addressBn: "সদর, নওগাঁ-৬৫০০", account: "০১১১২০০০০১১১১" },
+  11: { branchBn: "বগুড়া কর্পোরেট শাখা", addressBn: "বড়গোলা, বগুড়া-৫৮০০", account: "০১১১২০০০০১১১১" },
   12: { branchBn: "গাজীপুর শাখা", addressBn: "জয়দেবপুর, গাজীপুর-১৭০০", account: "০১১২২০০০০১১১২" },
   13: { branchBn: "পটুয়াখালী শাখা", addressBn: "সদর রোড, পটুয়াখালী-৮৬০০", account: "০১১৩২০০০০১১১৩" },
   14: { branchBn: "পাবনা শাখা", addressBn: "আব্দুল হামিদ রোড, পাবনা-৬৬০০", account: "০১১৪২০০০০১১১৪" },

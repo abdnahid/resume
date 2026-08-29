@@ -61,6 +61,29 @@ enum OfficeType {
   dmi
 }
 
+/// What kind of employee this is, in BSTI's own terms.
+///
+/// Derived at import from the employee id and the pay grade, not typed in:
+/// the id's middle three digits are the entry code, and code `103` is the
+/// daily-basis series. Everyone else is split by grade — 1–11 officer,
+/// 12–20 staff.
+///
+/// The id records where someone *entered*, not where they are now: three
+/// code-102 staff have since been promoted into officer posts, which is why
+/// grade decides officer-versus-staff and only `daily_basis` is read off the
+/// code.
+enum EmployeeCategory {
+  /// Grades 1–11.
+  officer
+  /// Grades 12–20.
+  staff
+  /// No grade at all, and outside the national pay scale — paid under the
+  /// government's daily-basis rules. Cannot hold a `SalaryFixation`.
+  daily_basis
+  /// Contracted through an agency. None on the roster yet.
+  outsourcing
+}
+
 enum EmployeeStatus {
   active
   retired
@@ -372,6 +395,10 @@ model Address {
 model Employee {
   id     String         @id
   status EmployeeStatus @default(active)
+
+  /// See `EmployeeCategory`. Defaults to `staff` only so the column could be
+  /// added to existing rows; the importer sets it explicitly for everyone.
+  category EmployeeCategory @default(staff)
 
   // Identity
   nameEn         String

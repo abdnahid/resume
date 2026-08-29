@@ -112,13 +112,13 @@
   {
     "id": 11,
     "type": "regional",
-    "nameEn": "Regional Office, BSTI, Naogaon",
-    "nameBn": "আঞ্চলিক কার্যালয়, বিএসটিআই, নওগাঁ",
+    "nameEn": "Regional Office, BSTI, Bogura",
+    "nameBn": "আঞ্চলিক কার্যালয়, বিএসটিআই, বগুড়া",
     "officeHead": "DD",
-    "addressEn": "Naogaon Sadar Upazila Muktijoddha Complex, Dhaka Bus Stand, Naogaon",
-    "addressBn": "নওগাঁ সদর উপজেলা মুক্তিযোদ্ধা কমপ্লেক্স, ঢাকা বাস স্ট্যান্ড, নওগাঁ",
-    "phone": "01332825435",
-    "email": "monnaf1969@yahoo.com"
+    "addressEn": "BSCIC Industrial Area, Bogura-5800",
+    "addressBn": "বিসিক শিল্প এলাকা, বগুড়া-৫৮০০",
+    "phone": null,
+    "email": "bstibogura@gmail.com"
   },
   {
     "id": 12,

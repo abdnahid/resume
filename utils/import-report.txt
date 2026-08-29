@@ -1,0 +1,499 @@
+BSTI employee import — dry run
+source   utils/employee_bio.json (773 records)
+grades   utils/grades.ods (133 sanctioned posts)
+run at   2026-08-29T06:01:01.403Z
+
+NOTHING WAS WRITTEN TO THE DATABASE.
+
+──────────────────────────────────────────────────────────────────────────────
+SUMMARY
+──────────────────────────────────────────────────────────────────────────────
+  records in file        773
+  exact duplicates       1 (20221020313)
+  rejected               218
+  would import           554
+
+  by category
+    officer        348
+    staff          113
+    daily_basis    93
+
+──────────────────────────────────────────────────────────────────────────────
+REJECTED — and why
+──────────────────────────────────────────────────────────────────────────────
+
+  identity incomplete — 115
+    20103010064   সুরাইয়া পারভীন                     date of birth
+    20076010053   MOHAMMAD LIAKAT HOSSAIN             marital status
+    19921020161   Mosharof Hossen                     date of birth, gender, marital status, father's name, mother's name
+    20246010153   ASIF SADIQUE                        date of birth, gender, marital status, father's name, mother's name
+    20061020242   Md. Mojibul haque Mojumdar          date of birth, gender, marital status, father's name, mother's name
+    19986010028   Md. Shahinur Islam                  date of birth, gender, marital status, father's name, mother's name
+    19945010033   Gazi Md. Nurul Islam                date of birth, gender, marital status, father's name, mother's name
+    19871020147   Mohammad Ali                        date of birth, gender, marital status, father's name, mother's name
+    20251020379   Abu Naium                           date of birth, gender, marital status, father's name, mother's name
+    20226010104   Sirajum Munira                      date of birth, gender, marital status, father's name, mother's name
+    20235010100   Md. Riaz Uddin                      date of birth, gender, marital status, father's name, mother's name
+    20251020381   Arjun Chandra Das                   date of birth, gender, marital status, father's name, mother's name
+    19991020225   MD. ALMAS MIS                       date of birth, gender, marital status, father's name, mother's name
+    20251020376   Mohammad Ali                        date of birth, gender, marital status, father's name, mother's name
+    20251020377   Md. Zubair Al Siddiqui              date of birth, gender, marital status, father's name, mother's name
+    20226010120   মিঞা মোঃ আশরাফুল আলম                date of birth, gender, marital status, father's name, mother's name
+    20251020373   Md. Aslam Sikder (Eye)              date of birth, gender, marital status, father's name, mother's name
+    20094010040   Sayeed Ahmed Talukder               date of birth, gender, marital status, father's name, mother's name
+    20251020378   Uttam Kumar Mitra                   date of birth, gender, marital status, father's name, mother's name
+    20151020298   এ,কে,এম মোস্তফা জামান               date of birth, gender, marital status, father's name, mother's name
+    20103010041   ZISHAN AHMED TALUKDAR               date of birth, gender, marital status, father's name, mother's name
+    20121020279   Ayesha Akter                        date of birth, gender, marital status, father's name, mother's name
+    19991020227   MD. NURE ALAM                       date of birth, gender, marital status, father's name, mother's name
+    19951020175   MD, ABDUL BAREK HAWLADER            date of birth, gender, marital status, father's name, mother's name
+    20221020316   MOHAMMAD SOHANUR RAHMAN             date of birth, gender, marital status, father's name, mother's name
+    20223010114   A. S. M. FOYSAL                     date of birth, gender, marital status, father's name, mother's name
+    19951020178   TAHAZIBUL ISLAM                     date of birth, gender, marital status, father's name, mother's name
+    20071020245   ABUL KALAM RASEL                    date of birth, gender, marital status, father's name, mother's name
+    20201030080   Md. Yusuf Ali                       date of birth, gender, marital status, father's name, mother's name
+    20201030085   Abdul Hannan                        date of birth, gender, marital status, father's name, mother's name
+    20201030087   Rasel Sikder                        date of birth, gender, marital status, father's name, mother's name
+    20201030088   Fahim Khan Naim                     date of birth, gender, marital status, father's name, mother's name
+    20201030089   Imran Khan                          date of birth, gender, marital status, father's name, mother's name
+    20221030093   Nurul Islam                         date of birth, gender, marital status, father's name, mother's name
+    20221030098   Mokhlesur Rahman                    date of birth, gender, marital status, father's name, mother's name
+    20231030103   Md. Mizanur Rahman                  date of birth, gender, marital status, father's name, mother's name
+    20231030104   Abdullah Al Mamun                   date of birth, gender, marital status, father's name, mother's name
+    20191030070   Md. Mosaddeque Hossain              date of birth, gender, marital status, father's name, mother's name
+    20191030060   Tajul Islam                         date of birth, gender, marital status, father's name, mother's name
+    20231030107   Kamrul Hasan                        date of birth, gender, marital status, father's name, mother's name
+    20191030053   Md. Ashadul Haque                   date of birth, gender, marital status, father's name, mother's name
+    20171030041   Md. Mostafa Kamal                   date of birth, gender, marital status, father's name, mother's name
+    20151030037   Md. Samsul Alam                     date of birth, gender, marital status, father's name, mother's name
+    20151030035   Md. Yunus Ali                       date of birth, gender, marital status, father's name, mother's name
+    20131030033   Md. Ziaur Rahman                    date of birth, gender, marital status, father's name, mother's name
+    20121030023   Md. Ali Ahmed (Rana)                date of birth, gender, marital status, father's name, mother's name
+    20111030020   Binchu Das                          date of birth, gender, marital status, father's name, mother's name
+    20101030019   Mohammad Ali                        date of birth, gender, marital status, father's name, mother's name
+    20101030016   Md. Uzzal Hossain                   date of birth, gender, marital status, father's name, mother's name
+    20101030015   Md. Liton Mia                       date of birth, gender, marital status, father's name, mother's name
+    20061030008   Md. Rasel Pathan                    date of birth, gender, marital status, father's name, mother's name
+    20041030004   Noor Mohammad                       date of birth, gender, marital status, father's name, mother's name
+    19993010030   S M ABU SAYED                       date of birth, gender, marital status, father's name, mother's name
+    19953010019   Md. Golam Rabbani                   date of birth, gender, marital status, father's name, mother's name
+    20001020237   MOMENA KHANUM                       date of birth, gender, marital status, father's name, mother's name
+    19891020158   Md. Abdul Latif                     date of birth, gender, marital status, father's name, mother's name
+    19851020137   Monowara Haque                      date of birth, gender, marital status, father's name, mother's name
+    19953010010   Md. Nurul Amin                      date of birth, gender, marital status, father's name, mother's name
+    19942010020   MD SAIDUL ISLAM                     date of birth, gender, marital status, father's name, mother's name
+    20103010055   Ibadat Manik                        date of birth, gender, marital status, father's name, mother's name
+    20121020285   MD. MAHIUDDIN ZAHANGIR              date of birth, gender, marital status, father's name, mother's name
+    20231020350   MD. IBRHIM MIAH                     date of birth, gender, marital status, father's name, mother's name
+    19985010035   Morshada Begum                      date of birth, gender, marital status, father's name, mother's name
+    19984010027   MD SHAHADAT HOSSAIN                 date of birth, gender, marital status, father's name, mother's name
+    20253010135   SAIFUL ISLAM                        date of birth, gender, marital status, father's name, mother's name
+    20123010081   এ এন এম ফরহাদ হোসেন edit            date of birth, gender, marital status, father's name, mother's name
+    20103010044   ফিরোজ আহমেদ                         date of birth, gender, marital status, father's name, mother's name
+    20063010035   মোহাম্মদ আরাফাত হোসেন সরকার         date of birth, gender, marital status, father's name, mother's name
+    19953010012   মোঃ সাইফুল ইসলাম                    date of birth, gender, marital status, father's name, mother's name
+    19951020182   MD. RUHUL AMIN                      date of birth, gender, marital status, father's name, mother's name
+    19941020171   MD. KHAJANUR RAHMAN                 date of birth, gender, marital status, father's name, mother's name
+    20253010154   Md. Asif Khan                       date of birth, gender, marital status, father's name, mother's name
+    20191020309   Md. Belal Sarkar                    date of birth, gender, marital status, father's name, mother's name
+    19991020228   Nasir Ahmed                         date of birth, gender, marital status, father's name, mother's name
+    19991020229   Md. Shahroz Mia                     date of birth, gender, marital status, father's name, mother's name
+    19991020230   Zafar Ahmed                         date of birth, gender, marital status, father's name, mother's name
+    19981020205   Md. Shahabuddin                     date of birth, gender, marital status, father's name, mother's name
+    19981020204   Md. Hanif Howlader                  date of birth, gender, marital status, father's name, mother's name
+    19981020203   Abdul Ghofran                       date of birth, gender, marital status, father's name, mother's name
+    20251020371   Mir Mamun                           date of birth, gender, marital status, father's name, mother's name
+    19881020151   Md. Mustafa Kamal                   date of birth, gender, marital status, father's name, mother's name
+    20221020318   Md. Arman Ali                       date of birth, gender, marital status, father's name, mother's name
+    20121020272   Md. Khwaja Ahmed Majumder           date of birth, gender, marital status, father's name, mother's name
+    19941020167   Md. Solaiman                        date of birth, gender, marital status, father's name, mother's name
+    19951020189   Md. Abdul Kader                     date of birth, gender, marital status, father's name, mother's name
+    19981020214   Selina Afroz                        date of birth, gender, marital status, father's name, mother's name
+    19951020188   Md. Faizullah                       date of birth, gender, marital status, father's name, mother's name
+    19971020201   Monir Ahmed                         date of birth, gender, marital status, father's name, mother's name
+    19981020207   Md. Nasir Ahmed                     date of birth, gender, marital status, father's name, mother's name
+    20251020375   MD. DELWAR HOSSEN                   date of birth, gender, marital status, father's name, mother's name
+    20231020356   ANOWAR MOSTAFA                      date of birth, gender, marital status, father's name, mother's name
+    20001020233   MOHAMMED HOSSAIN                    date of birth, gender, marital status, father's name, mother's name
+    20151020295   HOMEIRA AKTER                       date of birth, gender, marital status, father's name, mother's name
+    20121020270   RABIYA AKTER POLI                   date of birth, gender, marital status, father's name, mother's name
+    20221020314   SAIKAT MAHMUD                       date of birth, gender, marital status, father's name, mother's name
+    20231020362   SHISHIR MONDAL                      date of birth, gender, marital status, father's name, mother's name
+    20101020249   INDROGIT KUMER SAHA                 date of birth, gender, marital status, father's name, mother's name
+    20114010051   MD. TAIUB ALI                       date of birth, gender, marital status, father's name
+    20153010099   S M                                 date of birth, gender, marital status, father's name, mother's name
+    20094010039   Israt Z                             date of birth, gender, marital status, father's name, mother's name
+    20246010156   মোঃ মেহেদী হাসান                    date of birth, gender, marital status, father's name, mother's name
+    20103010059   NOVERA BINTE NOOR                   date of birth, gender, marital status, father's name, mother's name
+    20246010137   AFRINA AKTER ANIKA                  date of birth, gender, marital status, father's name, mother's name
+    20255010111   M. MUIN SADEQUE                     date of birth, gender, marital status, father's name, mother's name
+    20256010202   জ্যোতি প্রকাশ বর্মন                 date of birth, gender, marital status, father's name, mother's name
+    20122010034   Name (English)                      date of birth, gender, marital status, father's name
+    20223010123   মো: তাওহিদ আল-আমিন                  date of birth, gender, marital status, father's name, mother's name
+    19881020153   Md. Shafiqul Islam                  date of birth, gender, marital status, father's name, mother's name
+    20246010146   MD. OMIT HASAN                      date of birth, gender, marital status, father's name, mother's name
+    20225010091   PARVAZ KHAN                         date of birth, gender, marital status, father's name, mother's name
+    19981020221   Md. Abdul Jabbar                    date of birth, gender, marital status, father's name, mother's name
+    20231020355   MOHAMMAD MUTALEB HOSSAIN            date of birth, gender, marital status, father's name, mother's name
+    20121020275   MD. MOINUL ASKARI SHOHUG            date of birth, gender, marital status, father's name, mother's name
+    20256010199   MOHAMMAD OSMAN                      date of birth, gender, marital status, father's name, mother's name
+    20253010153   মোঃ আবিদ হাসান                      date of birth, gender, marital status, father's name, mother's name
+
+  no bio — 72
+    20094010038   MD. MAYEN UDDIN                     500 Internal Server Error
+    20153010084   MAKSUDA RUNA                        500 Internal Server Error
+    20103010066   SHIMU BISWAS                        500 Internal Server Error
+    20194010061   FAISHAL MAHMUD                      500 Internal Server Error
+    20224010069   MD RAFSAN SIDDIQUE                  500 Internal Server Error
+    20221020320   MD. NURE ALAM                       500 Internal Server Error
+    20105010055   DR. MD. SHAHED REZA                 500 Internal Server Error
+    20065010041   SHARIF MUHAMMAD SYEDUZZAMAN         500 Internal Server Error
+    20094010041   S M ASSEQUZZAMAN                    500 Internal Server Error
+    20103010042   ZIAUL HAQUE                         500 Internal Server Error
+    20245010107   MD BELAL                            500 Internal Server Error
+    20126010064   RUBINA AKHTAR                       500 Internal Server Error
+    20246010130   MD MAMUNUR RAHMAN                   500 Internal Server Error
+    20103010067   Afsana Hossain                      500 Internal Server Error
+    20156010070   Syeda Kimia Alam Diba               500 Internal Server Error
+    20151020287   MANI RANI SARKER                    500 Internal Server Error
+    20253010150   SUMAYA AFROSE LIZA                  500 Internal Server Error
+    20111020253   MUHAMMAD ASADUZZAMAN                500 Internal Server Error
+    20101020251   MD. SHARIFUL ISLAM                  500 Internal Server Error
+    20255010129   AMINA FERDAUS                       500 Internal Server Error
+    20072010029   JOYSHREE DAS                        500 Internal Server Error
+    20006010039   MD MOMEN US SAJJAD                  500 Internal Server Error
+    20153010093   MD. RASHED ALL MAMUN                500 Internal Server Error
+    20076010056   MOHAMMAD MAMUNUR RAHMAN             500 Internal Server Error
+    20224010070   MD. ASFI-AR-RAYHAN ASIF             500 Internal Server Error
+    20153010097   Marufa Begum                        500 Internal Server Error
+    20221020323   MD. MOSTOFA KAMAL                   500 Internal Server Error
+    20153010086   Engr. Md.Nazrul Islam               500 Internal Server Error
+    20153010096   Jeb-Unnesa                          500 Internal Server Error
+    20153010095   ZUNAID AHMED                        500 Internal Server Error
+    20076010047   MD. KAMRUSZAMAN                     500 Internal Server Error
+    20192010042   MD. Ekhlas Uddin                    500 Internal Server Error
+    20222010044   MD. LITON MIAH                      500 Internal Server Error
+    20255010121   MD. AMIR HAMZA                      500 Internal Server Error
+    20156010077   MST. ALEYA KHATUN                   500 Internal Server Error
+    20256010190   MD. SHAKIB HASAN                    500 Internal Server Error
+    20121020264   Shaikat Barua                       500 Internal Server Error
+    20254010086   MD. ARAFATUL ALAM                   500 Internal Server Error
+    20153010098   MD. SHAHIDUL ISLAM                  500 Internal Server Error
+    20105010057   DEBASHIS TALUKDAR                   500 Internal Server Error
+    20255010135   MD. SAID AL HABIB                   500 Internal Server Error
+    20256010162   M. A. AL NOMAN                      500 Internal Server Error
+    20103010061   RIGAN BAIDYA                        500 Internal Server Error
+    20195010074   SUMONTA CHANDRA PAUL                500 Internal Server Error
+    20253010129   MD. ZULKARNA-EN                     500 Internal Server Error
+    20255010113   ZUBAYER ISLAM                       500 Internal Server Error
+    20225010097   A. K. M. NAYEM                      500 Internal Server Error
+    20002010024   JAHORA SIKDER                       500 Internal Server Error
+    20196010092   KHELA RANI KAR                      500 Internal Server Error
+    20151020297   MD AL ADIB FOYSAL                   500 Internal Server Error
+    20065010042   MD KAMAL HOSSAIN                    500 Internal Server Error
+    20151020291   LITON KUMAR ROY                     500 Internal Server Error
+    20103010070   FARHANA ZAHAN PARUL                 500 Internal Server Error
+    20105010052   DR. KHORSHED ALAM                   500 Internal Server Error
+    20255010116   MD. ISHMUM CHOWDHURY                500 Internal Server Error
+    20156010073   SUMAN SAHA                          500 Internal Server Error
+    20196010095   ENGR. JILLUR RAHMAN                 500 Internal Server Error
+    20222010045   MD. TAHSIN MAHMUD                   500 Internal Server Error
+    20252010053   MD. RAKIB HASAN RONI                500 Internal Server Error
+    20101020250   MD. Bashir Ahammad                  500 Internal Server Error
+    20223010118   MD. SHAHANUR HOSSAIN KHAN           500 Internal Server Error
+    20223010122   KHONDAKER MD. JAMINUR RAHMAN        500 Internal Server Error
+    20244010083   MD. SAMIUL ALOM                     500 Internal Server Error
+    20102010031   ENAMUL HOQUE                        500 Internal Server Error
+    20103010040   Md. Jahidur Rahman                  500 Internal Server Error
+    19986010030   MD. LUTFAR RAHMAN                   500 Internal Server Error
+    20151020292   Md. Amirul Islam                    500 Internal Server Error
+    20121020283   KAZI MD BORHAN UDDIN                500 Internal Server Error
+    20255010130   PIAL SARKER                         500 Internal Server Error
+    20121020256   Md. Aslam Sikder (Eye)              500 Internal Server Error
+    20151020289   MD. JAKIR HOSSAIN                   500 Internal Server Error
+    19953010017   Md. Alauddin Hussain                500 Internal Server Error
+
+  bad id — 19
+    ossc.bsti.faridpur@gmail.com OSS (Faridpur)                      not an employee id (an email address)
+    ossbsticumilla@gmail.com OSS (Cumilla)                       not an employee id (an email address)
+    bsticox@gmail.com OSS (Cox's Bazar)                   not an employee id (an email address)
+    bstisylhet@gmail.com OSS (Sylhet)                        not an employee id (an email address)
+    21212121212   TEST                                eleven digits, but not a valid employee id — a mobile number or a test row
+    bstirangpur@gmail.com OSS (Rangpur)                       not an employee id (an email address)
+    Onestopbstictg@gmail.com OSS (Chittangong)                   not an employee id (an email address)
+    bsti.barisal@gmail.com OSS (Barishal)                      not an employee id (an email address)
+    Ossbstirajshahi@gmail.com OSS (Rajshahi)                      not an employee id (an email address)
+    bstikhulna@gmail.com OSS (Khulna)                        not an employee id (an email address)
+    01890359766   MITU                                eleven digits, but not a valid employee id — a mobile number or a test row
+    hrm-bsti-api@orangebd.com BSTI Api                            not an employee id (an email address)
+    shahin@gmail.com Md. Shahin Sharif                   not an employee id (an email address)
+    01776288308   MD. MOSHAROF HUSSAIN BHUIYA         eleven digits, but not a valid employee id — a mobile number or a test row
+    01720001775   ABDUL KAIYUM KHAN                   eleven digits, but not a valid employee id — a mobile number or a test row
+    01795315478   MST. AFROZA                         eleven digits, but not a valid employee id — a mobile number or a test row
+    raisul.bsti@gmail.com RAISUL ISLAM                        not an employee id (an email address)
+    programmerbsti3@yahoo.com Programmer BSTI                     not an employee id (an email address)
+    ferdoussalehin@gmail.com (no name)                           not an employee id (an email address)
+
+  no office — 12
+    20251030122   MD. NURUL AMIN                      no office named in the export
+    20221030094   MD. ABUL HASHEM                     no office named in the export
+    20121030027   MD. MIZANUR RAHMAN                  no office named in the export
+    20221030099   MD. ACHIBUL RAHMAN                  no office named in the export
+    20221030096   NASRIN SULTANA                      no office named in the export
+    20221030097   ARIFUL ISLAM                        no office named in the export
+    20221030095   MD. YUNUS                           no office named in the export
+    20251030114   MD. ALAMGIR HOSSAIN                 no office named in the export
+    20251030124   MD. SHAMIM HOSSAIN                  no office named in the export
+    19881020150   MD. MOHSIN ALI SHEIKH               no office named in the export
+    20251030118   MD. AMINUL ISLAM                    no office named in the export
+    19985010034   KHODEJA KHATOON                     no office named in the export
+
+──────────────────────────────────────────────────────────────────────────────
+OFFICE MAPPING — check these
+──────────────────────────────────────────────────────────────────────────────
+   273  office  6  Head Office, BSTI, Dhaka
+    44  office  3  Divisional Office, BSTI, Chittagong
+    24  office 18  Divisional Office, BSTI, Khulna
+    20  office 12  Regional Office, BSTI, Gazipur
+    18  office 19  DMI, BSTI, Dhaka
+    18  office 22  Divisional Office, BSTI, Rajshahi
+    14  office  4  Divisional Office, BSTI, Rangpur
+    14  office  2  Divisional Office, BSTI, Sylhet
+    13  office  7  District Office, BSTI, Cumilla
+    12  office  1  Divisional Office, BSTI, Barishal
+    11  office 11  Regional Office, BSTI, Bogura
+    11  office  5  Divisional Office, BSTI, Mymensingh
+    10  office 14  Regional Office, BSTI, Pabna
+    10  office 20  Regional Office, BSTI, Narsingdi
+     9  office  8  District Office, BSTI, Faridpur
+     9  office 21  Regional Office, BSTI, Jessore
+     9  office 10  Regional Office, BSTI, Kushtia
+     8  office 16  Regional Office, BSTI, Dinajpur
+     7  office 17  Regional Office, BSTI, Noakhali
+     6  office 15  Regional Office, BSTI, Gopalganj
+     5  office 23  Regional Office, BSTI, Narayanganj
+     5  office 13  Regional Office, BSTI, Patuakhali
+     4  office  9  District Office, BSTI, Cox's Bazar
+
+  offices receiving nobody: none
+
+──────────────────────────────────────────────────────────────────────────────
+ENTRY CODE (digits 5-7 of the id)
+──────────────────────────────────────────────────────────────────────────────
+  101    10  Administration                         officer 10
+  102   120  Staff                                  staff 113, officer 7
+  103    93  Daily basis                            daily_basis 93
+  201    17  Standards wing                         officer 17
+  301    85  Certification Marks wing               officer 85
+  401    42  Physical testing wing                  officer 42
+  501    66  Chemistry testing wing                 officer 66
+  601   118  Metrology wing                         officer 118
+  701     3  Management Systems Certification wing  officer 3
+
+──────────────────────────────────────────────────────────────────────────────
+GRADE RESOLUTION — check these
+──────────────────────────────────────────────────────────────────────────────
+  grade 4      2
+  grade 6      35
+  grade 9      270
+  grade 10     32
+  grade 11     6
+  grade 12     4
+  grade 13     24
+  grade 14     9
+  grade 16     45
+  grade 17     2
+  grade 20     29
+  no grade     96
+
+  how each designation resolved:
+      60    9  officer      পরিদর্শক                                    মেট্রোলজি                 wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরিদর্শক (মেট্রোলজি)"
+      53    9  officer      ফিল্ড অফিসার                                সিএম বিভাগ                wing "সার্টিফিকেশন মার্কস (সিএম) উইং (কর্মকর্তা)" → "ফিল্ড অফিসার (সার্টিফিকেশন মার্কস)"
+      36    —  daily_basis  নিরাপত্তা প্রহরী                            প্রশাসন উইং               daily basis — no grade
+      22    —  daily_basis  পরিচ্ছন্নতা কর্মী                           প্রশাসন উইং               daily basis — no grade
+      21    9  officer      সহকারী পরিচালক                              মেট্রোলজি                 wing "মেট্রোলজি উইং (কর্মকর্তা)" → "সহকারী পরিচালক (মেট্রোলজি)"
+      19    9  officer      সহকারী পরিচালক                              সিএম বিভাগ                wing "সার্টিফিকেশন মার্কস (সিএম) উইং (কর্মকর্তা)" → "সহকারী পরিচালক (সিএম)"
+      17    9  officer      পরীক্ষক                                     রসায়ন পরীক্ষণ উইং        wing "রসায়ন পরীক্ষণ উইং" → "পরীক্ষক (রসায়ন)"
+      17    9  officer      পরীক্ষক                                     মেট্রোলজি                 wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরীক্ষক (মেট্রোলজি)"
+      15    —  daily_basis  ড্রাইভার                                    প্রশাসন উইং               daily basis — no grade
+      10    6  officer      উপপরিচালক                                   মেট্রোলজি                 wing "মেট্রোলজি উইং (কর্মকর্তা)" → "উপপরিচালক (মেট্রোলজি)"
+      10   20  staff        নিরাপত্তা প্রহরী                            প্রশাসন শাখা              exact
+      10    9  officer      পরীক্ষক                                     পুরকৌশল পদার্থ বিভাগ      wing "পদার্থ পরীক্ষণ উইং" → "পরীক্ষক (পুরকৌশল,পদার্থ)"
+      10    9  officer      পরীক্ষক                                     জৈব রসায়ন বিভাগ          wing "রসায়ন পরীক্ষণ উইং" → "পরীক্ষক (রসায়ন)"
+      10   20  staff        অফিস সহায়ক                                 প্রশাসন উইং               exact
+       9   10  officer      পরীক্ষক                                     ফুড ও ব্যাকটেরিলিওজি বিভ  exact
+       9    9  officer      সহকারী পরিচালক                              জৈব রসায়ন বিভাগ          wing "রসায়ন পরীক্ষণ উইং" → "সহকারী পরিচালক (রসায়ন)"
+       9    9  officer      সহকারী পরিচালক                              রসায়ন পরীক্ষণ উইং        wing "রসায়ন পরীক্ষণ উইং" → "সহকারী পরিচালক (রসায়ন)"
+       9    —  daily_basis  ল্যাব বাহক                                  প্রশাসন উইং               daily basis — no grade
+       7    6  officer      উপপরিচালক                                   সিএম বিভাগ                wing "সার্টিফিকেশন মার্কস (সিএম) উইং (কর্মকর্তা)" → "উপপরিচালক (সিএম)"
+       7   10  officer      পরীক্ষক                                     ইলেকট্রিক্যাল এন্ড ইলেকট  exact
+       7    9  officer      পরিদর্শক                                    মেট্রোলজি উইং             wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরিদর্শক (মেট্রোলজি)"
+       6    9  officer      সহকারী পরিচালক                              পুরকৌশল পদার্থ বিভাগ      wing "পদার্থ পরীক্ষণ উইং" → "সহকারী পরিচালক (পুরকৌশল, পদার্থ)"
+       6   10  officer      পরীক্ষক                                     টেক্সটাইল বিভাগ           exact
+       5   16  staff        অফিস সহকারী কাম কম্পিউটার অপারেটর           প্রশাসন শাখা              alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       5   16  staff        ল্যাব সহকারী                                রসায়ন পরীক্ষণ উইং        exact
+       4    9  officer      সহকারী পরিচালক                              ফুড ও ব্যাকটেরিলিওজি বিভ  qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       4    9  officer      সহকারী পরিচালক                              ইলেকট্রিক্যাল এন্ড ইলেকট  qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       4   20  staff        অফিস সহায়ক                                 প্রশাসন শাখা              exact
+       4   13  staff        হিসাব রক্ষক                                 হিসাব ও অভ্যন্তরীণ নিরীক  exact
+       3    9  officer      সহকারী পরিচালক                              টেক্সটাইল বিভাগ           qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       3    6  officer      উপপরিচালক                                   রসায়ন পরীক্ষণ উইং        wing "রসায়ন পরীক্ষণ উইং" → "উপপরিচালক (রসায়ন)"
+       3    6  officer      উপপরিচালক                                   রসায়ন বিভাগ              wing "রসায়ন পরীক্ষণ উইং" → "উপপরিচালক (রসায়ন)"
+       3   12  staff        প্রধান সহকারী                               প্রশাসন শাখা              exact
+       3    —  officer      অফিস প্রধান                                 অফিস প্রধান               UNRESOLVED
+       3   16  staff        অফিস সহকারী কাম কম্পিউটার অপারেটর           প্রশাসন উইং               alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       3   16  staff        নিম্নমান সহকারী                             প্রশাসন শাখা              slash-alternative ("নিম্নমান সহকারী/ এলডিএ নিম্নমান করনিক")
+       3   16  staff        ডাটা এন্ট্রি অপারেটর                        প্রশাসন উইং               exact
+       3   13  staff        হিসাব রক্ষক                                 প্রশাসন শাখা              exact
+       3    6  officer      উপপরিচালক                                   জৈব রসায়ন বিভাগ          wing "রসায়ন পরীক্ষণ উইং" → "উপপরিচালক (রসায়ন)"
+       3   10  officer      পরীক্ষক                                     ইলেকট্রিক্যাল ও ইলেকট্রন  exact
+       3    9  officer      ফিল্ড অফিসার                                সিএম উইং                  wing "সার্টিফিকেশন মার্কস (সিএম) উইং (কর্মকর্তা)" → "ফিল্ড অফিসার (সার্টিফিকেশন মার্কস)"
+       2   16  staff        ল্যাব সহকারী                                পুরকৌশল পদার্থ বিভাগ      exact
+       2   20  staff        অফিস সহায়ক                                 মেট্রোলজি উইং             exact
+       2   16  staff        কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট             প্রশাসন শাখা              one side of "কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট" ("কম্পিউটার মুদ্রাক্ষরিক")
+       2   16  staff        অফিস সহকারী কাম কম্পিউটার মুদ্রাক্ষরিক      প্রশাসন উইং               alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       2   16  staff        ভান্ডার রক্ষক                               ভান্ডার শাখা              exact
+       2   14  staff        স্টেনোটাইপিস্ট                              প্রশাসন শাখা              alias → "সাঁটমুদ্রাক্ষরিক-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       2   13  staff        স্টেনোগ্রাফার                               প্রশাসন শাখা              alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       2    —  daily_basis  মুয়াজ্জিন                                  প্রশাসন উইং               daily basis — no grade
+       2   16  staff        গ্যাস ম্যান                                 রসায়ন পরীক্ষণ উইং        folded spelling ("গ্যাসম্যান")
+       2   14  staff        ইউডিসি কাম ক্যাশিয়ার                       প্রশাসন উইং               folded spelling ("ইউডিসি-কাম-ক্যাশিয়ার")
+       2    —  daily_basis  ইমাম                                        প্রশাসন উইং               daily basis — no grade
+       2    9  officer      ইন্টারনাল অডিট অফিসার                       ইন্টারনাল অডিট শাখা       exact
+       2   16  staff        অফিস সহকারী কাম কম্পিউটার মুদ্রাক্ষরিক      প্রশাসন শাখা              alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       2   10  officer      পরীক্ষক                                     পাট ও বস্ত্র বিভাগ        exact
+       2    9  officer      ঊর্ধ্বতন পরীক্ষক                            মেট্রোলজি                 wing "মেট্রোলজি উইং (কর্মকর্তা)" → "ঊর্ধ্বতন পরীক্ষক (মেট্রোলজি)"
+       2   10  officer      পরীক্ষক                                     পুরকৌশল ও যন্ত্রকৌশল বিভ  exact
+       1    6  officer      উপপরিচালক                                   পাট ও বস্ত্র বিভাগ        qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1   20  staff        ল্যাব বাহক                                  রসায়ন পরীক্ষণ উইং        slash-alternative ("ল্যাব বেয়ারার /ল্যাব বাহক")
+       1   13  staff        স্টেনোগ্রাফার                               সিএম বিভাগ                alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1   13  staff        যন্ত্রবিদ                                   ইলেকট্রিক্যাল এন্ড ইলেকট  slash-alternative ("যন্ত্রবিদ/ইন্সট্রুমেন্ট মেকানিক")
+       1   13  staff        স্টেনোগ্রাফার                               পুরকৌশল ও যন্ত্রকৌশল বিভ  alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1    6  officer      উপপরিচালক                                   প্রশাসন উইং               wing "প্রশাসন উইং (কর্মকর্তা)" → "উপপরিচালক (প্রশাসন)"
+       1   20  staff        ল্যাব বাহক                                  জৈব রসায়ন বিভাগ          slash-alternative ("ল্যাব বেয়ারার /ল্যাব বাহক")
+       1    4  officer      পরিচালক                                     মেট্রোলজি উইং             wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরিচালক (মেট্রোলজি)"
+       1   10  officer      পরিসংখ্যানবিদ                               পরিকল্পনা ও উন্নয়ন শাখা  exact
+       1   16  staff        ল্যাব সহকারী                                জৈব রসায়ন বিভাগ          exact
+       1   16  staff        ডাটা এন্ট্রি অপারেটর                        পাবলিকেশন ও গণসংযোগ বিভা  exact
+       1    9  officer      সহকারী পরিচালক                              সিএম উইং                  wing "সার্টিফিকেশন মার্কস (সিএম) উইং (কর্মকর্তা)" → "সহকারী পরিচালক (সিএম)"
+       1   16  staff        ডাটা এন্ট্রি অপারেটর                        প্রশাসন শাখা              exact
+       1   11  officer      ঊধ্বর্তন কারিগরী সহায়ক                     অজৈব রসায়ন বিভাগ         alias → "ঊর্ধ্বতন কারিগরী সহায়ক"
+       1   16  staff        অফিস সহকারী কাম কম্পিউটার অপারেটর           সিএম বিভাগ                alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1   13  staff        কম্পিউটার অপারেটর                           প্রশাসন উইং               exact
+       1   20  staff        অফিস সহায়ক                                 ইলেকট্রিক্যাল এন্ড ইলেকট  exact
+       1    9  officer      সহকারী পরিচালক                              পাট ও বস্ত্র বিভাগ        qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       1    6  officer      উপপরিচালক                                   প্রশাসন-২                 wing "প্রশাসন উইং (কর্মকর্তা)" → "উপপরিচালক (প্রশাসন)"
+       1   12  staff        প্রধান সহকারী                               প্রশাসন উইং               exact
+       1   16  staff        ডাটা এন্ট্রি অপারেটর                        মেট্রোলজি উইং             exact
+       1   14  staff        ইউডিসি কাম ক্যাশিয়ার                       প্রশাসন-১                 folded spelling ("ইউডিসি-কাম-ক্যাশিয়ার")
+       1   20  staff        অফিস সহায়ক                                 পদার্থ পরীক্ষণ উইং        exact
+       1   20  staff        খালাসী                                      পুরকৌশল পদার্থ বিভাগ      exact
+       1    9  officer      প্রোগ্রামার                                 আইসিটি সেল                wing "আইসিটি সেল" → "প্রোগ্রামার"
+       1    9  officer      ঊর্ধ্বতন পরীক্ষক                            রসায়ন বিভাগ              wing "রসায়ন পরীক্ষণ উইং" → "ঊর্ধ্বতন পরীক্ষক (রসায়ন)"
+       1    4  officer      পরিচালক                                     পদার্থ পরীক্ষণ উইং        wing "পদার্থ পরীক্ষণ উইং" → "পরিচালক (পদার্থ)"
+       1    9  officer      ভান্ডার কর্মকর্তা                           ভান্ডার শাখা              substring of "স্টোর অফিসার (ভান্ডার কর্মকর্তা)"
+       1   13  staff        কম্পিউটার অপারেটর                           প্রশাসন শাখা              exact
+       1   17  staff        যন্ত্রসাহায্যকারী                           প্রশাসন শাখা              slash-alternative ("যন্ত্র সাহায্যকারী/ইন্সঃ মেকাঃহেলপার")
+       1   13  staff        হিসাব রক্ষক                                 প্রশাসন-২                 exact
+       1   13  staff        কম্পিউটার অপারেটর                           আইসিটি সেল                wing "আইসিটি সেল" → "কম্পিউটার অপারেটর"
+       1    —  daily_basis  খাদেম                                       প্রশাসন উইং               daily basis — no grade
+       1   16  staff        ল্যাব সহকারী                                রসায়ন বিভাগ              exact
+       1   20  staff        অফিস সহায়ক                                 ভান্ডার শাখা              exact
+       1   14  staff        স্টেনোটাইপিস্ট                              প্রশাসন উইং               alias → "সাঁটমুদ্রাক্ষরিক-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1   13  staff        অডিটর                                       হিসাব ও অভ্যন্তরীণ নিরীক  exact
+       1   16  staff        অফিস সহকারী কাম কম্পিউটার অপারেটর           হিসাব ও অভ্যন্তরীণ নিরীক  alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1   11  officer      ঊর্ধ্বতন কারিগরি সহকারী                     ইলেকট্রিক্যাল এন্ড ইলেকট  folded spelling ("ঊর্ধ্বতন কারিগরী সহকারী")
+       1    6  officer      উপপরিচালক                                   ইলেকট্রিক্যাল এন্ড ইলেকট  qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1   16  staff        ডাটা এন্ট্রি অপারেটর                        ইলেকট্রিক্যাল ও ইলেকট্রন  exact
+       1   20  staff        অফিস সহায়ক                                 রসায়ন পরীক্ষণ উইং        exact
+       1   11  officer      সহকারী নিরীক্ষা কর্মকর্তা                   হিসাব ও অভ্যন্তরীণ নিরীক  exact
+       1    6  officer      উপপরিচালক                                   ইন্টারনাল অডিট শাখা       qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1    9  officer      সহকারী পরিচালক                              পুরকৌশল ও যন্ত্রকৌশল বিভ  qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       1   13  staff        যন্ত্রবিদ                                   মেট্রোলজি                 slash-alternative ("যন্ত্রবিদ/ইন্সট্রুমেন্ট মেকানিক")
+       1    6  officer      উপপরিচালক                                   পুরকৌশল ও যন্ত্রকৌশল বিভ  qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1   16  staff        কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট             হিসাব ও অভ্যন্তরীণ নিরীক  one side of "কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট" ("কম্পিউটার মুদ্রাক্ষরিক")
+       1    9  officer      সহকারী পরিচালক                              হিসাব ও অভ্যন্তরীণ নিরীক  qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       1   20  staff        অফিস সহায়ক                                 মেট্রোলজি                 exact
+       1   14  staff        ইউডিসি কাম ক্যাশিয়ার                       প্রশাসন শাখা              folded spelling ("ইউডিসি-কাম-ক্যাশিয়ার")
+       1   10  officer      পরীক্ষক                                     পরিকল্পনা ও উন্নয়ন শাখা  exact
+       1   13  staff        হিসাব সহকারী                                হিসাব ও অভ্যন্তরীণ নিরীক  exact
+       1   17  staff        যন্ত্র সাহায্যকারী                          প্রশাসন শাখা              slash-alternative ("যন্ত্র সাহায্যকারী/ইন্সঃ মেকাঃহেলপার")
+       1   14  staff        ইউডিসি কাম ক্যাশিয়ার                       হিসাব ও অভ্যন্তরীণ নিরীক  folded spelling ("ইউডিসি-কাম-ক্যাশিয়ার")
+       1   10  officer      পরীক্ষক                                     কৃষি ও খাদ্য বিভাগ        exact
+       1   16  staff        কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট             রসায়ন পরীক্ষণ উইং        one side of "কম্পিউটার মুদ্রাক্ষরিক/টাইপিস্ট" ("কম্পিউটার মুদ্রাক্ষরিক")
+       1    9  officer      পরীক্ষক                                     অজৈব রসায়ন বিভাগ         wing "রসায়ন পরীক্ষণ উইং" → "পরীক্ষক (রসায়ন)"
+       1   11  officer      ঊধ্বর্তন কারিগরী সহায়ক                     ফুড ও ব্যাকটেরিলিওজি বিভ  alias → "ঊর্ধ্বতন কারিগরী সহায়ক"
+       1    9  officer      পরীক্ষক                                     ন্যাশনাল মেট্রোলজি ল্যাব  wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরীক্ষক (মেট্রোলজি)"
+       1   20  staff        ল্যাব বাহক                                  পুরকৌশল পদার্থ বিভাগ      slash-alternative ("ল্যাব বেয়ারার /ল্যাব বাহক")
+       1   13  staff        একাউন্টেন্ট                                 রসায়ন পরীক্ষণ উইং        alias → "হিসাব রক্ষক"
+       1    9  officer      ডকুমেন্ট কন্ট্রোল অফিসার                    ডকুমেন্ট কন্ট্রোল শাখা    exact
+       1   16  staff        ল্যাব সহকারী                                মেট্রোলজি উইং             exact
+       1   11  officer      সহকারী আইন কর্মকর্তা                        আইন শাখা                  exact
+       1    6  officer      উপপরিচালক                                   টেক্সটাইল বিভাগ           qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1   13  staff        লাইব্রেরীয়ান                               পাবলিকেশন ও গণসংযোগ বিভা  folded spelling ("লাইব্রেরিয়ান")
+       1   16  staff        অফিস সহকারী কাম কম্পিউটার মুদ্রাক্ষরিক      রসায়ন পরীক্ষণ উইং        alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1    9  officer      সহকারী পরিচালক                              ইলেকট্রিক্যাল ও ইলেকট্রন  qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+       1    6  officer      উপপরিচালক                                   ইলেকট্রিক্যাল ও ইলেকট্রন  qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1    9  officer      ঊর্ধ্বতন পরীক্ষক                            পাট ও বস্ত্র বিভাগ        qualified (wing unmatched) → "ঊর্ধ্বতন পরীক্ষক (কৃষি ও খাদ্য)"
+       1   20  staff        ল্যাব বাহক                                  প্রশাসন-২                 slash-alternative ("ল্যাব বেয়ারার /ল্যাব বাহক")
+       1   13  staff        সাঁটলিপিকার কাম কম্পিউটার অপারেটর           প্রশাসন শাখা              alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1   13  staff        সাঁটলিপিকার কাম কম্পিউটার অপারেটর           মেট্রোলজি উইং             alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1    9  officer      সমন্বয় কর্মকর্তা                           প্রশাসন শাখা              wing "প্রশাসন উইং (কর্মকর্তা)" → "সমন্বয় কর্মকর্তা (কো-অর্ডিনেশন অফিসার)"
+       1    6  officer      উপপরিচালক                                   পরিকল্পনা ও উন্নয়ন শাখা  qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"
+       1   11  officer      সহকারী নিরাপত্তা কর্মকর্তা                  প্রশাসন শাখা              wing "প্রশাসন উইং (কর্মকর্তা)" → "সহকারী নিরাপত্তা কর্মকর্তা"
+       1   14  staff        ক্যাশিয়ার                                  প্রশাসন শাখা              exact
+       1   16  staff        গ্লাস ব্লোয়ার                              প্রশাসন শাখা              exact
+       1   13  staff        সাঁটলিপিকার কাম কম্পিউটার অপারেটর           সিএম উইং                  alias → "সাঁটলিপিকার- কাম-কম্পিউটার মুদ্রক্ষরিক"
+       1    9  officer      সহকারী পরিচালক                              কৃষি ও খাদ্য বিভাগ        qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+
+  NOT daily-basis but no grade resolved: 3
+    20084010036  MD. JAHEDUL ISLAM               অফিস প্রধান / অফিস প্রধান
+    19993010020  K M HANIF                       অফিস প্রধান / অফিস প্রধান
+    20076010042  MUHAMMAD SHAFIQUL ALAM          অফিস প্রধান / অফিস প্রধান
+
+──────────────────────────────────────────────────────────────────────────────
+FIELD COMPLETENESS across the imported
+──────────────────────────────────────────────────────────────────────────────
+  nameBn                  554/554
+  fatherNameBn            554/554
+  motherNameBn            554/554
+  bloodGroup              551/554
+  nid                     553/554
+  email                   541/554
+  mobileHome              552/554
+  designationBn           554/554
+  wing                    554/554
+  dateOfJoining           108/554
+  postRetirementLeave      70/554
+  bankAccountNo           550/554
+  tinNo                   516/554
+  emergencyName           552/554
+
+──────────────────────────────────────────────────────────────────────────────
+SAMPLE — first 5 as they would be written
+──────────────────────────────────────────────────────────────────────────────
+
+  20225010093  MD. MOKSEDUL ISLAM  (মো: মোকসেদুল ইসলাম)
+    category officer · grade 9 · office 6 Head Office, BSTI, Dhaka
+    joined 2022 code 501 · dob 13-04-1996 · male · married
+    পরীক্ষক / রসায়ন পরীক্ষণ উইং · grade via: wing "রসায়ন পরীক্ষণ উইং" → "পরীক্ষক (রসায়ন)"
+
+  20221020329  RIPA AKTER  (রিপা আক্তার)
+    category staff · grade 16 · office 6 Head Office, BSTI, Dhaka
+    joined 2022 code 102 · dob 08-08-1998 · female · married
+    অফিস সহকারী কাম কম্পিউটার অপারেটর / প্রশাসন শাখা · grade via: alias → "অফিস সহকারী-কাম-কম্পিউটার মুদ্রক্ষরিক"
+
+  20226010105  ABDULLAH AL NAHID  (আব্দুল্লাহ আল নাহিদ)
+    category officer · grade 9 · office 6 Head Office, BSTI, Dhaka
+    joined 2022 code 601 · dob 31-12-1993 · male · married
+    পরিদর্শক / মেট্রোলজি · grade via: wing "মেট্রোলজি উইং (কর্মকর্তা)" → "পরিদর্শক (মেট্রোলজি)"
+
+  20154010056  MD. JAHANGIR HOSSAIN CHOWDHURY  (মো: জাহাঙ্গীর হোসেন চৌধুরী)
+    category officer · grade 9 · office 6 Head Office, BSTI, Dhaka
+    joined 2015 code 401 · dob 22-07-1985 · male · married
+    সহকারী পরিচালক / টেক্সটাইল বিভাগ · grade via: qualified (wing unmatched) → "সহকারী পরিচালক (প্রশাসন)"
+
+  20002010026  DIL RAFIA HASAN  (দিল রাফিয়া হাসান)
+    category officer · grade 6 · office 6 Head Office, BSTI, Dhaka
+    joined 2000 code 201 · dob 01-10-1975 · female · married
+    উপপরিচালক / পাট ও বস্ত্র বিভাগ · grade via: qualified (wing unmatched) → "উপপরিচালক (প্রশাসন)"

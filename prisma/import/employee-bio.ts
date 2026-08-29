@@ -1,0 +1,329 @@
+/**
+ * Reading `utils/employee_bio.json` into the shape our schema wants.
+ *
+ * Pure: no database access, no side effects. That is what lets the dry-run
+ * report show exactly what the import would do before it does it.
+ */
+import { gradeFor, type PostGrade } from "./grades";
+import { loose, norm, opt, val } from "./text";
+
+// ─── The employee id ─────────────────────────────────────────────────────────
+
+/**
+ * BSTI employee ids are `YYYY` + `CCC` + `NNNN`: joining year, entry code,
+ * serial. The middle three digits are the series someone was recruited into.
+ *
+ * Checking the structure, not just the length, matters: Bangladeshi mobile
+ * numbers are also eleven digits, and the export has four of them sitting in
+ * the id field. A bare `\d{11}` test lets them through — which is the same
+ * collision `D16` keeps employee ids and mobiles in separate columns for.
+ */
+export const ENTRY_CODES: Record<string, string> = {
+  "101": "Administration",
+  "102": "Staff",
+  "103": "Daily basis",
+  "201": "Standards wing",
+  "301": "Certification Marks wing",
+  "401": "Physical testing wing",
+  "501": "Chemistry testing wing",
+  "601": "Metrology wing",
+  "701": "Management Systems Certification wing",
+};
+
+/** The daily-basis series. The one category the id decides on its own. */
+export const DAILY_BASIS_CODE = "103";
+
+export type ParsedId = { year: number; code: string; serial: string };
+
+export function parseEmployeeId(id: string): ParsedId | null {
+  if (!/^\d{11}$/.test(id)) return null;
+  const year = Number(id.slice(0, 4));
+  const code = id.slice(4, 7);
+  // 1970 is comfortably before the earliest joining year on the roster (1985);
+  // anything outside the range is a mobile number or a typo.
+  if (year < 1970 || year > new Date().getFullYear()) return null;
+  if (!(code in ENTRY_CODES)) return null;
+  return { year, code, serial: id.slice(7) };
+}
+
+// ─── Value vocabularies ──────────────────────────────────────────────────────
+
+const GENDER: Record<string, "male" | "female" | "other"> = {
+  "পুরুষ": "male",
+  "মহিলা": "female",
+  "male": "male",
+  "female": "female",
+};
+
+const MARITAL: Record<string, "single" | "married" | "divorced" | "widowed"> = {
+  "বিবাহিত": "married",
+  "অবিবাহিত": "single",
+  "তালাকপ্রাপ্ত": "divorced",
+  "বিপত্নীক": "widowed",
+  "বিধবা": "widowed",
+};
+
+const BLOOD: Record<string, string> = {
+  "A+": "A_pos", "A-": "A_neg", "B+": "B_pos", "B-": "B_neg",
+  "AB+": "AB_pos", "AB-": "AB_neg", "O+": "O_pos", "O-": "O_neg",
+};
+
+/** The export spells this seven ways; the column is free text, so settle it. */
+export function normaliseNationality(s: unknown): string | null {
+  return val(s) ? "Bangladeshi" : null;
+}
+
+// ─── Offices ─────────────────────────────────────────────────────────────────
+
+/**
+ * The export's `office_id` is its own id space — its 1 is head office, ours is
+ * 6 — so offices are matched on the city in the name, in either language.
+ *
+ * Naogaon became Bogura, so 11 answers to both.
+ */
+const OFFICE_BY_CITY_EN: Record<string, number> = {
+  dhaka: 6, chattogram: 3, chittagong: 3, rajshahi: 22, khulna: 18,
+  barishal: 1, barisal: 1, sylhet: 2, rangpur: 4, mymensingh: 5, dmi: 19,
+  cumilla: 7, comilla: 7, faridpur: 8, "cox'bazar": 9, "cox's bazar": 9,
+  coxbazar: 9, kushtia: 10, bogura: 11, bogra: 11, naogaon: 11, gazipur: 12,
+  patuakhali: 13, pabna: 14, gopalganj: 15, dinajpur: 16, noakhali: 17,
+  narsingdi: 20, jashore: 21, jessore: 21, narayanganj: 23,
+};
+
+const OFFICE_BY_CITY_BN: Record<string, number> = {
+  "ঢাকা": 6, "চট্টগ্রাম": 3, "রাজশাহী": 22, "খুলনা": 18, "বরিশাল": 1,
+  "সিলেট": 2, "রংপুর": 4, "ময়মনসিংহ": 5, "ডিএমআই": 19, "কুমিল্লা": 7,
+  "ফরিদপুর": 8, "কক্সবাজার": 9, "কুষ্টিয়া": 10, "বগুড়া": 11, "নওগাঁ": 11,
+  "গাজীপুর": 12, "পটুয়াখালী": 13, "পাবনা": 14, "গোপালগঞ্জ": 15,
+  "দিনাজপুর": 16, "নোয়াখালী": 17, "নরসিংদী": 20, "যশোর": 21, "নারায়ণগঞ্জ": 23,
+};
+
+export function resolveOffice(officeEn: string, officeBn: string): number | null {
+  const en = norm(officeEn).toLowerCase();
+  if (en) {
+    // The head office is named for the institution itself, not a city.
+    if (en.includes("bangladesh standards")) return 6;
+    for (const [city, id] of Object.entries(OFFICE_BY_CITY_EN)) {
+      if (en.includes(city)) return id;
+    }
+  }
+  const bn = norm(officeBn);
+  if (bn) {
+    if (bn.includes("স্ট্যান্ডার্ডস")) return 6;
+    for (const [city, id] of Object.entries(OFFICE_BY_CITY_BN)) {
+      if (bn.includes(city)) return id;
+    }
+  }
+  return null;
+}
+
+// ─── Dates ───────────────────────────────────────────────────────────────────
+
+/** ISO `1996-04-13` or `Apr 13, 1996` → our stored `DD-MM-YYYY`. */
+export function toStoredDate(input: unknown): string | null {
+  const s = val(input);
+  if (!s) return null;
+
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`;
+
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime()) && /\d{4}/.test(s)) {
+    const d = String(parsed.getDate()).padStart(2, "0");
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    return `${d}-${m}-${parsed.getFullYear()}`;
+  }
+  return null;
+}
+
+// ─── The normalised record ───────────────────────────────────────────────────
+
+export type Category = "officer" | "staff" | "daily_basis" | "outsourcing";
+
+export type NormalisedEmployee = {
+  id: string;
+  parsed: ParsedId;
+  category: Category;
+  grade: number | null;
+  gradeHow: string | null;
+  officeId: number;
+  nameEn: string;
+  nameBn: string;
+  fatherNameEn: string;
+  fatherNameBn: string;
+  motherNameEn: string;
+  motherNameBn: string;
+  dateOfBirth: string;
+  gender: "male" | "female" | "other";
+  maritalStatus: "single" | "married" | "divorced" | "widowed";
+  bloodGroup: string | null;
+  nid: string | null;
+  nationality: string | null;
+  email: string | null;
+  mobileHome: string | null;
+  mobileOffice: string | null;
+  designationEn: string | null;
+  designationBn: string | null;
+  wing: string | null;
+  dateOfJoining: string | null;
+  postRetirementLeave: string | null;
+  bankAccountNo: string | null;
+  bankBranch: string | null;
+  tinNo: string | null;
+  emergencyName: string | null;
+  emergencyRelation: string | null;
+  emergencyMobile: string | null;
+};
+
+export type Rejection = {
+  id: string;
+  nameEn: string;
+  reason: string;
+  detail?: string;
+};
+
+export type NormaliseResult =
+  | { ok: true; employee: NormalisedEmployee }
+  | { ok: false; rejection: Rejection };
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export function normaliseRecord(raw: any, table: PostGrade[]): NormaliseResult {
+  const id = norm(raw?.employee_id);
+  const nameTop = val(raw?.name_en) || val(raw?.name_bn) || "(no name)";
+
+  const parsed = parseEmployeeId(id);
+  if (!parsed) {
+    const why = /^\d{11}$/.test(id)
+      ? "eleven digits, but not a valid employee id — a mobile number or a test row"
+      : "not an employee id (an email address)";
+    return { ok: false, rejection: { id, nameEn: nameTop, reason: "bad id", detail: why } };
+  }
+
+  const bio = raw?.bio;
+  if (!bio || typeof bio !== "object") {
+    return {
+      ok: false,
+      rejection: { id, nameEn: nameTop, reason: "no bio", detail: String(raw?.source?.error ?? "") },
+    };
+  }
+
+  const identity = bio.identity ?? {};
+  const contact = bio.contact ?? {};
+  const service = bio.service ?? {};
+
+  const dateOfBirth = toStoredDate(identity.date_of_birth);
+  const gender = GENDER[val(identity.gender)];
+  const maritalStatus = MARITAL[val(identity.marital_status)];
+  const fatherNameEn = val(identity.father_name_en);
+  const motherNameEn = val(identity.mother_name_en);
+
+  // Our Employee model requires all of these. A profile nobody ever filled in
+  // cannot be imported without inventing parents and a birthday.
+  const missing: string[] = [];
+  if (!dateOfBirth) missing.push("date of birth");
+  if (!gender) missing.push("gender");
+  if (!maritalStatus) missing.push("marital status");
+  if (!fatherNameEn) missing.push("father's name");
+  if (!motherNameEn) missing.push("mother's name");
+  if (missing.length) {
+    return {
+      ok: false,
+      rejection: { id, nameEn: nameTop, reason: "identity incomplete", detail: missing.join(", ") },
+    };
+  }
+
+  const officeId = resolveOffice(val(service.office_en), val(raw?.office) || val(service.office_bn));
+  if (officeId === null) {
+    return {
+      ok: false,
+      rejection: { id, nameEn: nameTop, reason: "no office", detail: "no office named in the export" },
+    };
+  }
+
+  const designationBn = val(service.designation_bn) || val(raw?.designation);
+  const wing = val(service.wing_bn) || val(raw?.wing);
+
+  // Daily-basis staff sit outside the national pay scale entirely, so their
+  // grade is null however their designation would otherwise resolve —
+  // নিরাপত্তা প্রহরী appears in the sanctioned list at grade 20, but a
+  // daily-basis guard does not hold that post.
+  const isDaily = parsed.code === DAILY_BASIS_CODE;
+  const resolved = isDaily ? null : gradeFor(table, designationBn, wing);
+  const grade = resolved?.grade ?? null;
+
+  // With a grade, the band decides. Without one, fall back to the entry code:
+  // 102 is the staff series, everything else is an officer series. The three
+  // people whose designation reads "অফিস প্রধান" — a function, not a
+  // sanctioned post — are officers heading an office, and defaulting them to
+  // staff would be wrong.
+  const OFFICER_SERIES = new Set(["101", "201", "301", "401", "501", "601", "701"]);
+  const category: Category = isDaily
+    ? "daily_basis"
+    : grade === null
+      ? OFFICER_SERIES.has(parsed.code)
+        ? "officer"
+        : "staff"
+      : grade <= 11
+        ? "officer"
+        : "staff";
+
+  const bank = Array.isArray(bio.bank) && bio.bank[0] ? bio.bank[0] : {};
+  const emergency = identity.emergency_contact ?? contact.emergency_contact ?? {};
+
+  return {
+    ok: true,
+    employee: {
+      id,
+      parsed,
+      category,
+      grade,
+      gradeHow: isDaily ? "daily basis — no grade" : (resolved?.how ?? null),
+      officeId,
+      nameEn: val(identity.name_en) || val(raw?.name_en),
+      nameBn: val(identity.name_bn) || val(raw?.name_bn),
+      fatherNameEn,
+      fatherNameBn: val(identity.father_name_bn) || fatherNameEn,
+      motherNameEn,
+      motherNameBn: val(identity.mother_name_bn) || motherNameEn,
+      dateOfBirth,
+      gender,
+      maritalStatus,
+      bloodGroup: BLOOD[val(identity.blood_group)] ?? null,
+      nid: opt(identity.nid),
+      nationality: normaliseNationality(identity.nationality),
+      email: opt(contact.email),
+      mobileHome: opt(contact.personal_mobile),
+      mobileOffice: opt(contact.office_phone),
+      designationEn: opt(service.designation_en),
+      designationBn: opt(designationBn),
+      wing: opt(wing),
+      dateOfJoining: toStoredDate(service.joining_date),
+      postRetirementLeave: toStoredDate(service.plr_lpr_date),
+      bankAccountNo: opt(bank["Account No"]),
+      bankBranch: opt(bank["Branch Name"]),
+      tinNo: opt(bank["TIN No"]),
+      emergencyName: opt(emergency.name),
+      emergencyRelation: opt(emergency.relation),
+      emergencyMobile: opt(emergency.mobile),
+    },
+  };
+}
+
+/** Names that are the same person seen twice — the export has one exact pair. */
+export function dedupe(records: any[]): { kept: any[]; duplicates: string[] } {
+  const seen = new Set<string>();
+  const kept: any[] = [];
+  const duplicates: string[] = [];
+  for (const r of records) {
+    const id = norm(r?.employee_id);
+    if (seen.has(id)) {
+      duplicates.push(id);
+      continue;
+    }
+    seen.add(id);
+    kept.push(r);
+  }
+  return { kept, duplicates };
+}
+
+export { loose };
