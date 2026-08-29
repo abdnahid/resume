@@ -1,9 +1,10 @@
 import { SkeletonBlock, SkeletonLine } from "@/components/Skeleton";
+import PageContainer from "@/components/PageContainer";
 
 /** The organogram is a chart, not a table — a tree of boxes. */
 export default function Loading() {
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <PageContainer>
       <div className="mb-6 space-y-2">
         <SkeletonLine className="w-48" height="h-5" />
         <SkeletonLine className="w-72" height="h-3" />
@@ -21,6 +22,6 @@ export default function Loading() {
           ))}
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

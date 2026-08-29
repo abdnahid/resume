@@ -13,6 +13,7 @@
  * Server components: no hooks, no `"use client"`, so they cost nothing at
  * runtime.
  */
+import PageContainer from "@/components/PageContainer";
 
 /** One shimmering bar. Width is a Tailwind class so callers can vary rhythm. */
 export function SkeletonLine({
@@ -124,14 +125,14 @@ export function SkeletonPage({
   filters?: number;
   children?: React.ReactNode;
 }) {
+  // The same `PageContainer` the real screens use, so the skeleton occupies the
+  // exact column the content will — the alignment does not shift when it lands.
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-7xl space-y-5 p-6">
-        <SkeletonHeader actions={actions} />
-        {filters > 0 && <SkeletonFilters count={filters} />}
-        {children}
-      </div>
-    </div>
+    <PageContainer>
+      <SkeletonHeader actions={actions} />
+      {filters > 0 && <SkeletonFilters count={filters} />}
+      {children}
+    </PageContainer>
   );
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Eye, Trash2, FileText } from "lucide-react";
 import type { BankAdviceRecord, SalaryProcessMonth } from "@/lib/types";
 import GenerateBankAdviceModal from "./GenerateBankAdviceModal";
+import PageContainer from "@/components/PageContainer";
 
 // ─── Month ordering ───────────────────────────────────────────────────────────
 
@@ -245,8 +246,7 @@ export default function BankAdviceTable({
         pinned={pinned}
       />
 
-      <div className="min-h-screen bg-slate-50 p-6 font-sans">
-        <div className="max-w-7xl mx-auto">
+      <PageContainer>
           {/* ── Header ────────────────────────────────────────────────── */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -383,8 +383,7 @@ export default function BankAdviceTable({
               </table>
             </div>
           </div>
-        </div>
-      </div>
+      </PageContainer>
     </>
   );
 }

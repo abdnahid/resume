@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Search, ShieldCheck } from "lucide-react";
 import { ROLE_LABELS as ROLES } from "@/lib/roles";
+import PageContainer from "@/components/PageContainer";
 
 /**
  * Assign roles to employees.
@@ -103,8 +104,7 @@ export default function RoleManager({
     "rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-slate-400 focus:outline-none";
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-5 max-w-6xl">
+    <PageContainer>
         <div>
           <h1 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <ShieldCheck size={18} /> Roles
@@ -219,7 +219,6 @@ export default function RoleManager({
             Showing the first 200. Narrow the search to see the rest.
           </p>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }

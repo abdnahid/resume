@@ -14,6 +14,7 @@ import {
 import type { CaseRecord } from "@/lib/salary/cases";
 import type { SalaryHeadRecord, VerdictClauseType } from "@/lib/salary/compute";
 import { CLAUSE_LABEL, CLAUSE_VALUE_HINT } from "@/lib/salary/compute";
+import PageContainer from "@/components/PageContainer";
 
 /**
  * The case register, and the one place a verdict is turned into money.
@@ -105,8 +106,7 @@ export default function CaseManager({
   );
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-5 max-w-6xl">
+    <PageContainer>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
@@ -180,7 +180,6 @@ export default function CaseManager({
             ))}
           </div>
         )}
-      </div>
 
       {newCase && (
         <NewCaseModal
@@ -207,7 +206,7 @@ export default function CaseManager({
           onSaved={(msg) => { setRevokeFor(null); setNotice(msg); router.refresh(); }}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

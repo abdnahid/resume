@@ -312,6 +312,13 @@ build once.
   block; each module overrides `--primary` and friends via its theme class.
   Write `text-primary`, `bg-card`, `border-border` — never a hex value.
 
+- **Every screen sits in `PageContainer`.** Its width and padding are the
+  navbar's own — `max-w-[1440px]`, `px-5 lg:px-10` — so the page lines up with
+  the chrome above it. Screens previously picked their own: `max-w-5xl`, `6xl`
+  and `7xl`, some centred and some left-aligned, and several painted a second
+  `bg-slate-50` over the layout's background. Do not set a width on a page root;
+  put it in the container or nowhere.
+
 - **Every route that can be slow needs a `loading.tsx`.** Next renders it the
   instant a navigation starts, so without one a click does nothing visible until
   the server component finishes — around a second on the fixation and employee

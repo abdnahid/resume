@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Building2, Check, Landmark, Pencil, X } from "lucide-react";
 import { ZONE_LABEL, type HouseRentZone } from "@/lib/salary/compute";
+import PageContainer from "@/components/PageContainer";
 
 /**
  * Office setup.
@@ -110,8 +111,7 @@ export default function OfficeSetup({
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-5 max-w-5xl">
+    <PageContainer>
         <div>
           <h1 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Building2 size={18} /> Office setup
@@ -391,7 +391,6 @@ export default function OfficeSetup({
             ),
           )}
         </div>
-      </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -7,6 +7,7 @@ import { X, ChevronDown, UserCheck } from "lucide-react";
 import { FilterSearch, FilterSelect, FilterSelectOption } from "@/app/(main)/_components/filters";
 import type { Employee, EmployeeStatus } from "@/lib/types";
 import type { OrgPostFlat, OrgRoot } from "@/lib/org";
+import PageContainer from "@/components/PageContainer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -752,7 +753,7 @@ export default function EmployeeTable({
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 font-sans">
+    <PageContainer>
       {/* Modals */}
       {releaseTarget && (
         <ReleaseModal
@@ -782,7 +783,8 @@ export default function EmployeeTable({
         />
       )}
 
-      <div className="max-w-5xl mx-auto">
+      {/* Width and centring come from PageContainer, so this is just a group. */}
+      <div>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -893,6 +895,6 @@ export default function EmployeeTable({
           </table>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

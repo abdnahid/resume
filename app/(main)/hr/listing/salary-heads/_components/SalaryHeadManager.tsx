@@ -6,6 +6,7 @@ import { AlertTriangle, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import type { SalaryHeadRecord } from "@/lib/salary/compute";
 import { ZONE_LABEL } from "@/lib/salary/compute";
 import type { ActiveScale } from "@/lib/salary/queries";
+import PageContainer from "@/components/PageContainer";
 
 /**
  * Create and edit the allowances and deductions that fixation can draw on.
@@ -134,8 +135,7 @@ export default function SalaryHeadManager({
   const deductions = heads.filter((h) => h.kind === "deduction");
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 space-y-5 max-w-5xl">
+    <PageContainer>
         {/* Intro */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -386,8 +386,7 @@ export default function SalaryHeadManager({
             <HeadList title="Deductions" heads={deductions} onEdit={startEdit} onDelete={remove} />
           </div>
         )}
-      </div>
-    </div>
+    </PageContainer>
   );
 }
 

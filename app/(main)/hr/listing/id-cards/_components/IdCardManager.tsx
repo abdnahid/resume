@@ -20,6 +20,7 @@ import type {
   IdCardBatchDetail,
   PersonName,
 } from "@/lib/types";
+import PageContainer from "@/components/PageContainer";
 
 type EmployeeOption = {
   id: string;
@@ -450,7 +451,7 @@ export default function IdCardManager({
   const canCreate = !!currentDg;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 font-sans">
+    <PageContainer>
       {createOpen && <CreateBatchModal employees={employees} onClose={() => setCreateOpen(false)} />}
       {issueTarget && <IssueBatchModal batch={issueTarget} onClose={() => setIssueTarget(null)} />}
 
@@ -539,6 +540,6 @@ export default function IdCardManager({
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

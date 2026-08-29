@@ -15,6 +15,7 @@ import {
   FilterDateRange,
 } from "@/app/(main)/_components/filters";
 import type { Employee, SalaryStatus } from "@/lib/types";
+import PageContainer from "@/components/PageContainer";
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -137,8 +138,7 @@ export default function SalaryFixationTable({
 
   return (
     <>
-    <div className="min-h-screen bg-slate-50 p-6 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <PageContainer>
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -374,8 +374,7 @@ export default function SalaryFixationTable({
             </table>
           </div>
         </div>
-      </div>
-    </div>
+    </PageContainer>
 
     <ProcessSalaryModal
       isOpen={modalOpen}

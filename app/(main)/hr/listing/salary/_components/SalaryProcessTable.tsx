@@ -12,6 +12,7 @@ import {
   FilterSelectOption,
 } from "@/app/(main)/_components/filters";
 import type { Employee, SalaryProcessRecord, SalaryStatus } from "@/lib/types";
+import PageContainer from "@/components/PageContainer";
 
 // ─── Month ordering ───────────────────────────────────────────────────────────
 
@@ -292,8 +293,7 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 font-sans">
-      <div className="max-w-6xl mx-auto">
+    <PageContainer>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-5">
@@ -527,7 +527,6 @@ export default function SalaryProcessTable({ employees, salaryProcesses, role }:
             </table>
           </div>
         </div>
-      </div>
-    </div>
+    </PageContainer>
   );
 }
