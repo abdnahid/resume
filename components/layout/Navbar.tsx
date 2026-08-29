@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
+import { useOptionalSidebar } from "@/components/layout/SidebarContext";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -14,6 +15,7 @@ import {
   Building2,
   Shield,
   X,
+  Menu,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
@@ -176,6 +178,8 @@ function useClickOutside(cb: () => void) {
 
 export default function Navbar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
+  // Null on the print views, which render the navbar outside the provider.
+  const sidebar = useOptionalSidebar();
   const [lang, setLang] = useState<"en" | "bn">("en");
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -258,18 +262,35 @@ export default function Navbar({ user }: { user: SessionUser }) {
         }`}
       >
         <div className="mx-auto grid max-w-[1440px] grid-cols-[auto_1fr_auto] items-center gap-8 px-5 py-3.5 lg:px-10">
-          {/* Brand */}
-          <Link href="/hr" className="flex items-center gap-3.5">
-            <Image src="/bsti.svg" alt="BSTI Logo" width={60} height={60} />
-            <div className="hidden flex-col border-l-2 border-border pl-3.5 leading-tight md:flex">
-              <span className="font-display text-base font-semibold tracking-tight text-foreground">
-                HR Management
-              </span>
-              <span className="mt-0.5 font-bn-serif text-xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
-                BSTI e-Services
-              </span>
-            </div>
-          </Link>
+          {/* Brand, with the drawer toggle beside it */}
+          <div className="flex items-center gap-2">
+            {/*
+              Hidden once the window is wide enough for the sidebar to sit in
+              the gutter beside the centred content — above that it is docked
+              and there is nothing to toggle.
+            */}
+            <button
+              type="button"
+              onClick={sidebar?.toggle}
+              aria-label={sidebar?.open ? "Hide sections" : "Show sections"}
+              aria-expanded={sidebar?.open ?? false}
+              className="-ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary cursor-pointer min-[1920px]:hidden"
+            >
+              {sidebar?.open ? <X size={20} /> : <Menu size={20} />}
+            </button>
+
+            <Link href="/hr" className="flex items-center gap-3.5">
+              <Image src="/bsti.svg" alt="BSTI Logo" width={60} height={60} />
+              <div className="hidden flex-col border-l-2 border-border pl-3.5 leading-tight md:flex">
+                <span className="font-display text-base font-semibold tracking-tight text-foreground">
+                  HR Management
+                </span>
+                <span className="mt-0.5 font-bn-serif text-xs font-medium uppercase tracking-[0.04em] text-muted-foreground">
+                  BSTI e-Services
+                </span>
+              </div>
+            </Link>
+          </div>
 
           {/* Page title */}
           <h2 className="hidden text-center text-sm font-semibold text-foreground md:block">

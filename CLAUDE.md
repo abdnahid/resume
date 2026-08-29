@@ -319,6 +319,17 @@ build once.
   `bg-slate-50` over the layout's background. Do not set a width on a page root;
   put it in the container or nowhere.
 
+- **The sidebar is out of flow, and that is what makes the alignment work.**
+  It is `absolute` inside the layout's `relative` row, so `<main>` spans the
+  whole window and centres on the same 1440px box as the navbar. While the
+  sidebar was in flow the main column began 240px in and *no* width could line
+  the two up. Below `min-[1920px]` the sidebar slides in as a drawer over a
+  backdrop; at or above it there is room in the left gutter and it stays
+  docked. `SidebarContext` holds that state because the toggle lives in the
+  navbar, and it closes the drawer on navigation, on Escape, and when the
+  window widens past the breakpoint. `useOptionalSidebar()` exists for the
+  print views, which render the navbar outside the provider.
+
 - **Every route that can be slow needs a `loading.tsx`.** Next renders it the
   instant a navigation starts, so without one a click does nothing visible until
   the server component finishes — around a second on the fixation and employee
