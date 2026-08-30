@@ -10,6 +10,12 @@ path prefixes. The HR module is built and in use; the BDS store catalogue and
 client accounts are new; the CM quality-certification module is the large piece
 ahead.
 
+**The roster is real.** 554 employees were imported from the HR system's export
+on 2026-08-29, replacing the demo data — 348 officers, 113 staff, 93 daily
+basis, across all 23 offices. Payroll runs on it: pay scale, house rent, salary
+heads, court verdicts, processed months and bank advice are all live features
+over live people. Treat mistakes here as mistakes about someone's salary.
+
 **Two kinds of user, and the route prefix decides which.** BSTI staff
 (`accountType: INTERNAL`) sign in with an employee ID and are the only ones who
 reach the internal modules. Clients (`CLIENT`) sign in with a mobile number or
@@ -68,13 +74,46 @@ app/
   print/[id]/    outside every module — puppeteer drives it   INTERNAL only
 components/      shared UI; layout/ holds Navbar, Sidebar, Footer, ModuleNavbar
 lib/             modules, services, auth, prisma, types; lib/store/ is the BDS store
-prisma/          schema.prisma and the seed scripts
+prisma/          schema.prisma, the seed scripts, and import/ for the HR export
 docs/            the plan and the specs
+utils/           source data — the HR export, the pay scale, the rent table
 ```
+
+The HR screens, all under `/hr/listing` unless noted:
+
+| Route | What it is | Who |
+|---|---|---|
+| `/hr/listing` | the roster | all staff, scoped by office |
+| `/hr/listing/fixation` | salary structure per employee, and the Process button | superadmin, officeadmin |
+| `/hr/listing/salary` | processed months, payslips | scoped; own row only for others |
+| `/hr/listing/salary/slip/[id]` | one payslip, screen and PDF | as above |
+| `/hr/listing/bank-advice` | the letters to the bank | scoped |
+| `/hr/listing/salary-heads` | the allowance/deduction catalogue | superadmin |
+| `/hr/listing/cases` | court cases and verdicts | superadmin, case_officer |
+| `/hr/listing/offices` | office contact, zone and bank details | superadmin; own office for officeadmin |
+| `/hr/listing/roles` | who holds which role | superadmin |
+| `/hr/organogram` | the chart, and `/manage` to edit it | staff; superadmin to manage |
+
+`lib/salary/` is the payroll core — `compute.ts` and `dates.ts` are Prisma-free
+and safe in the browser, `queries.ts`, `verdicts.ts`, `payroll.ts`, `slip.ts`,
+`cases.ts` and `heads.ts` are the server half. `prisma/import/` reads the HR
+export and is pure apart from `run.ts` and `retire.ts`.
 
 `lib/modules.ts` is the module registry — path, bilingual labels, blurb, theme
 class. Adding a module is one entry there plus its `app/(group)/<path>` folder
 and a theme class in `app/globals.css`.
+
+## Page shell
+
+`app/(main)/layout.tsx` is navbar, then a `relative` row holding the sidebar and
+`<main>`, then footer. Three things about it are load-bearing:
+
+- **The sidebar is `absolute`, not in flow.** That is what lets `<main>` span the
+  window so `PageContainer` can centre on the same 1440px box as the navbar. Put
+  the sidebar back in the row and the alignment breaks — no width can fix it.
+- **`PageContainer` owns width and padding.** Screens must not set their own.
+- **`loading.tsx` is what makes a click feel responsive.** Every slow route needs
+  one; `app/(main)/hr/loading.tsx` is the fallback for everything under /hr.
 
 ## Auth
 
@@ -370,7 +409,7 @@ npx prisma generate    # regenerate the client (also runs on npm install)
 npm run seed:bds       # BDS store catalogue — 6 divisions, 55 standards
 npm run seed:org       # organogram
 npm run seed:grades    # NPS-2015 grades onto OrgPost
-npm run seed:employees # employees
+npm run seed:employees # employees — SUPERSEDED by import:employees, kept for reference
 npm run seed:salary    # pay scale, house rent slabs, office zones, daily wage rates, banks
 
 npm run import:report    # dry run over utils/employee_bio.json — writes a report, no DB writes

@@ -227,6 +227,60 @@ for CM".
 
 ---
 
+## HR payroll — where it stands
+
+Not one of the numbered steps above: those track the CM/store platform, while
+this is the HR module, which was already in use and has been made real. As of
+2026-08-30 the whole chain runs on live data.
+
+**Done.**
+
+- ✅ **Roster** — 554 employees imported from the HR export (348 officers, 113
+  staff, 93 daily basis) across all 23 offices; the 97 demo accounts retired.
+  `npm run import:report` dry-runs it, `import:employees` upserts,
+  `import:retire` removes what the export does not contain.
+- ✅ **Pay scale** — NPS-2015, 314 steps, from `utils/Increment-Chart-2015.pdf`.
+  Basic salary is never typed.
+- ✅ **Fixation** — versioned and effective-dated, composed of a grade/step
+  basic plus editable salary heads; preview before submit.
+- ✅ **House rent** — government slab table by office zone, from `rent.xlsx`.
+- ✅ **Daily basis** — 800/750/700 per day by zone, 22-day ceiling, days
+  confirmed before processing. Outside the pay scale; cannot be fixated.
+- ✅ **Court cases** — verdicts raise fixation versions; revocation restores pay
+  and settles arrears as a difference against the displaced version.
+- ✅ **Processing and bank advice** — per office, in order, undoable until the
+  advice is issued. Payslip on screen and as PDF.
+- ✅ **Office setup** — contact, house rent zone, and each office's bank branch.
+- ✅ **Roles** — superadmin assigns; guarded against self-demotion and against
+  removing the last superadmin.
+
+**Known gaps, in rough priority order.**
+
+1. **Everyone still shares the password `bsti@123`**, now across 554 real
+   accounts rather than 402 demo ones. This is the oldest open item in the plan
+   and the largest exposure; a forced first-login reset is the obvious answer.
+2. **`EmployeeCategory` cannot be changed after import.** It is derived from the
+   employee id's entry code, which encodes the year and series someone joined
+   under and therefore never changes. A daily-basis worker who is regularised
+   into a staff post would stay `daily_basis` for ever and could never be
+   fixated. Needs to be editable — superadmin only, since it moves someone
+   between two pay regimes.
+3. **218 records were not imported** — 115 with no identity block, 72 whose
+   scrape failed with a 500, 14 that are not people (OSS desks, an API account),
+   12 with no office, 5 whose id field holds a mobile number. Re-running the
+   import picks them up once the HR system has them.
+4. **22 of 23 offices carry improvised bank branch details**, flagged
+   `isPlaceholder`; only Head Office's is real. Bogura's address is improvised
+   too. All correctable in Office Setup.
+5. **The organogram still has two sources of truth** — a 3,700-line hardcoded
+   file for the chart, and `OrgUnit`/`OrgPost` for the editor. Unchanged since
+   step 2 flagged it.
+6. **Salary heads are the operator's own.** MEDICAL, WELFARE and AIT were
+   created through the screen; House Rent is seeded. There is no authoritative
+   list to check them against.
+
+---
+
 ## Open questions outstanding
 
 Tracked from plan §10 and addendum A§10. Answering these unblocks the steps above.
@@ -241,7 +295,9 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | Purchase released on rejection/withdrawal? (§10 #3) | Step 6 | — |
 | Subsidiary using parent's purchase? (§10 #4) | Step 6 | — |
 | Password reset with no OTP (§10 #9) | Step 2 launch | — |
-| **BSTI's actual allowance and deduction heads** — names, rates, and whether education allowance is per-child. Only house rent is seeded. | A usable fixation | 2026-08-28 |
+| **BSTI's authoritative allowance and deduction list** — MEDICAL, WELFARE and AIT have been entered by hand and House Rent is seeded, but nothing confirms that set is complete or the rates current. | Payroll that matches the books | 2026-08-28 |
+| **Should `EmployeeCategory` be editable?** Regularising a daily-basis worker into a staff post is a real HR event the system cannot currently record. | Anyone changing pay regime | 2026-08-30 |
+| **Sonali branch details for 22 offices** — seeded values are improvised and flagged. | Correct bank advice outside Head Office | 2026-08-29 |
 | **Mymensingh's house rent zone** — a divisional office, but not among the eight cities `rent.xlsx` names, so seeded as `other_district`. | Correct house rent for that office | 2026-08-28 |
 
 ---
