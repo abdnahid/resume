@@ -475,6 +475,7 @@ model Employee {
 
   // Sub-tables
   fixations        SalaryFixation[]
+  attendance       DailyAttendance[]
   cases            EmployeeCase[]
   arrears          SalaryArrear[]
   salaryHistory    SalaryHistory[]
@@ -559,6 +560,35 @@ model HouseRentRule {
 
   @@unique([scaleId, zone, minBasic])
   @@index([scaleId, zone])
+}
+
+/// Days worked in a month by one daily-basis employee.
+///
+/// Attendance is not payroll. Before this the day count existed only as a
+/// column on `SalaryProcess`, so it came into being at the moment a month was
+/// paid and could only be corrected by undoing the whole month — impossible
+/// once the bank advice was issued. Here it is a record in its own right,
+/// enterable through the month and correctable without touching a pay run.
+///
+/// Regular staff have no row here: their pay comes from a fixation.
+model DailyAttendance {
+  id Int @id @default(autoincrement())
+
+  month      String
+  year       String
+  /// Never more than `MAX_PAID_DAYS`; the route clamps and says it did.
+  daysWorked Int
+  note       String?
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  recordedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([employeeId, month, year])
+  @@index([month, year])
 }
 
 /// What a daily-basis worker is paid per day, by location.

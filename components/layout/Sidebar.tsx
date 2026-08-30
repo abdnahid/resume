@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useSidebar } from "@/components/layout/SidebarContext";
-import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck, Layers, Scale, Building2, ShieldCheck } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck, Layers, Scale, Building2, ShieldCheck, CalendarClock } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -23,6 +23,7 @@ const NAV: NavGroup[] = [
       { label: "Salary Fixation",  href: "/hr/listing/fixation",      icon: DollarSign, roles: ["superadmin", "officeadmin"] },
       { label: "Salary Heads",     href: "/hr/listing/salary-heads",  icon: Layers,     roles: ["superadmin"] },
       { label: "Case Register",    href: "/hr/listing/cases",         icon: Scale,      roles: ["superadmin", "case_officer"] },
+      { label: "Attendance",       href: "/hr/listing/attendance",   icon: CalendarClock, roles: ["superadmin", "officeadmin"] },
       { label: "Processed Salary", href: "/hr/listing/salary",        icon: Banknote   },
       { label: "Bank Advice",      href: "/hr/listing/bank-advice",   icon: FileIcon   },
       { label: "ID Cards",         href: "/hr/listing/id-cards",      icon: CreditCard, roles: ["superadmin"] },

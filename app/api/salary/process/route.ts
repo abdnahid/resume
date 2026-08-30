@@ -5,11 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { covers, dateKey, lastDayOfMonth, todayStored } from "@/lib/salary/dates";
 import {
   computeDailyPay,
-  DEFAULT_PAID_DAYS,
   MAX_PAID_DAYS,
   rateFor,
 } from "@/lib/salary/daily";
 import { getDailyRates } from "@/lib/salary/queries";
+import { attendanceFor } from "@/lib/salary/attendance";
 import {
   employeesOfOffice,
   monthsBlocking,
@@ -204,64 +204,6 @@ function resolveOffice(
   return { ok: true, officeId: n };
 }
 
-/**
- * The daily-basis staff of an office, so the process screen can show the days
- * credited to each before anything is paid. Everyone starts at the 22-day
- * ceiling; an operator edits only those who worked fewer.
- */
-export async function GET(req: Request) {
-  const g = await gate();
-  if (!g.ok) return g.response;
-
-  const params = new URL(req.url).searchParams;
-  const office = resolveOffice(g.scope, params.get("officeId"));
-  if (!office.ok) return NextResponse.json({ error: office.error }, { status: 400 });
-
-  const month = params.get("month");
-  const year = params.get("year");
-  const monthEnd = month && year ? lastDayOfMonth(month, year) : null;
-
-  const [staff, rates] = await Promise.all([
-    prisma.employee.findMany({
-      where: { AND: [employeesOfOffice(office.officeId), { category: "daily_basis" }] },
-      select: {
-        id: true,
-        nameEn: true,
-        nameBn: true,
-        designationBn: true,
-        office: { select: { houseRentZone: true } },
-      },
-      orderBy: { id: "asc" },
-    }),
-    getDailyRates(monthEnd ?? todayStored()),
-  ]);
-
-  // What was paid last time this month ran, so re-processing shows the days
-  // that were actually credited rather than resetting to the default.
-  const already =
-    month && year
-      ? await prisma.salaryProcess.findMany({
-          where: { month, year, employeeId: { in: staff.map((s) => s.id) } },
-          select: { employeeId: true, daysWorked: true },
-        })
-      : [];
-  const paidDays = new Map(already.map((a) => [a.employeeId, a.daysWorked]));
-
-  return NextResponse.json({
-    maxDays: MAX_PAID_DAYS,
-    staff: staff.map((s) => ({
-      id: s.id,
-      nameEn: s.nameEn,
-      nameBn: s.nameBn,
-      designationBn: s.designationBn,
-      zone: s.office.houseRentZone,
-      dailyRate: rateFor(rates, s.office.houseRentZone),
-      days: paidDays.get(s.id) ?? DEFAULT_PAID_DAYS,
-      alreadyProcessed: paidDays.has(s.id),
-    })),
-  });
-}
-
 export async function POST(req: Request) {
   const g = await gate();
   if (!g.ok) return g.response;
@@ -329,11 +271,18 @@ export async function POST(req: Request) {
           { status: 400 },
         );
       }
-      const days = (body?.days ?? {}) as Record<string, unknown>;
-      const requested = emp.id in days ? Number(days[emp.id]) : DEFAULT_PAID_DAYS;
+      const recorded = (await attendanceFor(month, year, [emp.id])).get(emp.id);
+      if (recorded === undefined) {
+        return NextResponse.json(
+          {
+            error: `No attendance is recorded for ${month} ${year}. Enter their days in the attendance register first.`,
+          },
+          { status: 400 },
+        );
+      }
       const { arrearAmount } = await payMonth(
         emp.id,
-        dailyProcessData(rate, requested),
+        dailyProcessData(rate, recorded),
         month,
         year,
         issueDate,
@@ -368,10 +317,23 @@ export async function POST(req: Request) {
     include: { fixations: true, office: { select: { houseRentZone: true } } },
   });
 
-  // Days credited to daily-basis staff, keyed by employee id. Absent means the
-  // default; the screen sends only what an operator changed.
-  const days = (body?.days ?? {}) as Record<string, unknown>;
+  // The two payrolls are run separately, because they are decided by different
+  // things: regular staff by their fixation, daily-basis staff by the days
+  // recorded in the attendance register. `category` picks which; omitting it
+  // runs both, which is what the single-employee path and older callers expect.
+  const wanted = String(body?.category ?? "all");
+  if (!["all", "regular", "daily_basis"].includes(wanted)) {
+    return NextResponse.json(
+      { error: `Unknown category "${wanted}".` },
+      { status: 400 },
+    );
+  }
+  const runRegular = wanted === "all" || wanted === "regular";
+  const runDaily = wanted === "all" || wanted === "daily_basis";
+
   const rates = await getDailyRates(monthEnd);
+  const dailyIds = employees.filter((e) => e.category === "daily_basis").map((e) => e.id);
+  const attendance = await attendanceFor(month, year, dailyIds);
 
   let processed = 0;
   let arrearsPaid = 0;
@@ -380,6 +342,8 @@ export async function POST(req: Request) {
   for (const emp of employees) {
     // ── Daily basis: no fixation, paid by the day ──
     if (emp.category === "daily_basis") {
+      if (!runDaily) continue;
+
       const rate = rateFor(rates, emp.office.houseRentZone);
       if (rate === null) {
         skipped.push({
@@ -391,10 +355,22 @@ export async function POST(req: Request) {
         });
         continue;
       }
-      const requested = emp.id in days ? Number(days[emp.id]) : DEFAULT_PAID_DAYS;
+
+      // Attendance is required, never assumed. Defaulting to the 22-day ceiling
+      // would quietly pay a full month to somebody nobody recorded.
+      const days = attendance.get(emp.id);
+      if (days === undefined) {
+        skipped.push({
+          id: emp.id,
+          name: emp.nameEn,
+          reason: `no attendance recorded for ${month} ${year}`,
+        });
+        continue;
+      }
+
       const { arrearAmount } = await payMonth(
         emp.id,
-        dailyProcessData(rate, requested),
+        dailyProcessData(rate, days),
         month,
         year,
         issueDate,
@@ -403,6 +379,8 @@ export async function POST(req: Request) {
       processed++;
       continue;
     }
+
+    if (!runRegular) continue;
 
     const fixation = emp.fixations.length
       ? versionForMonthEnd(emp.fixations, monthEnd)
@@ -424,6 +402,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({
+    category: wanted,
     processed,
     skipped: skipped.length,
     arrearsPaid,

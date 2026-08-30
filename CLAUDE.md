@@ -166,6 +166,22 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   whatever is current now — so back-processing an earlier month after an
   increment still pays that month's structure. `supersededAt` is deliberately
   *not* a disqualifier there.
+- **The two payrolls are run separately.** `POST /api/salary/process` takes a
+  `category` of `regular` or `daily_basis`; the fixation screen offers a button
+  for each. They are decided by different things — a fixation versus the
+  attendance register — and running them together buried one inside the other's
+  counts. Omitting `category` still runs both, which the single-employee path
+  relies on.
+
+- **Attendance is a record, not a prompt.** `DailyAttendance` holds days worked
+  per employee per month, entered at `/hr/listing/attendance` whenever suits.
+  Days used to exist only as a column on `SalaryProcess`, so they came into
+  being when a month was paid and could only be corrected by undoing it —
+  impossible once the advice was issued. The pay run now *reads* the register
+  and **skips anyone without a record**: defaulting to the 22-day ceiling would
+  quietly pay a full month to somebody nobody had counted. A row locks once its
+  month is paid, so the register can never disagree with the payslip.
+
 - **Daily-basis staff cannot be fixated, and the route says so.** `POST
   /api/salary/fixation` refuses `category: daily_basis` with 409. Without that
   guard the screen happily created one — and because processing checks the

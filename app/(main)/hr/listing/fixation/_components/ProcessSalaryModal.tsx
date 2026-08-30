@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   X, ChevronLeft, ChevronRight, Zap, CheckCircle2, Trash2, AlertTriangle, Lock,
-  CalendarClock, ArrowLeft,
+  CalendarClock,
 } from "lucide-react";
 
 /**
@@ -44,19 +44,9 @@ export type PayrollOffice = { id: number; nameEn: string; activeCount: number };
 
 type MonthState = "available" | "future" | "processed" | "blocked" | "selected";
 
-/** A daily-basis worker and the days they are about to be credited. */
-type DailyStaff = {
-  id: string;
-  nameEn: string;
-  nameBn: string;
-  designationBn: string | null;
-  zone: string | null;
-  dailyRate: number | null;
-  days: number;
-  alreadyProcessed: boolean;
-};
-
 type ProcessResult = {
+  /** Which payroll produced this result. */
+  category?: "regular" | "daily_basis" | "all";
   processed: number;
   skipped: number;
   arrearsPaid?: number;
@@ -94,16 +84,16 @@ export default function ProcessSalaryModal({
   const [officeId, setOfficeId] = useState<number | null>(offices[0]?.id ?? null);
   const [displayYear, setDisplayYear] = useState(currentYear);
   const [selected, setSelected] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  /** Which payroll is running, if any — the two buttons act independently. */
+  const [loading, setLoading] = useState<"regular" | "daily_basis" | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<ProcessedEntry | null>(null);
 
   // Daily-basis staff are paid by the day, so their days are confirmed before
   // anything is written. Everyone else is decided by their fixation.
-  const [dailyStaff, setDailyStaff] = useState<DailyStaff[] | null>(null);
-  const [maxDays, setMaxDays] = useState(22);
-  const [showDays, setShowDays] = useState(false);
+
 
   /** Months processed for the office currently in view. */
   const officeMonths = useMemo(
@@ -133,8 +123,6 @@ export default function ProcessSalaryModal({
       setResult(null);
       setError(null);
       setConfirmDelete(null);
-      setShowDays(false);
-      setDailyStaff(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -143,8 +131,6 @@ export default function ProcessSalaryModal({
     setDisplayYear(startYear());
     setSelected(null);
     setConfirmDelete(null);
-    setShowDays(false);
-    setDailyStaff(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [officeId, processed]);
 
@@ -191,66 +177,38 @@ export default function ProcessSalaryModal({
   }
 
   /**
-   * Step one: fetch the office's daily-basis staff so their days can be
-   * confirmed. An office with none goes straight to processing.
+   * Run one of the two payrolls for the selected month.
+   *
+   * They are separate operations because they are decided by different things:
+   * regular staff by their fixation, daily-basis staff by the days in the
+   * attendance register. Running them together hid one inside the other's
+   * result.
    */
-  async function handleProcess() {
+  async function runProcess(category: "regular" | "daily_basis") {
     if (!selected || officeId === null) return;
     const [month, year] = selected.split(" ");
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/salary/process?officeId=${officeId}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not load daily-basis staff");
-      setMaxDays(data.maxDays ?? 22);
-      if (!data.staff?.length) {
-        await runProcess({});
-        return;
-      }
-      setDailyStaff(data.staff as DailyStaff[]);
-      setShowDays(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /** Step two: write the month. */
-  async function runProcess(days: Record<string, number>) {
-    if (!selected || officeId === null) return;
-    const [month, year] = selected.split(" ");
-    setLoading(true);
+    setLoading(category);
     setError(null);
     try {
       const res = await fetch("/api/salary/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, year, officeId, days }),
+        body: JSON.stringify({ month, year, officeId, category }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Processing failed");
       setResult(data);
-      setShowDays(false);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
-  }
-
-  function setDays(id: string, value: string) {
-    const n = Math.max(0, Math.min(maxDays, Math.floor(Number(value) || 0)));
-    setDailyStaff((prev) => prev?.map((s) => (s.id === id ? { ...s, days: n } : s)) ?? prev);
   }
 
   async function handleDelete() {
     if (!confirmDelete || officeId === null) return;
-    setLoading(true);
+    setDeleting(true);
     setError(null);
     try {
       const res = await fetch("/api/salary/process", {
@@ -269,7 +227,7 @@ export default function ProcessSalaryModal({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
-      setLoading(false);
+      setDeleting(false);
     }
   }
 
@@ -295,7 +253,13 @@ export default function ProcessSalaryModal({
             <div className="flex items-center gap-3">
               <CheckCircle2 size={28} className="text-emerald-500 shrink-0" />
               <div>
-                <p className="font-semibold text-slate-900">Processing complete</p>
+                <p className="font-semibold text-slate-900">
+                  {result.category === "daily_basis"
+                    ? "Daily-basis payroll complete"
+                    : result.category === "regular"
+                      ? "Regular payroll complete"
+                      : "Processing complete"}
+                </p>
                 <p className="text-sm text-slate-500">
                   {result.month} {result.year} · {office?.nameEn}
                 </p>
@@ -346,108 +310,6 @@ export default function ProcessSalaryModal({
               Done
             </button>
           </div>
-        ) : showDays && dailyStaff ? (
-          /* ── Days for daily-basis staff ─────────────────────────────── */
-          <div className="px-5 py-4 space-y-4">
-            <div className="flex items-start gap-3">
-              <CalendarClock size={20} className="text-slate-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  Days worked · {selMonth} {selYear}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {dailyStaff.length} daily-basis{" "}
-                  {dailyStaff.length === 1 ? "worker" : "workers"} at {office?.nameEn}.
-                  At most {maxDays} days may be paid in a month, so everyone
-                  starts there — reduce anyone who worked fewer.
-                </p>
-              </div>
-            </div>
-
-            <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-50">
-              {dailyStaff.map((s) => (
-                <div key={s.id} className="flex items-center gap-3 px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-800 truncate">
-                      {s.nameEn}
-                      {s.alreadyProcessed && (
-                        <span className="ml-2 text-[10px] text-slate-400">already paid</span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-slate-400 truncate font-bn-serif">
-                      {s.designationBn ?? "—"}
-                    </p>
-                  </div>
-                  <span className="text-[11px] text-slate-400 tabular-nums w-20 text-right">
-                    {s.dailyRate === null ? (
-                      <span className="text-amber-600">no rate</span>
-                    ) : (
-                      `৳${s.dailyRate}/day`
-                    )}
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={maxDays}
-                    value={s.days}
-                    onChange={(e) => setDays(s.id, e.target.value)}
-                    className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm text-right tabular-nums focus:border-slate-400 focus:outline-none"
-                  />
-                  <span className="text-sm font-medium text-slate-800 tabular-nums w-24 text-right">
-                    {s.dailyRate === null ? "—" : formatBDT(s.days * s.dailyRate)}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl bg-slate-900 text-white px-4 py-2.5">
-              <span className="text-xs text-slate-300">Daily-basis total</span>
-              <span className="text-sm font-semibold tabular-nums">
-                {formatBDT(
-                  dailyStaff.reduce((n, s) => n + (s.dailyRate ?? 0) * s.days, 0),
-                )}
-              </span>
-            </div>
-
-            {dailyStaff.some((s) => s.dailyRate === null) && (
-              <p className="flex gap-2 text-[11px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-                Some have no daily rate — their office has no house rent zone
-                set, and the rate follows the zone. They will be skipped.
-              </p>
-            )}
-
-            {error && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-                {error}
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowDays(false); setError(null); }}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5"
-              >
-                <ArrowLeft size={14} /> Back
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() =>
-                  runProcess(Object.fromEntries(dailyStaff.map((s) => [s.id, s.days])))
-                }
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                ) : (
-                  <Zap size={14} />
-                )}
-                {loading ? "Processing…" : "Process"}
-              </button>
-            </div>
-          </div>
         ) : confirmDelete ? (
           /* ── Undo a processed month ─────────────────────────────────── */
           <div className="px-5 py-6 space-y-4">
@@ -486,12 +348,12 @@ export default function ProcessSalaryModal({
               {!confirmDelete.hasAdvice && (
                 <button
                   type="button"
-                  disabled={loading}
+                  disabled={deleting}
                   onClick={handleDelete}
                   className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Trash2 size={14} />
-                  {loading ? "Undoing…" : "Undo month"}
+                  {deleting ? "Undoing…" : "Undo month"}
                 </button>
               )}
             </div>
@@ -628,20 +490,46 @@ export default function ProcessSalaryModal({
               >
                 Cancel
               </button>
+            </div>
+
+            {/*
+              Two runs, not one. Regular staff are paid from their fixation and
+              daily-basis staff from the attendance register, so each reports
+              its own counts instead of one hiding inside the other's total.
+            */}
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={!selected || loading}
-                onClick={handleProcess}
-                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
+                disabled={!selected || loading !== null}
+                onClick={() => runProcess("regular")}
+                className="py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
-                {loading ? (
+                {loading === "regular" ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 ) : (
                   <Zap size={14} />
                 )}
-                {loading ? "Processing…" : "Process"}
+                {loading === "regular" ? "Processing…" : "Regular staff"}
+              </button>
+              <button
+                type="button"
+                disabled={!selected || loading !== null}
+                onClick={() => runProcess("daily_basis")}
+                className="py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                {loading === "daily_basis" ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                ) : (
+                  <CalendarClock size={14} />
+                )}
+                {loading === "daily_basis" ? "Processing…" : "Daily basis"}
               </button>
             </div>
+
+            <p className="text-[11px] text-slate-400 text-center">
+              Daily-basis pay comes from the attendance register — anyone without
+              days recorded for the month is skipped.
+            </p>
           </div>
         )}
       </div>
