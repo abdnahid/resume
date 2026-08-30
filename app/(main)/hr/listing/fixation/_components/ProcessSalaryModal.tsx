@@ -490,45 +490,24 @@ export default function ProcessSalaryModal({
               >
                 Cancel
               </button>
-            </div>
-
-            {/*
-              Two runs, not one. Regular staff are paid from their fixation and
-              daily-basis staff from the attendance register, so each reports
-              its own counts instead of one hiding inside the other's total.
-            */}
-            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={!selected || loading !== null}
                 onClick={() => runProcess("regular")}
-                className="py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 {loading === "regular" ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 ) : (
                   <Zap size={14} />
                 )}
-                {loading === "regular" ? "Processing…" : "Regular staff"}
-              </button>
-              <button
-                type="button"
-                disabled={!selected || loading !== null}
-                onClick={() => runProcess("daily_basis")}
-                className="py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
-                {loading === "daily_basis" ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                ) : (
-                  <CalendarClock size={14} />
-                )}
-                {loading === "daily_basis" ? "Processing…" : "Daily basis"}
+                {loading === "regular" ? "Processing…" : "Process regular staff"}
               </button>
             </div>
 
             <p className="text-[11px] text-slate-400 text-center">
-              Daily-basis pay comes from the attendance register — anyone without
-              days recorded for the month is skipped.
+              Daily-basis staff are paid from the attendance register, under
+              Salary Fixation → Daily basis.
             </p>
           </div>
         )}

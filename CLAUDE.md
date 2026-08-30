@@ -166,12 +166,18 @@ Fixation is **versioned**, and that is the whole design. An employee has many
   whatever is current now — so back-processing an earlier month after an
   increment still pays that month's structure. `supersededAt` is deliberately
   *not* a disqualifier there.
-- **The two payrolls are run separately.** `POST /api/salary/process` takes a
-  `category` of `regular` or `daily_basis`; the fixation screen offers a button
-  for each. They are decided by different things — a fixation versus the
-  attendance register — and running them together buried one inside the other's
-  counts. Omitting `category` still runs both, which the single-employee path
-  relies on.
+- **The two payrolls are run separately, from separate screens.** `POST
+  /api/salary/process` takes a `category` of `regular` or `daily_basis`.
+  Regular staff are processed from the fixation screen; daily-basis staff from
+  the attendance register, where the days were just entered — recording and
+  paying belong to one sitting. Omitting `category` still runs both, which the
+  single-employee path relies on.
+
+- **Sidebar → Salary Fixation is a collapsible with two children**, Regular and
+  Daily basis, because they are the two pay regimes. The fixation screen lists
+  regular staff only; daily-basis staff appear on the attendance register
+  instead. Listing them as unfixable rows on the fixation screen only invited
+  the mistake it was meant to prevent.
 
 - **Attendance is a record, not a prompt.** `DailyAttendance` holds days worked
   per employee per month, entered at `/hr/listing/attendance` whenever suits.

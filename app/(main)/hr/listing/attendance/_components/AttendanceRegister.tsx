@@ -7,6 +7,7 @@ import {
   Check,
   Lock,
   Users,
+  Zap,
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import type { AttendanceSheet } from "@/lib/salary/attendance";
@@ -48,6 +49,12 @@ export default function AttendanceRegister({
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [runResult, setRunResult] = useState<{
+    processed: number;
+    skipped: number;
+    skippedDetail?: { id: string; name: string; reason: string }[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -56,6 +63,7 @@ export default function AttendanceRegister({
     setLoading(true);
     setError(null);
     setNotice(null);
+    setRunResult(null);
     try {
       const res = await fetch(
         `/api/salary/attendance?officeId=${officeId}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`,
@@ -110,6 +118,35 @@ export default function AttendanceRegister({
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /**
+   * Pay the month for this office's daily-basis staff.
+   *
+   * Lives here rather than on the fixation screen because this is where the
+   * days are decided — record them, then pay, without changing screens. The
+   * run reads the register, so anyone still blank is skipped and named.
+   */
+  async function process() {
+    setProcessing(true);
+    setError(null);
+    setNotice(null);
+    setRunResult(null);
+    try {
+      const res = await fetch("/api/salary/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ officeId, month, year, category: "daily_basis" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Processing failed");
+      setRunResult(data);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setProcessing(false);
     }
   }
 
@@ -287,7 +324,51 @@ export default function AttendanceRegister({
               <Check size={15} />
               {saving ? "Saving…" : "Save attendance"}
             </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              {missing > 0 && editable.length > 0 && (
+                <span className="text-[11px] text-amber-700">
+                  {missing} without days will be skipped
+                </span>
+              )}
+              <button
+                type="button"
+                disabled={processing || editable.length === 0}
+                onClick={process}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50"
+                title={
+                  editable.length === 0
+                    ? "Every daily-basis worker here has already been paid for this month."
+                    : undefined
+                }
+              >
+                {processing ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : (
+                  <Zap size={15} />
+                )}
+                {processing ? "Processing…" : `Process ${month} ${year}`}
+              </button>
+            </div>
           </div>
+
+          {runResult && (
+            <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-medium text-emerald-800">
+                {runResult.processed} paid
+                {runResult.skipped > 0 && ` · ${runResult.skipped} skipped`}
+              </p>
+              {runResult.skippedDetail?.length ? (
+                <div className="max-h-32 overflow-y-auto">
+                  {runResult.skippedDetail.map((sk) => (
+                    <p key={sk.id} className="text-[11px] leading-relaxed text-emerald-900/70">
+                      <span className="font-mono">{sk.id}</span> {sk.name} — {sk.reason}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
         </>
       )}
     </PageContainer>

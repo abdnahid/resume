@@ -1,10 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { getEmployees } from "@/lib/db";
-import { getDailyRates } from "@/lib/salary/queries";
-import { rateFor, MAX_PAID_DAYS } from "@/lib/salary/daily";
 import {
   activeFixationCounts,
   payrollOffices,
@@ -24,21 +21,15 @@ export default async function FixationPage() {
 
   const officeId = scope.officeId ?? undefined;
 
-  const [employees, offices] = await Promise.all([
+  const [allEmployees, offices] = await Promise.all([
     getEmployees(officeId !== undefined ? { officeId } : undefined),
     payrollOffices(scope),
   ]);
 
-  // Daily-basis staff hold no fixation, so the table shows their rate instead.
-  // It follows the office zone, which is why it is resolved here rather than
-  // stored per employee.
-  const [rates, officeZones] = await Promise.all([
-    getDailyRates(),
-    prisma.office.findMany({ select: { id: true, houseRentZone: true } }),
-  ]);
-  const rateByOffice = new Map(
-    officeZones.map((o) => [o.id, rateFor(rates, o.houseRentZone)]),
-  );
+  // Regular staff only. Daily-basis staff have no fixation and are set up on
+  // the attendance register instead — the sidebar offers the two side by side,
+  // so listing them here as unfixable rows only invited the mistake.
+  const employees = allEmployees.filter((e) => e.category !== "daily_basis");
 
   // How many staff each office would actually pay, so the modal can say so
   // before a run rather than after it.
@@ -71,8 +62,6 @@ export default async function FixationPage() {
       }))}
       processed={processed}
       pinned={scope.pinned}
-      dailyRates={Object.fromEntries(rateByOffice)}
-      maxPaidDays={MAX_PAID_DAYS}
     />
   );
 }
