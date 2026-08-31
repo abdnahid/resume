@@ -31,6 +31,21 @@ export async function POST(req: Request) {
   const bds = await prisma.bds.findUnique({ where: { id: bdsId } });
   if (!bds) return NextResponse.json({ error: "Standard not found" }, { status: 404 });
 
+  // A standard created from the mandatory-certification list carries a
+  // stand-in price, because the published list gives the designation and not
+  // the Standards Wing's fee. Selling one would charge a made-up amount — and
+  // at the ৳0 stand-in, would hand out a purchase for nothing. Refused until a
+  // real price is loaded.
+  if (bds.priceIsPlaceholder) {
+    return NextResponse.json(
+      {
+        error:
+          "This standard is not on sale yet — its price has not been published to the system. Please contact BSTI's Standards Wing to buy it.",
+      },
+      { status: 409 },
+    );
+  }
+
   // Scope the purchase to the company being acted as, when there is one
   // (spec §2.5). Absent one, it is a personal purchase.
   const acting = await prisma.organizationMembership.findFirst({

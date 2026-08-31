@@ -23,6 +23,17 @@ export async function startBdsPurchase(args: {
 }) {
   const bds = await prisma.bds.findUniqueOrThrow({ where: { id: args.bdsId } });
 
+  // A stand-in price is not a price. Standards created from the mandatory
+  // list carry the designation but not the Standards Wing's fee, and the
+  // stand-in is ৳0 — raising a payment for one would grant the purchase for
+  // nothing. The route refuses too; this is the layer that actually holds,
+  // because it is what every caller goes through.
+  if (bds.priceIsPlaceholder) {
+    throw new Error(
+      `${bds.number} is not on sale yet — its price has not been published to the system.`,
+    );
+  }
+
   // Anyone may buy any BDS any number of times (spec §3.2), so there is
   // deliberately no "already bought" check here. The one-purchase-one-
   // application rule is enforced at attach time instead (§3.3).

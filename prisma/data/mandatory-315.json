@@ -1,0 +1,3276 @@
+[
+ {
+  "serial": 1,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Plywood Tea – Chest",
+  "genericNames": [],
+  "standards": [
+   "BDS 18:2006 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 2,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Mustard Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 25:2015 Amendmentment-1:2020"
+  ]
+ },
+ {
+  "serial": 3,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Refined Sugar",
+  "genericNames": [],
+  "standards": [
+   "BDS 138:2006 Amendment-1:2008"
+  ]
+ },
+ {
+  "serial": 4,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Suji (Semolina)",
+  "genericNames": [
+   "Semolina"
+  ],
+  "standards": [
+   "BDS 190:2016 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 5,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Poultry feeds",
+  "genericNames": [],
+  "standards": [
+   "BDS 233:2019 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 6,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Wheat Atta",
+  "genericNames": [],
+  "standards": [
+   "BDS 380:2007 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 7,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Maida",
+  "genericNames": [],
+  "standards": [
+   "BDS 381:2007 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 8,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Bread",
+  "genericNames": [],
+  "standards": [
+   "BDS 382:2016 Amendment-2, 2022"
+  ]
+ },
+ {
+  "serial": 9,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Biscuits",
+  "genericNames": [],
+  "standards": [
+   "BDS 383:2001 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 10,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Macaroni, spaghetti and vermicelli",
+  "genericNames": [],
+  "standards": [
+   "BDS 384:2017(2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 11,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Lozenges",
+  "genericNames": [],
+  "standards": [
+   "BDS 490:2014 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 12,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Canned and Bottled Fruits",
+  "genericNames": [],
+  "standards": [
+   "BDS 503:2006 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 13,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fruit Squashes",
+  "genericNames": [],
+  "standards": [
+   "BDS 506:2002 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 14,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fruit Cordial",
+  "genericNames": [],
+  "standards": [
+   "BDS 508:2006 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 15,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sauce (Fruits or vegetables)",
+  "genericNames": [
+   "Fruits or vegetables"
+  ],
+  "standards": [
+   "BDS 512:2017 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 16,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fruits and Vegetables Juices",
+  "genericNames": [],
+  "standards": [
+   "BDS 513:2013 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 17,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Tomato Paste",
+  "genericNames": [],
+  "standards": [
+   "BDS 517:2015 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 18,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chutneys",
+  "genericNames": [],
+  "standards": [
+   "BDS 521:2011 Amendmentment-1:2018"
+  ]
+ },
+ {
+  "serial": 19,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fermented vinegar",
+  "genericNames": [],
+  "standards": [
+   "BDS 523:2015 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 20,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Concentrated Fruit Juice",
+  "genericNames": [],
+  "standards": [
+   "BDS 527:2015 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 21,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fruit Syrup",
+  "genericNames": [],
+  "standards": [
+   "BDS 528:2019 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 22,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Tomato ketchup",
+  "genericNames": [],
+  "standards": [
+   "BDS 530:2002 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 23,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Baking powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 657:2015 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 24,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "a) Soluble coffee powder b) Roasted and ground coffee c) Roasted coffee-chicory powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 763:2016 Amendment-1:2020",
+   "BDS 805:2016 (1st Rev.)",
+   "BDS 806:2016 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 25,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Plywood for General Purposes",
+  "genericNames": [],
+  "standards": [
+   "BDS 799:2006 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 26,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Banaspati",
+  "genericNames": [],
+  "standards": [
+   "BDS 804:2011 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 27,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Milk powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 860:2020 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 28,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Butter Oil and Ghee",
+  "genericNames": [],
+  "standards": [
+   "BDS 908:2012 Amendment-1:2020"
+  ]
+ },
+ {
+  "serial": 29,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Turmeric Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 991:2020 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 30,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Wheat Bran",
+  "genericNames": [],
+  "standards": [
+   "BDS 997:2006 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 31,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Toffees",
+  "genericNames": [],
+  "standards": [
+   "BDS 1000:2001 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 32,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Wafer Biscuits",
+  "genericNames": [],
+  "standards": [
+   "BDS 1001:2010 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 33,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chilli powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1017:2020 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 34,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Honey",
+  "genericNames": [],
+  "standards": [
+   "BDS 1039:2022 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 35,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Safety matches in boxes",
+  "genericNames": [],
+  "standards": [
+   "BDS 1040:2006 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 36,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Bread rolls",
+  "genericNames": [],
+  "standards": [
+   "BDS 1074:2017 Amendment-1: 2018"
+  ]
+ },
+ {
+  "serial": 37,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Ice Cream",
+  "genericNames": [],
+  "standards": [
+   "BDS 1083:2006 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 38,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Coriander powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1084:2015 Amendment-1:2020"
+  ]
+ },
+ {
+  "serial": 39,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Mosquito Coil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1089:2018 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 40,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Noodles",
+  "genericNames": [],
+  "standards": [
+   "BDS 1106:2015 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 41,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Carbonated Beverages",
+  "genericNames": [],
+  "standards": [
+   "BDS 1123:2022 (4th Rev.)"
+  ]
+ },
+ {
+  "serial": 42,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Malathion 57 % (W/V) (Emulsifiable Concentrates)",
+  "genericNames": [],
+  "standards": [
+   "BDS 1179:2001 (1 st Rev.)"
+  ]
+ },
+ {
+  "serial": 43,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chhana",
+  "genericNames": [],
+  "standards": [
+   "BDS 1180:2016 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 44,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Curry Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1205:2013 Amendment-:2020"
+  ]
+ },
+ {
+  "serial": 45,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Custard Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1226:2015"
+  ]
+ },
+ {
+  "serial": 46,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Iodized Salt",
+  "genericNames": [],
+  "standards": [
+   "BDS 1236:2020 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 47,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Packaged Drinking Water",
+  "genericNames": [],
+  "standards": [
+   "BDS 1240:2021 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 48,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Natural Mineral Water",
+  "genericNames": [],
+  "standards": [
+   "BDS 1414:2021 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 49,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Lassi (Yoghurt drink)",
+  "genericNames": [
+   "Yoghurt drink"
+  ],
+  "standards": [
+   "BDS 1470:2015 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 50,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Flavoured Milk",
+  "genericNames": [],
+  "standards": [
+   "BDS 1471:2012"
+  ]
+ },
+ {
+  "serial": 51,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chewing gum, ball gum and bubble gum",
+  "genericNames": [],
+  "standards": [
+   "BDS 1498:2012 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 52,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Mayonnaise",
+  "genericNames": [],
+  "standards": [
+   "BDS 1503:2011 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 53,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Instant Noodles",
+  "genericNames": [],
+  "standards": [
+   "BDS 1552:2015 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 54,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chips and Crackers",
+  "genericNames": [],
+  "standards": [
+   "BDS 1556:2017 Amendment-1:2019"
+  ]
+ },
+ {
+  "serial": 55,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chanachur",
+  "genericNames": [],
+  "standards": [
+   "BDS 1564:2016 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 56,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Besan",
+  "genericNames": [],
+  "standards": [
+   "BDS 1565:2017 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 57,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Cakes",
+  "genericNames": [],
+  "standards": [
+   "BDS 1574:2021 (3rd Rev.)"
+  ]
+ },
+ {
+  "serial": 58,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fruit Drinks",
+  "genericNames": [],
+  "standards": [
+   "BDS 1581:2015 (2nd Rev.)"
+  ]
+ },
+ {
+  "serial": 59,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Household Insecticide Aerosol",
+  "genericNames": [],
+  "standards": [
+   "BDS 1585:2023 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 60,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Soft Drink Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1586:2007 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 61,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Lachsa Shemai",
+  "genericNames": [],
+  "standards": [
+   "BDS 1620:2000 Amendment-1:2020"
+  ]
+ },
+ {
+  "serial": 62,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Pasteurized Milk",
+  "genericNames": [],
+  "standards": [
+   "BDS 1702:2019 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 63,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Soy sauce",
+  "genericNames": [],
+  "standards": [
+   "BDS 1718:2002"
+  ]
+ },
+ {
+  "serial": 64,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fortified Soybean Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1769:2014 Amendment-1:2021"
+  ]
+ },
+ {
+  "serial": 65,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fortified Edible Palm Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1770:2014 Amendment-1:2021"
+  ]
+ },
+ {
+  "serial": 66,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fortified Edible Sunflower Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1773:2016 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 67,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fortified Palm Olein",
+  "genericNames": [],
+  "standards": [
+   "BDS 1774:2006 Amendment -2:2021"
+  ]
+ },
+ {
+  "serial": 68,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sweetened/Unsweetened Condensed Filled Milk",
+  "genericNames": [],
+  "standards": [
+   "BDS 1780:2014 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 69,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Muri (puffed rice)",
+  "genericNames": [
+   "puffed rice"
+  ],
+  "standards": [
+   "BDS 1796:2008"
+  ]
+ },
+ {
+  "serial": 70,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Edible Jell",
+  "genericNames": [],
+  "standards": [
+   "BDS 1801:2015 Amendment-1:2018"
+  ]
+ },
+ {
+  "serial": 71,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Ultra High Temperature (UHT) Treated Milk",
+  "genericNames": [
+   "UHT"
+  ],
+  "standards": [
+   "BDS 1805:2022 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 72,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Cumin powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1807:2008 Amendment-1:2020"
+  ]
+ },
+ {
+  "serial": 73,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sweetmeats",
+  "genericNames": [],
+  "standards": [
+   "BDS 1811:2008"
+  ]
+ },
+ {
+  "serial": 74,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Ice Lolly",
+  "genericNames": [],
+  "standards": [
+   "BDS 1847:2011 Amendment-1:2021"
+  ]
+ },
+ {
+  "serial": 75,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Pasteurized Low Fat Milk and Standardized Milk",
+  "genericNames": [],
+  "standards": [
+   "BDS 1866:2022 (1st Rev.)"
+  ]
+ },
+ {
+  "serial": 76,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Artificial Flavoured Drinks",
+  "genericNames": [],
+  "standards": [
+   "BDS 1877:2014"
+  ]
+ },
+ {
+  "serial": 77,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fortified Edible Rice Bran Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1886:2014"
+  ]
+ },
+ {
+  "serial": 78,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Synthetic Vinegar",
+  "genericNames": [],
+  "standards": [
+   "BDS 1896:2015"
+  ]
+ },
+ {
+  "serial": 79,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fish Feed",
+  "genericNames": [],
+  "standards": [
+   "BDS 1915:2022"
+  ]
+ },
+ {
+  "serial": 80,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sucralose, Food grade",
+  "genericNames": [],
+  "standards": [
+   "BDS 1933:2017"
+  ]
+ },
+ {
+  "serial": 81,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Potato Chips",
+  "genericNames": [],
+  "standards": [
+   "BDS 1927:2017 Amendment-1:2021"
+  ]
+ },
+ {
+  "serial": 82,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Corn Flakes",
+  "genericNames": [],
+  "standards": [
+   "BDS 1957:2018"
+  ]
+ },
+ {
+  "serial": 83,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Oats",
+  "genericNames": [],
+  "standards": [
+   "BDS 1960:2019"
+  ]
+ },
+ {
+  "serial": 84,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Malt Drink",
+  "genericNames": [],
+  "standards": [
+   "BDS 1994:2021"
+  ]
+ },
+ {
+  "serial": 85,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Malt based food",
+  "genericNames": [],
+  "standards": [
+   "BDS 1995:2022"
+  ]
+ },
+ {
+  "serial": 86,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Pastry",
+  "genericNames": [],
+  "standards": [
+   "BDS 1996:2022"
+  ]
+ },
+ {
+  "serial": 87,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Quick Frozen French Fried Potatoes",
+  "genericNames": [],
+  "standards": [
+   "BDS 1997:2022"
+  ]
+ },
+ {
+  "serial": 88,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Roti (Flat bread/Tortilla)",
+  "genericNames": [
+   "Flat bread/Tortilla"
+  ],
+  "standards": [
+   "BDS 1998:2022"
+  ]
+ },
+ {
+  "serial": 89,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Decorated Cake",
+  "genericNames": [],
+  "standards": [
+   "BDS 2008:2022"
+  ]
+ },
+ {
+  "serial": 90,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Virgin Coconut Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 2015:2023 Amendment-1:2024"
+  ]
+ },
+ {
+  "serial": 91,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Electrolyte Drinks (Sports Drinks)",
+  "genericNames": [
+   "Sports Drinks"
+  ],
+  "standards": [
+   "BDS 2032:2024"
+  ]
+ },
+ {
+  "serial": 92,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Margarine",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 32:2008"
+  ]
+ },
+ {
+  "serial": 93,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Olive Oils and Olive Pomace Oils",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 33:2023"
+  ]
+ },
+ {
+  "serial": 94,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Canned Pineapple",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 42:2007"
+  ]
+ },
+ {
+  "serial": 95,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Infant Formula and Formulas for Special Medical purposes intended for Infants",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 72:2008"
+  ]
+ },
+ {
+  "serial": 96,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Processed cereal based food for Infants and Young Children",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 74:2022"
+  ]
+ },
+ {
+  "serial": 97,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Chocolate",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 87:2008"
+  ]
+ },
+ {
+  "serial": 98,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Follow-up formula",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 156:2008 Amendment-1:2009"
+  ]
+ },
+ {
+  "serial": 99,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sugars",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 212:2022"
+  ]
+ },
+ {
+  "serial": 100,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Fermented Milks",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 243:2015"
+  ]
+ },
+ {
+  "serial": 101,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "A Blend of Evaporated Skimmed Milk and Vegetable Fat",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 250:2022"
+  ]
+ },
+ {
+  "serial": 102,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "A Blend of skimmed milk and vegetable fat in powdered form",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 251:2021"
+  ]
+ },
+ {
+  "serial": 103,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Pickled Fruits and Vegetables",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 260:2014"
+  ]
+ },
+ {
+  "serial": 104,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Cream Cheeses",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 275:2020"
+  ]
+ },
+ {
+  "serial": 105,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Extra Hard Grating Cheese",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 278:2020"
+  ]
+ },
+ {
+  "serial": 106,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Evaporated Milks",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 281:2023"
+  ]
+ },
+ {
+  "serial": 107,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Cheese",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 283:2022"
+  ]
+ },
+ {
+  "serial": 108,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Whey Cheeses",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 284:2022"
+  ]
+ },
+ {
+  "serial": 109,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Whey powder",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 289:2023"
+  ]
+ },
+ {
+  "serial": 110,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Jams, Jellies and Marmalades",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC 296:2014"
+  ]
+ },
+ {
+  "serial": 111,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Butter",
+  "genericNames": [],
+  "standards": [
+   "BDS CXS 279:2023"
+  ]
+ },
+ {
+  "serial": 112,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Sweetened Condensed Milk",
+  "genericNames": [],
+  "standards": [
+   "BDS CAC A-4:2002"
+  ]
+ },
+ {
+  "serial": 113,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Black Tea - Definition and Basic requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 3720:2017"
+  ]
+ },
+ {
+  "serial": 114,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Instant Tea in Solid Form – Specification",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 6079:2015"
+  ]
+ },
+ {
+  "serial": 115,
+  "category": "Agricultural and Food Products",
+  "categoryLetter": "A",
+  "name": "Green Tea – Definition and basic Requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 11287:2012"
+  ]
+ },
+ {
+  "serial": 116,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Laundry Soaps",
+  "genericNames": [],
+  "standards": [
+   "BDS 12:2019 (3rd Revision)"
+  ]
+ },
+ {
+  "serial": 117,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Toilet Soap",
+  "genericNames": [],
+  "standards": [
+   "BDS 13:2021 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 118,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Coal Tar Black Paint (Alquatra)",
+  "genericNames": [
+   "Alquatra"
+  ],
+  "standards": [
+   "BDS 69 (Part 2):1991 Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 119,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Stamp Pad Ink",
+  "genericNames": [],
+  "standards": [
+   "BDS 90:2011 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 120,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Coconut Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 99:2007 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 121,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Aluminium Sulphate, Non Ferric",
+  "genericNames": [],
+  "standards": [
+   "BDS 149:2014 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 122,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Triple Super Phosphate (T.S.P)",
+  "genericNames": [
+   "T.S.P"
+  ],
+  "standards": [
+   "BDS 216:1991 (1st Revision) Amendment 1, 2: 2007"
+  ]
+ },
+ {
+  "serial": 123,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Urea (Fertilizer)",
+  "genericNames": [
+   "Fertilizer"
+  ],
+  "standards": [
+   "BDS 217:2011 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 124,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Pencils",
+  "genericNames": [],
+  "standards": [
+   "BDS 330:1993 Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 125,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Sole Leather (Vegetable Tanned)",
+  "genericNames": [
+   "Vegetable Tanned"
+  ],
+  "standards": [
+   "BDS 340:2012 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 126,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Internal combustion engine Crankcase oils for Automotive Application (Diesel and gasoline)",
+  "genericNames": [
+   "Diesel and gasoline"
+  ],
+  "standards": [
+   "BDS 343:2022 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 127,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "High Speed Diesel",
+  "genericNames": [],
+  "standards": [
+   "BDS 344:2020 (3rd Revision)"
+  ]
+ },
+ {
+  "serial": 128,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Unleaded Motor Gasoline-Premium",
+  "genericNames": [],
+  "standards": [
+   "BDS 346:2010 Reaffirmed 2020"
+  ]
+ },
+ {
+  "serial": 129,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Unleaded Motor Gasoline-Regular",
+  "genericNames": [],
+  "standards": [
+   "BDS 347:2019 (5th Revision)"
+  ]
+ },
+ {
+  "serial": 130,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Ready Mixed Paint, Brushing, Finishing semi-Gloss for general purpose",
+  "genericNames": [],
+  "standards": [
+   "BDS 402:1989 Amendment 1, 2:2007"
+  ]
+ },
+ {
+  "serial": 131,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Writing and Printing Papers",
+  "genericNames": [],
+  "standards": [
+   "BDS 405:2012 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 132,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Carbon Paper for type writer",
+  "genericNames": [],
+  "standards": [
+   "BDS 411:1989 Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 133,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Ceramic Tableware",
+  "genericNames": [],
+  "standards": [
+   "BDS 485:2000 Amendment 3:2006"
+  ]
+ },
+ {
+  "serial": 134,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Newsprint",
+  "genericNames": [],
+  "standards": [
+   "BDS 845:2012 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 135,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Shoe polish, Paste",
+  "genericNames": [],
+  "standards": [
+   "BDS 1006:1981 Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 136,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Tooth Paste",
+  "genericNames": [],
+  "standards": [
+   "BDS 1216:2012 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 137,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Shaving Cream",
+  "genericNames": [],
+  "standards": [
+   "BDS 1241:2017 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 138,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Shampoo, Surfactant based",
+  "genericNames": [],
+  "standards": [
+   "BDS 1269:2022 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 139,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Skin Powders",
+  "genericNames": [],
+  "standards": [
+   "BDS 1337:2024 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 140,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Hair Dyes, Liquid",
+  "genericNames": [],
+  "standards": [
+   "BDS 1338:2023 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 141,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Hair Oils",
+  "genericNames": [],
+  "standards": [
+   "BDS 1339:2018 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 142,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Tooth Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1370:2017 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 143,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Skin Creams",
+  "genericNames": [],
+  "standards": [
+   "BDS 1382:2024 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 144,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Ball Point Pens",
+  "genericNames": [],
+  "standards": [
+   "BDS 1384:2022 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 145,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Hair cream",
+  "genericNames": [],
+  "standards": [
+   "BDS 1420:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 146,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Nail Polish (Nail Enamel)",
+  "genericNames": [
+   "Nail Enamel"
+  ],
+  "standards": [
+   "BDS 1421:1992 Reaffirmed 2021"
+  ]
+ },
+ {
+  "serial": 147,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Enamel synthetic exterior a) Undercoating b) Finishing",
+  "genericNames": [],
+  "standards": [
+   "BDS 1423:2018 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 148,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Lipstick",
+  "genericNames": [],
+  "standards": [
+   "BDS 1424:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 149,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Tableware made of melamine moulding compound",
+  "genericNames": [],
+  "standards": [
+   "BDS 1425:2009 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 150,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Synthetic Detergent Powder",
+  "genericNames": [],
+  "standards": [
+   "BDS 1445:2019 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 151,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "After Shave Lotion",
+  "genericNames": [],
+  "standards": [
+   "BDS 1524:2006 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 152,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Glycerin Toilet Soap",
+  "genericNames": [],
+  "standards": [
+   "BDS 1536:2016"
+  ]
+ },
+ {
+  "serial": 153,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Liquid Dish Wash",
+  "genericNames": [],
+  "standards": [
+   "BDS 1554:2021 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 154,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Direct Moulded Sole (DMS) Boots for General purpose.",
+  "genericNames": [
+   "DMS"
+  ],
+  "standards": [
+   "BDS 1555:2023 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 155,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Shoe Polish, Liquid",
+  "genericNames": [],
+  "standards": [
+   "BDS 1589:2023 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 156,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Petroleum Jelly",
+  "genericNames": [],
+  "standards": [
+   "BDS 1597:2023 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 157,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Diammonium Phosphate",
+  "genericNames": [],
+  "standards": [
+   "BDS 1628:2000"
+  ]
+ },
+ {
+  "serial": 158,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Rotational moulded polyethylene water storage tanks",
+  "genericNames": [],
+  "standards": [
+   "BDS 1699:2002"
+  ]
+ },
+ {
+  "serial": 159,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Cement Paints",
+  "genericNames": [],
+  "standards": [
+   "BDS 1706:2015 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 160,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Liquid Toilet Cleaner (Porcelain bowls and urinals)",
+  "genericNames": [],
+  "standards": [
+   "BDS 1707:2021 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 161,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Facial tissue paper",
+  "genericNames": [],
+  "standards": [
+   "BDS 1723:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 162,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Liquid Toilet Soap",
+  "genericNames": [],
+  "standards": [
+   "BDS 1740:2004"
+  ]
+ },
+ {
+  "serial": 163,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Toilet tissue papers",
+  "genericNames": [],
+  "standards": [
+   "BDS 1745:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 164,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Baby Oil",
+  "genericNames": [],
+  "standards": [
+   "BDS 1766:2019 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 165,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Toilet Soap for Babies",
+  "genericNames": [],
+  "standards": [
+   "BDS 1798:2019 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 166,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Tableware made of urea moulding compound",
+  "genericNames": [],
+  "standards": [
+   "BDS 1825:2011 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 167,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Emulsion Paint",
+  "genericNames": [],
+  "standards": [
+   "BDS 1827:2018 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 168,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Float glass",
+  "genericNames": [],
+  "standards": [
+   "BDS 1832:2010"
+  ]
+ },
+ {
+  "serial": 169,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Economy Emulsion Paint (Distemper)",
+  "genericNames": [
+   "Distemper"
+  ],
+  "standards": [
+   "BDS 1833:2018 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 170,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Skin powder for babies",
+  "genericNames": [],
+  "standards": [
+   "BDS 1844:2011"
+  ]
+ },
+ {
+  "serial": 171,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Skin Creams and Lotions for Babies",
+  "genericNames": [],
+  "standards": [
+   "BDS 1858:2019 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 172,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Liquid Floor Cleaner",
+  "genericNames": [],
+  "standards": [
+   "BDS 1859:2021 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 173,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Glass Tableware",
+  "genericNames": [],
+  "standards": [
+   "BDS 1874:2013"
+  ]
+ },
+ {
+  "serial": 174,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Baby Shampoo",
+  "genericNames": [],
+  "standards": [
+   "BDS 1884:2014"
+  ]
+ },
+ {
+  "serial": 175,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Transparent Toilet Soap",
+  "genericNames": [],
+  "standards": [
+   "BDS 1908:2016"
+  ]
+ },
+ {
+  "serial": 176,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Skin Lotions",
+  "genericNames": [],
+  "standards": [
+   "BDS 1923:2019 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 177,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Leather Footwear (Physical)",
+  "genericNames": [],
+  "standards": [
+   "BDS 1944:2021 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 178,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Kajal",
+  "genericNames": [],
+  "standards": [
+   "BDS 1949:2018"
+  ]
+ },
+ {
+  "serial": 179,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Containers for Packaging of Mineral Water and Drinking Water.",
+  "genericNames": [],
+  "standards": [
+   "BDS 1958:2019"
+  ]
+ },
+ {
+  "serial": 180,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Natural Henna/Mehedi (Powder and Paste)",
+  "genericNames": [
+   "Natural Henna",
+   "Mehedi"
+  ],
+  "standards": [
+   "BDS 1966:2019"
+  ]
+ },
+ {
+  "serial": 181,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Synthetic Colour Paste",
+  "genericNames": [],
+  "standards": [
+   "BDS 1967:2019"
+  ]
+ },
+ {
+  "serial": 182,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Liquid Hand wash",
+  "genericNames": [],
+  "standards": [
+   "BDS 1973:2019"
+  ]
+ },
+ {
+  "serial": 183,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Face Pack",
+  "genericNames": [],
+  "standards": [
+   "BDS 1977:2020"
+  ]
+ },
+ {
+  "serial": 184,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Alcohol Based Hand Sanitizers",
+  "genericNames": [],
+  "standards": [
+   "BDS 1980:2020"
+  ]
+ },
+ {
+  "serial": 185,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Shaving Foam",
+  "genericNames": [],
+  "standards": [
+   "BDS 1986:2021"
+  ]
+ },
+ {
+  "serial": 186,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Eye Care Products",
+  "genericNames": [],
+  "standards": [
+   "BDS 1987:2023 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 187,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Face Wash",
+  "genericNames": [],
+  "standards": [
+   "BDS 2000:2022"
+  ]
+ },
+ {
+  "serial": 188,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Colour Pencils",
+  "genericNames": [],
+  "standards": [
+   "BDS 2020:2023"
+  ]
+ },
+ {
+  "serial": 189,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Toothbrush",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 20126:2023"
+  ]
+ },
+ {
+  "serial": 190,
+  "category": "Chemical Products",
+  "categoryLetter": "B",
+  "name": "Gel ink ball pens and refills – Part 1: General use",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 27668-1:2019"
+  ]
+ },
+ {
+  "serial": 191,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Common Building Clay Bricks",
+  "genericNames": [],
+  "standards": [
+   "BDS 208:2022 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 192,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Safety Razor Blades",
+  "genericNames": [],
+  "standards": [
+   "BDS 219:2022 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 193,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Bicycle Tyres and Rims- Part 2:Rims",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 5775-2:2024"
+  ]
+ },
+ {
+  "serial": 194,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Pipe, Steel, Black and Hot-Dipped, Zinc-Coated, Welded and Seamless",
+  "genericNames": [],
+  "standards": [
+   "BDS ASTM A53/A53M:2024"
+  ]
+ },
+ {
+  "serial": 195,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "GP Sheets (With Corrugated Sheets)",
+  "genericNames": [
+   "With Corrugated Sheets"
+  ],
+  "standards": [
+   "BDS 1122:1987 (RA 2021)"
+  ]
+ },
+ {
+  "serial": 196,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Protective Helmets for Scooter & Motorcycle Riders",
+  "genericNames": [],
+  "standards": [
+   "BDS 1136:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 197,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Sanitary Ware Appliances",
+  "genericNames": [],
+  "standards": [
+   "BDS 1162:2014"
+  ]
+ },
+ {
+  "serial": 198,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Industrial Safety Helmet",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 397:2024"
+  ]
+ },
+ {
+  "serial": 199,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Gold and Gold Alloys-Grade and Marking",
+  "genericNames": [],
+  "standards": [
+   "BDS 1515:2021 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 200,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Domestic Pressure Cookers",
+  "genericNames": [],
+  "standards": [
+   "BDS 1752:2006"
+  ]
+ },
+ {
+  "serial": 201,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Hollow Clay Bricks And Blocks",
+  "genericNames": [],
+  "standards": [
+   "BDS 1803:2008"
+  ]
+ },
+ {
+  "serial": 202,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Shaving systems- Disposable Razors- Single or Twin Blade Type- Specification",
+  "genericNames": [],
+  "standards": [
+   "BDS 1838:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 203,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Household refrigerating appliances-Characteristics, Test Methods and Energy Efficiency Labeling Energy Labeling and Other Compliance Criteria",
+  "genericNames": [],
+  "standards": [
+   "BDS 1850:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 204,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Room Air Conditioners and Heat Pumps– Performance Requirements and Energy Labeling",
+  "genericNames": [],
+  "standards": [
+   "BDS 1852:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 205,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Household refrigerating appliances Characteristics, Test Methods and Energy Efficiency Labeling",
+  "genericNames": [],
+  "standards": [
+   "BDS 1849-1:2024",
+   "BDS 1849-2:2024",
+   "BDS 1849-3:2024"
+  ]
+ },
+ {
+  "serial": 206,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Pipes and Fittings Made of Unplasticized Polyvinyl Chloride (PVC-U) Used for Potable Water Supply",
+  "genericNames": [
+   "PVC-U"
+  ],
+  "standards": [
+   "BDS 1878:2015"
+  ]
+ },
+ {
+  "serial": 207,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Extruded Profiles of Aluminium and Aluminium Alloys",
+  "genericNames": [],
+  "standards": [
+   "BDS 1879:2014"
+  ]
+ },
+ {
+  "serial": 208,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Cement- Part 1:Composition, Specifications and Conformity Criteria for Common Cements",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 197-1:2023"
+  ]
+ },
+ {
+  "serial": 209,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Sanitary Tapware-Single Taps and Combination Taps for Water Supply Systems of Type 1 and Type 2 - General Technical Requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 200:2009 (RA 2020)"
+  ]
+ },
+ {
+  "serial": 210,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Concrete Paving Blocks- Requirements and Test Methods",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 1338:2009 (RA 2023)"
+  ]
+ },
+ {
+  "serial": 211,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Penetration-Graded Asphalt Binder for Use in Pavement Construction Cationic Emulsified Asphalt",
+  "genericNames": [],
+  "standards": [
+   "BDS ASTM D946/D946M:2023",
+   "BDS ASTM D2397/D2397M:2023"
+  ]
+ },
+ {
+  "serial": 212,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Unplasticized poly(vinyl chloride) (PVC-U) profiles for the fabrication of windows and doors - Classification requirements and test methods - Part 1: Non-coated PVC-U profiles with light coloured surfaces",
+  "genericNames": [
+   "vinyl chloride",
+   "PVC-U"
+  ],
+  "standards": [
+   "BDS EN 12608-1:2023"
+  ]
+ },
+ {
+  "serial": 213,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Performance-Graded Asphalt Binder Using the Multiple Stress Creep and Recovery (MSCR) Test",
+  "genericNames": [
+   "MSCR"
+  ],
+  "standards": [
+   "BDS ASTM D8239:2023"
+  ]
+ },
+ {
+  "serial": 214,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Passenger Car Tyres and Rims (Metic Series)",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 4000-1:2023",
+   "BDS ISO 4000-2:2023"
+  ]
+ },
+ {
+  "serial": 215,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Truck and Bus Tyres And Rims (Metric Series)",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 4209-1:2012 (RA 2023)",
+   "BDS ISO 4209-2:2023"
+  ]
+ },
+ {
+  "serial": 216,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Plastics Piping Systems for Water Supply and for Drainage and Sewerage under Pressure-Polyethylene (PE)",
+  "genericNames": [
+   "PE"
+  ],
+  "standards": [
+   "BDS ISO 4427-1:2023",
+   "BDS ISO 4427-2:2023",
+   "BDS ISO 4427-3:2023"
+  ]
+ },
+ {
+  "serial": 217,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Motorcycle Tyres and Rims (Metric Series)",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 5751-1:2012 (RA 2023)",
+   "BDS ISO 5751-2:2012 (RA 2023)",
+   "BDS ISO 5751-3:2012 (RA 2023)"
+  ]
+ },
+ {
+  "serial": 218,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Steel for the Reinforcement of Concrete",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 6935-1:2012 (RA 2021)",
+   "BDS ISO 6935-2:2021"
+  ]
+ },
+ {
+  "serial": 219,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Portable Fire Extinguisher",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 7165:2022"
+  ]
+ },
+ {
+  "serial": 220,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Continuous Hot-Dip Aluminium/Zinc Coated Steel Sheet of Commercial, Drawing and Structural Qualities",
+  "genericNames": [
+   "Continuous Hot-Dip Aluminium"
+  ],
+  "standards": [
+   "BDS ISO 9364:2021"
+  ]
+ },
+ {
+  "serial": 221,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Gas Cylinders-Refillable Seamless Aluminum Alloy Gas Cylinders- Design, Construction and Testing Gas Cylinders-Refillable Welded Steel Cylinders- Test Pressure 60 Bar and Below Gas Cylinders-Refillable Seamless Steel Gas Cylinders and Tubes- Design, Construction And Testing with Tensile Strength Less Than 1100 MPa with Tensile Strength Greater Than or Equal to 1100 MPa",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 7866:2023",
+   "BDS ISO 4706:2008 (RA 2023)",
+   "BDS ISO 9809-1:2023",
+   "BDS ISO 9809-2:2023",
+   "BDS ISO 9809-3:2023"
+  ]
+ },
+ {
+  "serial": 222,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Ceramic Tiles - Definitions, Classification, Characteristics and Marking",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 13006:2021"
+  ]
+ },
+ {
+  "serial": 223,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Clean Cookstoves and Clean Cooking Solutions Harmonized Laboratory Test Protocols Part 1: Standard Test Sequence for Emissions and Performance",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 19867-1:2019"
+  ]
+ },
+ {
+  "serial": 224,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Gas cylinders — Transportable Refillable Welded Steel Cylinders for Liquefied Petroleum Gas (LPG) — Design and construction",
+  "genericNames": [
+   "LPG"
+  ],
+  "standards": [
+   "BDS ISO 22991:2023"
+  ]
+ },
+ {
+  "serial": 225,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Household and Similar Electrical Appliances – Safety – Part 2-21: Particular Requirements for Storage Water Heaters",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60335-2-21:2022"
+  ]
+ },
+ {
+  "serial": 226,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Sanitary tapware- Shower outlets",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 1112:2009"
+  ]
+ },
+ {
+  "serial": 227,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Vaccum flask",
+  "genericNames": [],
+  "standards": [
+   "BDS 576"
+  ]
+ },
+ {
+  "serial": 228,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "PVC pipes for electrical conduits",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 61386-21:2010"
+  ]
+ },
+ {
+  "serial": 229,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Fire door",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 3008-1:2023"
+  ]
+ },
+ {
+  "serial": 230,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Structural Steel and angle",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 630-1:2024",
+   "BDS ISO 630-2:2024",
+   "BDS ISO 630-3:2024"
+  ]
+ },
+ {
+  "serial": 231,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Concrete Masonry Unit",
+  "genericNames": [],
+  "standards": [
+   "BDS EN 771-3:2009"
+  ]
+ },
+ {
+  "serial": 232,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": ". LPG Composite Cylinder",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 11119-3:2018"
+  ]
+ },
+ {
+  "serial": 233,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Annealed Aluminum and Aluminum-Alloy Foil for Flexible Barrier, Food Contact, and Other Applications",
+  "genericNames": [],
+  "standards": [
+   "BDS ASTM B479:2021"
+  ]
+ },
+ {
+  "serial": 234,
+  "category": "Engineering Products",
+  "categoryLetter": "C",
+  "name": "Plastics — Wood-plastic recycled composites (WPRC)",
+  "genericNames": [
+   "WPRC"
+  ],
+  "standards": [
+   "BDS ISO 20819-1:2024"
+  ]
+ },
+ {
+  "serial": 235,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Poplin Fabric",
+  "genericNames": [],
+  "standards": [
+   "BDS 32:2024 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 236,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": ". Cotton Sewing Threads",
+  "genericNames": [],
+  "standards": [
+   "BDS 33:2021 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 237,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Cotton Sharee – Power Loom",
+  "genericNames": [],
+  "standards": [
+   "BDS 63:2017 (3rd Revision)"
+  ]
+ },
+ {
+  "serial": 238,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Cotton long cloth",
+  "genericNames": [],
+  "standards": [
+   "BDS 64:2015(2nd Revision)"
+  ]
+ },
+ {
+  "serial": 239,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Cotton Canvas",
+  "genericNames": [],
+  "standards": [
+   "BDS 319:2020 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 240,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Cotton Bed Sheets",
+  "genericNames": [],
+  "standards": [
+   "BDS 951:2012(1st Revision)"
+  ]
+ },
+ {
+  "serial": 241,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Umbrella Cloth",
+  "genericNames": [],
+  "standards": [
+   "BDS 1125:2020 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 242,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Woven Shirtings Made of Polyester or Polyester Blends",
+  "genericNames": [],
+  "standards": [
+   "BDS 1148:2021(3 rd Revision)"
+  ]
+ },
+ {
+  "serial": 243,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Woven Suitings Made of Polyester or Polyester Blends",
+  "genericNames": [],
+  "standards": [
+   "BDS 1175:2021(3rd Revision)"
+  ]
+ },
+ {
+  "serial": 244,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Rubber Flat Transmission Belting of Textile Construction for General Use",
+  "genericNames": [],
+  "standards": [
+   "BDS 1199:2005 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 245,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Rubber Conveyor and Elevator Belting of Ply Construction",
+  "genericNames": [],
+  "standards": [
+   "BDS 1200 (Part 1):2005 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 246,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Industrial Sewing Threads Made Wholly or Partly from Synthetic Fibres",
+  "genericNames": [],
+  "standards": [
+   "BDS 1221:2021 (4th Revision)"
+  ]
+ },
+ {
+  "serial": 247,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Absorbent Cotton",
+  "genericNames": [],
+  "standards": [
+   "BDS 1260:2016 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 248,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Sanitary Napkins",
+  "genericNames": [],
+  "standards": [
+   "BDS 1261:2019 (2nd Revision)"
+  ]
+ },
+ {
+  "serial": 249,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Handloom Cotton Lungi Cloth",
+  "genericNames": [],
+  "standards": [
+   "BDS 1331:2024 (3rd Revision)"
+  ]
+ },
+ {
+  "serial": 250,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Silk Fabrics",
+  "genericNames": [],
+  "standards": [
+   "BDS 1467:2021(2nd Revision)"
+  ]
+ },
+ {
+  "serial": 251,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Printed Silk Saris",
+  "genericNames": [],
+  "standards": [
+   "BDS 1485:2012"
+  ]
+ },
+ {
+  "serial": 252,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Colour Fastness Ratings of Textiles ( ট টাইল পে র রং এর ািয়ে র মা া িনিদ করণ)",
+  "genericNames": [],
+  "standards": [
+   "BDS 1758:2022 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 253,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Textiles– Jute Bags for Packing 50 kg Food Grains",
+  "genericNames": [],
+  "standards": [
+   "BDS 1767: 2014 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 254,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Synthetic Mosquito Nets",
+  "genericNames": [],
+  "standards": [
+   "BDS 1882:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 255,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Towels and Towelling",
+  "genericNames": [],
+  "standards": [
+   "BDS 1898:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 256,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Jamdani Sharee",
+  "genericNames": [],
+  "standards": [
+   "BDS 1920:2024 (1st Revision)"
+  ]
+ },
+ {
+  "serial": 257,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Bed Mattress",
+  "genericNames": [],
+  "standards": [
+   "BDS 1955:2018"
+  ]
+ },
+ {
+  "serial": 258,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Textile Light Weight Jute Sacking Bags for Packing 50 kg Food Grains",
+  "genericNames": [],
+  "standards": [
+   "BDS 1974:2019"
+  ]
+ },
+ {
+  "serial": 259,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Hessian Jute Bags for Rice & Pulse",
+  "genericNames": [],
+  "standards": [
+   "BDS 1989:2021"
+  ]
+ },
+ {
+  "serial": 260,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Hessian Jute Bags for Packing 30 kg Food Grains",
+  "genericNames": [],
+  "standards": [
+   "BDS 2005:2022"
+  ]
+ },
+ {
+  "serial": 261,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Disposable Diapers",
+  "genericNames": [],
+  "standards": [
+   "BDS 2006:2022"
+  ]
+ },
+ {
+  "serial": 262,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Nonwoven Wipes",
+  "genericNames": [],
+  "standards": [
+   "BDS 2017:2023"
+  ]
+ },
+ {
+  "serial": 263,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Reusable Sanitary Napkin",
+  "genericNames": [],
+  "standards": [
+   "BDS 2024:2024"
+  ]
+ },
+ {
+  "serial": 264,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Textiles – Tests for Colour Fastness – Part E11: Colour Fastness to Steaming",
+  "genericNames": [],
+  "standards": [
+   "BDS ISO 105-E11:2004"
+  ]
+ },
+ {
+  "serial": 265,
+  "category": "Jute and Textile Products",
+  "categoryLetter": "D",
+  "name": "Steviol Glycosides",
+  "genericNames": [],
+  "standards": [
+   "BDS JECFA INS 960:2014"
+  ]
+ },
+ {
+  "serial": 266,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Tungsten filament lamps for domestic and similar general lighting purposes – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS 17:2006 (3rd revision)"
+  ]
+ },
+ {
+  "serial": 267,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Ceiling Roses",
+  "genericNames": [],
+  "standards": [
+   "BDS 116:2006 (2nd revision)"
+  ]
+ },
+ {
+  "serial": 268,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Lead-acid starter batteries – terminals",
+  "genericNames": [],
+  "standards": [
+   "BDS 206 (Part 1):2002 (2nd revision)",
+   "BDS 206 (Part 2):2002 (2nd revision)",
+   "BDS 206 (Part 3):2002 (2nd revision)"
+  ]
+ },
+ {
+  "serial": 269,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Performance and construction of electric circulating fans and regulators",
+  "genericNames": [],
+  "standards": [
+   "BDS 818: 1998 (1st revision) Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 270,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Water for use in secondary batteries (first revision)",
+  "genericNames": [],
+  "standards": [
+   "BDS 834:2007"
+  ]
+ },
+ {
+  "serial": 271,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Insulated flexible cords",
+  "genericNames": [],
+  "standards": [
+   "BDS 899 (Part 1):2000",
+   "BDS 899 (Part 2):2001",
+   "BDS 899 (Part 3):2001 Amendment 1:2009",
+   "BDS 899 (Part 4):2001",
+   "BDS 899 (Part 5):2001",
+   "BDS 899 (Part 6):2001"
+  ]
+ },
+ {
+  "serial": 272,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "PVC insulated cables (non-armoured for electric power and lighting)",
+  "genericNames": [],
+  "standards": [
+   "BDS 900:2010 (2nd revision)"
+  ]
+ },
+ {
+  "serial": 273,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Winding Wires",
+  "genericNames": [],
+  "standards": [
+   "BDS 1034 (Part 1):2006 (1st revision)",
+   "BDS 1034 (Part 2):2006 (1st revision)",
+   "BDS 1034 (Part 3):2006 (1st revision)",
+   "BDS 1034 (Part 4):2006 (1st revision)",
+   "BDS 1034 (Part 5):2006 (1st revision)"
+  ]
+ },
+ {
+  "serial": 274,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Bare aluminium and aluminium alloy conductors for overhead power transmission Aluminium conductors steel re-inforced for overhead power transmission",
+  "genericNames": [],
+  "standards": [
+   "BDS 1036:2006",
+   "BDS 1037:2003 (1st revision)"
+  ]
+ },
+ {
+  "serial": 275,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Three-phase induction motors",
+  "genericNames": [],
+  "standards": [
+   "BDS 1139:1986, Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 276,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electronic type fan regulators",
+  "genericNames": [],
+  "standards": [
+   "BDS 1323:1991, Amendment 1:2006"
+  ]
+ },
+ {
+  "serial": 277,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Cut-out switches (main switches)",
+  "genericNames": [
+   "main switches"
+  ],
+  "standards": [
+   "BDS 1395:1993, Reaffirmed 2005"
+  ]
+ },
+ {
+  "serial": 278,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Cross linked polyethylene insulated PVC sheathed cables – 33 kV",
+  "genericNames": [],
+  "standards": [
+   "BDS 1521(Part 1):1995",
+   "BDS 1521(Part 2):1995"
+  ]
+ },
+ {
+  "serial": 279,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Porcelain insulator for overhead power lines with a nominal voltage up to and including 1000 V",
+  "genericNames": [],
+  "standards": [
+   "BDS 1543:2006 (1st revision)"
+  ]
+ },
+ {
+  "serial": 280,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Self-ballasted fluorescent lamps for general lighting services – Safety requirements Self-ballasted compact fluorescent lamps for general lighting services – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60968:2022",
+   "BDS IEC 60969:2022"
+  ]
+ },
+ {
+  "serial": 281,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Energy efficiency rating for self-ballasted lamps and modular type compact florescent lamps",
+  "genericNames": [],
+  "standards": [
+   "BDS 1761:2013 (1st revision)"
+  ]
+ },
+ {
+  "serial": 282,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Power transformers – Part 1: General",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60076 (Part 1):2016"
+  ]
+ },
+ {
+  "serial": 283,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Double-capped fluorescent lamps – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60081:2006"
+  ]
+ },
+ {
+  "serial": 284,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Primary Batteries",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60086 (Part 1):2019",
+   "BDS IEC 60086 (Part 2):2019",
+   "BDS IEC 60086 (Part 3):2019",
+   "BDS IEC 60086 (Part 4):2019",
+   "BDS IEC 60086 (Part 5):2019"
+  ]
+ },
+ {
+  "serial": 285,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electric irons for household or similar use – Methods for measuring performance",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60311:2018"
+  ]
+ },
+ {
+  "serial": 286,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household and similar electrical appliances – Safety – Part 2-7 Clothes washing machines for household use – Methods for measuring the performance",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60335-2-7:2024",
+   "BDS IEC 60456:2014"
+  ]
+ },
+ {
+  "serial": 287,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Insulators for overhead lines with a nominal voltage above 1000 V – Part 1: Ceramic or glass insulator units for ac systems – Definitions, test methods and acceptance criteria Definitions, test methods and acceptance criteria",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60383 (Part 1):2006",
+   "BDS IEC 60383 (Part 2):2006"
+  ]
+ },
+ {
+  "serial": 288,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Power cables with extruded insulation and their accessories for rated voltages from 1 kV up to 30 kV – voltages from 6 kV up to 30 kV",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60502 (Part 1):2018",
+   "BDS IEC 60502 (Part 2):2018",
+   "BDS IEC 60502 (Part 4):2018"
+  ]
+ },
+ {
+  "serial": 289,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "AC electric ventilating fans and regulators for household and similar purposes",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60665:2020"
+  ]
+ },
+ {
+  "serial": 290,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Switches for household and similar fixed electrical installations – Part 1: General requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60669 (Part 1):2018"
+  ]
+ },
+ {
+  "serial": 291,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Plugs and socket-outlets for household and similar purposes – appliances without interlock for fixed installations for SELV with interlock for fixed electrical installations",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60884 (Part 1):2016",
+   "BDS IEC 60884 (Part 2-1):2016",
+   "BDS IEC 60884 (Part 2-2):2016",
+   "BDS IEC 60884 (Part 2-3):2016",
+   "BDS IEC 60884 (Part 2-4):2016",
+   "BDS IEC 60884 (Part 2-5):2016",
+   "BDS IEC 60884 (Part 2-6):2016",
+   "BDS IEC 60884 (Part 2-7):2016"
+  ]
+ },
+ {
+  "serial": 292,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electrical accessories – Circuit-breakers for over-current protection for household and similar installations – Part 1 Circuit-breakers for AC operation",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60898(Part 1):2016"
+  ]
+ },
+ {
+  "serial": 293,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Photovoltaic devices – characteristics solar devices with reference spectral irradiance data measurements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60904 (Part 1):2020",
+   "BDS IEC 60904 (Part 2):2020",
+   "BDS IEC 60904 (Part 3):2020",
+   "BDS IEC 60904 (Part 9):2020",
+   "BDS IEC 60904 (Part 10):2020"
+  ]
+ },
+ {
+  "serial": 294,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Ballast for tubular fluorescent lamps – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60921:2005"
+  ]
+ },
+ {
+  "serial": 295,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "AC supplied electronic ballasts for tubular fluorescent lamps – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60929:2005"
+  ]
+ },
+ {
+  "serial": 296,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Secondary cells and batteries for renewable energy storage – General requirements and methods of test – Part 1 Photovoltaic off-grid application",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 61427 (Part 1):2016"
+  ]
+ },
+ {
+  "serial": 297,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electricity metering equipment (ac) – Particular requirements – 1 and 2)",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 62053 (Part 11):2013"
+  ]
+ },
+ {
+  "serial": 298,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electricity metering equipment (ac) – Particular requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 62053 (Part 21):2013"
+  ]
+ },
+ {
+  "serial": 299,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electricity metering – Payment systems – Part 31: Particular requirements – Static payment meters for active energy (Classes 1 and 2)",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 62055 (Part 31):2017"
+  ]
+ },
+ {
+  "serial": 300,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Battery charge controllers for photovoltaic systems – Performance and functioning",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 62509:2016"
+  ]
+ },
+ {
+  "serial": 301,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Self-ballasted LED lamps for general lighting services with supply voltage >50 V – Performance requirements",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 62612:2015"
+  ]
+ },
+ {
+  "serial": 302,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Terrestrial photovoltaic (PV) modules – Design qualification and type approval – photovoltaic (PV) modules Telluride (CdTe) based photovoltaic (PV) modules amorphous silicon based photovoltaic (PV) modules (In,Ga)(S,Se)2 based photovoltaic (PV) modules Photovoltaic (PV) module safety qualification",
+  "genericNames": [
+   "PV",
+   "CdTe",
+   "In,Ga",
+   "S,Se"
+  ],
+  "standards": [
+   "BDS IEC 61215(Part 1):2022",
+   "BDS IEC 61215 (Part 1-1):2022",
+   "BDS IEC 61215 (Part 1-2):2022",
+   "BDS IEC 61215(Part 1-3):2022",
+   "BDS IEC 61215 (Part 1-4):2022",
+   "BDS IEC 61215 (Part 2):2022",
+   "BDS IEC 61730 (Part 1):2019",
+   "BDS IEC 61730 (Part 2):2019"
+  ]
+ },
+ {
+  "serial": 303,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Safety of power converters for use in photovoltaic power systems – Photovoltaic (PV) systems – Characteristics of the utility interface Utility-interconnected photovoltaic inverters – Test procedure of islanding prevention measures",
+  "genericNames": [
+   "PV"
+  ],
+  "standards": [
+   "BDS IEC 62109 (Part 1):2016",
+   "BDS IEC 62109 (Part 2):2016",
+   "BDS IEC 61727:2020",
+   "BDS IEC 62116:2016"
+  ]
+ },
+ {
+  "serial": 304,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Lead-acid traction batteries – Part 1: General requirements and methods of tests",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60254 (Part 1):2018"
+  ]
+ },
+ {
+  "serial": 305,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household microwave ovens – Methods for measuring performance",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60705:2008"
+  ]
+ },
+ {
+  "serial": 306,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Uninterruptible power systems (UPS) Part 3: Method of specifying the performance and test requirements",
+  "genericNames": [
+   "UPS"
+  ],
+  "standards": [
+   "BDS IEC 62040(Part 3):2022"
+  ]
+ },
+ {
+  "serial": 307,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Single phase small ac and universal electric motors",
+  "genericNames": [],
+  "standards": [
+   "BDS 1367:1992 Reaffirmed 2023"
+  ]
+ },
+ {
+  "serial": 308,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Specification for Wall clocks (Battery operated)",
+  "genericNames": [
+   "Battery operated"
+  ],
+  "standards": [
+   "BDS 1722:2003"
+  ]
+ },
+ {
+  "serial": 309,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Adhesive insulating tapes with PVC substrates for electrical purposes – Tapes with PVC substrates",
+  "genericNames": [],
+  "standards": [
+   "BDS 1019:1982"
+  ]
+ },
+ {
+  "serial": 310,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Electric kettles for domestic use (first revision)",
+  "genericNames": [],
+  "standards": [
+   "BDS 253:1990"
+  ]
+ },
+ {
+  "serial": 311,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Low-voltage switchgear and controlgear – Part 2: Circuit- breakers",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60947 (Part2):2019"
+  ]
+ },
+ {
+  "serial": 312,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household and similar electrical appliances – Safety – Part 2-5: Particular requirements for dishwashers",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60335-2-5:2024"
+  ]
+ },
+ {
+  "serial": 313,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household and similar electrical appliances – Safety",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60335-2-14:2022"
+  ]
+ },
+ {
+  "serial": 314,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household and similar electrical appliances – Safety – cooking fume extractors",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60335-2-31:2024"
+  ]
+ },
+ {
+  "serial": 315,
+  "category": "Electrical and Electronics Products",
+  "categoryLetter": "E",
+  "name": "Household electric cooking appliances",
+  "genericNames": [],
+  "standards": [
+   "BDS IEC 60350-2:2024"
+  ]
+ }
+]

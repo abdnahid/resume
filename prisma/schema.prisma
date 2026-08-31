@@ -307,11 +307,11 @@ model User {
 
   organizationMemberships OrganizationMembership[]
 
-  payments      Payment[]
-  bdsPurchases  BdsPurchase[]
+  payments     Payment[]
+  bdsPurchases BdsPurchase[]
 
-  applications        Application[]
-  applicationEvents   ApplicationEvent[]
+  applications      Application[]
+  applicationEvents ApplicationEvent[]
 }
 
 model Session {
@@ -846,13 +846,13 @@ model Organization {
   factories   Factory[]
   documents   OrganizationDocument[]
 
-  @@index([type])
-  @@index([parentId])
-
   payments     Payment[]
   bdsPurchases BdsPurchase[]
 
   applications Application[]
+
+  @@index([type])
+  @@index([parentId])
 }
 
 /// One person's standing in one organization.
@@ -916,10 +916,10 @@ model Factory {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  applications Application[]
+
   @@index([organizationId])
   @@index([bstiOfficeId])
-
-  applications Application[]
 }
 
 /// What kind of paper a client has attached to their profile.
@@ -1587,11 +1587,31 @@ model Bds {
   supersededBy   Bds?  @relation("Supersedes", fields: [supersededById], references: [id])
   supersedes     Bds[] @relation("Supersedes")
 
-  /// True for the 315 products under mandatory certification (plan §3.1).
+  /// True when this standard certifies at least one of the 315 mandatory
+  /// products. Derived from `ProductStandard` by the importer rather than
+  /// entered — `Product` is the list, and this is the denormalised flag the
+  /// store facets and the catalogue query filter on.
   isMandatory315 Boolean @default(false)
+
+  /// Set by the mandatory-list importer for standards that the published list
+  /// names but the catalogue did not hold. Their title is the product name and
+  /// their price is a stand-in, so they must not be sold as if priced.
+  isFromMandatoryList Boolean @default(false)
+  /// `priceBdt` is a placeholder, not the Standards Wing list price.
+  priceIsPlaceholder  Boolean @default(false)
 
   /// Placeholder until the kernel document store exists. Real PDFs load later.
   pdfUrl String?
+
+  /// The stored PDF, in the object store (D47). `objectKey` is the only
+  /// identifier that leaves the database — a download is served by signing a
+  /// short-lived URL for it *after* the purchase check, never by handing the
+  /// key or a public URL to the browser.
+  pdfObjectKey String?
+  pdfBytes     Int?
+  pdfSha256    String?
+
+  standardFor ProductStandard[]
 
   // TODO(step 6): productId FK → Product. The BDS attachment rule (plan §3.3,
   // check 3) matches a purchase against the product being applied for. The
@@ -1608,7 +1628,6 @@ model Bds {
   @@index([publishedOn])
   @@index([priceBdt])
 }
-
 
 // ─── Payments (kernel service) ───────────────────────────────────────────────
 
@@ -1673,17 +1692,17 @@ model Payment {
   organization   Organization? @relation(fields: [organizationId], references: [id])
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   events   PaymentEvent[]
   purchase BdsPurchase?
+
+  applicationFeeFor Application? @relation("ApplicationFee")
 
   @@index([status])
   @@index([payerUserId])
   @@index([organizationId])
   @@index([subjectType, subjectId])
-
-  applicationFeeFor Application? @relation("ApplicationFee")
 }
 
 /// Append-only audit of everything that happened to a payment.
@@ -1698,7 +1717,7 @@ model PaymentEvent {
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   /// "created", "redirected", "ipn", "verified", "settled", "rejected"…
-  kind String
+  kind   String
   /// The status the payment moved to, when this event moved it.
   status PaymentStatus?
   note   String?
@@ -1760,19 +1779,18 @@ model SandboxGatewayTxn {
   id Int @id @default(autoincrement())
 
   /// The merchant reference the session was opened against.
-  reference String @unique
+  reference    String @unique
   /// The gateway's own id, the shape a real one would issue.
   gatewayTxnId String @unique
 
   amountPoisha Int
   /// "created" until the payer acts, then "paid" | "failed" | "cancelled".
-  outcome String @default("created")
-  method  String?
+  outcome      String  @default("created")
+  method       String?
 
-  createdAt  DateTime  @default(now())
-  settledAt  DateTime?
+  createdAt DateTime  @default(now())
+  settledAt DateTime?
 }
-
 
 // ─── CM licence applications ─────────────────────────────────────────────────
 
@@ -1820,7 +1838,7 @@ model Application {
 
   /// The applicant's own brand for the article. Not the product — a brand is
   /// what it is sold as, the BDS is what it is.
-  brandName   String?
+  brandName      String?
   /// Free text: pack sizes, variants, grades covered by this application.
   productDetails String?
 
@@ -1836,17 +1854,29 @@ model Application {
 
   submittedAt DateTime?
   createdBy   String
-  creator     User   @relation(fields: [createdBy], references: [id])
+  creator     User      @relation(fields: [createdBy], references: [id])
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   documents ApplicationDocument[]
   events    ApplicationEvent[]
 
+  /// **What the licence is applied for** (D44). The 315 mandatory products are
+  /// the closed list CM works over (spec §1), and the standard the applicant
+  /// must own is derived from the product rather than chosen beside it.
+  ///
+  /// Nullable and coexisting with `bdsId` on purpose: the column landed before
+  /// the application flow was moved onto it, and there is no migration history
+  /// in this repo, so the two run side by side until the flow is rewired and
+  /// `bdsId` becomes the *specific* standard the attached purchase covers.
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
+
   @@index([organizationId])
   @@index([factoryId])
   @@index([bdsId])
+  @@index([productId])
   @@index([state])
   @@index([bstiOfficeId, state])
 }
@@ -1863,11 +1893,11 @@ model ApplicationDocument {
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   /// Which requirement this satisfies, e.g. "trade_licence", "layout_plan".
-  kind     String
-  label    String
-  fileName String?
-  mimeType String?
-  sizeBytes Int?
+  kind       String
+  label      String
+  fileName   String?
+  mimeType   String?
+  sizeBytes  Int?
   storageKey String?
 
   uploadedBy String?
@@ -1904,4 +1934,87 @@ model ApplicationEvent {
   createdAt DateTime @default(now())
 
   @@index([applicationId])
+}
+
+/// The five headings the published mandatory list is grouped under. A table,
+/// not an enum, for the same reason `BdsDivision` is one (D7): bilingual
+/// labels and ordering are data, and the CM fee schedule is expected to vary
+/// by category, so a fee band will hang off this row.
+model ProductCategory {
+  id        Int     @id @default(autoincrement())
+  /// "A".."E", exactly as the list prints it.
+  letter    String  @unique
+  slug      String  @unique
+  nameEn    String
+  nameBn    String?
+  sortOrder Int     @default(0)
+
+  products Product[]
+}
+
+/// One of the 315 products under mandatory certification.
+///
+/// **This table is the CM product list** (D43/D45). An application is filed
+/// against a Product, and the standard it must be certified to comes from the
+/// product rather than being chosen separately — which is what makes "you must
+/// own the standard for the product you are applying for" checkable.
+///
+/// Source: `utils/mandatory list.pdf`, BSTI's published list, parsed by
+/// `prisma/import/parse-mandatory-315.py` into `prisma/data/mandatory-315.json`.
+/// Real data, unlike the placeholder half of the BDS catalogue.
+model Product {
+  id Int @id @default(autoincrement())
+
+  /// Serial number in the published list, 1..315. The natural key: it is how
+  /// BSTI's own document refers to the product.
+  serial Int    @unique
+  slug   String @unique
+
+  /// The product name exactly as the list prints it.
+  nameEn String
+  nameBn String?
+
+  /// The names people actually use — "Semolina" for Suji, "Mehedi" for henna,
+  /// "LPG" for liquefied petroleum gas. Searched alongside the official name,
+  /// because a manufacturer knows what they make, not what BSTI calls it.
+  genericNames String[]
+
+  categoryId Int
+  category   ProductCategory @relation(fields: [categoryId], references: [id])
+
+  /// Every row here is on the mandatory list today. The column exists because
+  /// Metrology works over an open product universe (spec §1) and will add rows
+  /// that are not — the flag is what keeps CM's closed list closed.
+  isMandatory Boolean @default(true)
+
+  standards    ProductStandard[]
+  applications Application[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+}
+
+/// Which standards certify a product.
+///
+/// Many-to-many because the list says so: 24 of the 315 name more than one
+/// standard, and a multi-part standard (`BDS ISO 4427-1/-2/-3`) is several
+/// catalogue rows covering one product. One is marked primary so a single
+/// designation can be shown where there is only room for one.
+model ProductStandard {
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  bdsId Int
+  bds   Bds @relation(fields: [bdsId], references: [id])
+
+  isPrimary Boolean @default(false)
+  /// The designation exactly as the mandatory list prints it, kept because it
+  /// carries the amendment and revision wording the catalogue row's `number`
+  /// normalises away.
+  asPrinted String?
+
+  @@id([productId, bdsId])
+  @@index([bdsId])
 }

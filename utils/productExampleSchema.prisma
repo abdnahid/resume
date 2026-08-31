@@ -1,0 +1,15 @@
+model MandatoryProductExample {
+  id          Int      @id @default(autoincrement())
+  productNameAsBDS        String
+  productGenericName        String[]
+  productCategory        String
+  
+  description String
+  price       Float
+  bdsNumber    String
+  edition     String
+  downloadLink  String
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

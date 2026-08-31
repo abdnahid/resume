@@ -349,6 +349,31 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   that does not exist yet. None of these are settled — they are defaults chosen
   so the build could proceed.
 
+- **`Product` is the CM product list, and an application is filed against a
+  Product** (D44). `prisma/data/mandatory-315.json` is BSTI's published list of
+  315 mandatory-certification products, parsed from `utils/mandatory list.pdf`
+  by `prisma/import/parse-mandatory-315.py` and loaded by
+  `npm run import:products`. **This is real data**, unlike the placeholder half
+  of the BDS catalogue. `Product` ↔ `Bds` is many-to-many through
+  `ProductStandard` because 24 of the 315 name more than one standard — a
+  multi-part standard is several catalogue rows covering one article. A
+  manufacturer knows they make toilet soap, not BDS 13:2021, so the product is
+  what they pick and the standard follows from it.
+
+- **A standard with a stand-in price is not for sale** (D45). The published list
+  gives designations, not prices, so the 375 catalogue rows the importer created
+  carry `isFromMandatoryList` + `priceIsPlaceholder` and a ৳0 stand-in. Both
+  `startBdsPurchase()` and `/api/store/checkout` refuse them — at ৳0 a sale
+  would hand out a purchase for nothing, on a public store over a shared
+  database. **Consequence: until real prices land, no CM application can reach
+  submission**, because every mandatory standard is one of these. That is the
+  truth about the data; do not "fix" it by inventing prices.
+
+- **Generic names come only from the source** (D46) — a bracketed alternative
+  ("Suji (Semolina)") or a slashed one ("Natural Henna/Mehedi"). 29 of 315 have
+  one and the rest are empty on purpose. Do not invent synonyms: this field
+  feeds the picker that decides what someone may apply to certify.
+
 - **The BDS catalogue is the product list, narrowed to the mandatory 315.** The
   applicant searches the catalogue and picks a standard; that *is* the product,
   and there is no free-text product field. BSTI certifies conformity to a

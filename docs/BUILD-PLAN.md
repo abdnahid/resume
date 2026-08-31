@@ -51,6 +51,10 @@ card layout were taken from.
 | D41 | **Changing the product releases the attached purchase.** `setProduct()` detaches and un-consumes it in the same transaction. | A purchase of the old standard cannot certify the new product, and leaving it attached would let an application reach submission with a standard that does not match. Releasing rather than consuming keeps it usable elsewhere — changing your mind in a draft must not destroy a purchase. |
 | D42 | **A standard can be bought from inside the application and returns to the draft** — `beginCheckout(…, next)`, validated by `safeNext()`. | Spec §3.4: "never send them to the store and lose the draft". The path is accepted only if it is app-relative — an absolute URL, `//host` or a scheme is discarded rather than corrected, so a crafted checkout cannot turn the receipt page into an open redirect. |
 | D43 | **A CM application may only be made against a standard on the mandatory 315 list.** `productEligibilityPolicy()` refuses anything else; the picker still *shows* non-mandatory standards, marked ineligible with the reason. | Spec §1's asymmetry: "CM/Chemical/Physical operate on a closed list of 315 products. Metrology operates on an open product universe." A CM licence is the permission to sell a product placed under compulsory certification — a standard outside that list is one anyone may build to, and there is no licence to issue. Showing the refusal beats hiding the row: a search for a genuinely unregulated product should answer "you do not need this licence", not "no such standard". Enforced in `setProduct()` and again in `missingForSubmission()`, so a row written before the rule cannot reach the fee. |
+| D44 | **`Product` is the CM product list, and an application is filed against a Product, not a BDS.** *Schema landed 2026-09-01 (`Application.productId`, nullable, running beside `bdsId`); the application flow is **not yet moved onto it** — that is the next step.* `Product` ↔ `Bds` is many-to-many (`ProductStandard`), because 24 of the 315 name more than one standard. The required purchase is derived from the product's standards. | Decided 2026-09-01 from BSTI's published list. This **reverses D40's note**, which assumed `Product` would hang off `Bds` as an attribute. The real list is the other way round: it enumerates *products*, each naming the standard(s) that certify it, and a product may need several (a multi-part standard is several catalogue rows covering one article). A manufacturer knows they make toilet soap, not that they make BDS 13:2021 — so the product is the thing to pick, and the standard follows from it. |
+| D45 | **A standard the mandatory list names but the catalogue does not price is not for sale.** Rows created by the importer carry `isFromMandatoryList` + `priceIsPlaceholder`, and both `startBdsPurchase()` and the checkout route refuse them. | The published list gives designations, not the Standards Wing's prices, and the stand-in is ৳0 — so selling one would either charge a made-up amount or hand out a purchase for nothing, on a public store, against a shared database. Refusing is the only safe default until real prices are loaded. **Consequence, deliberately accepted:** until then no CM application can be completed, because every mandatory standard is one of these. That is the truth about the data, and a working demo built on invented prices would hide it. |
+| D46 | **Generic names are derived only from what the source states** — a bracketed alternative ("Suji (Semolina)") or a slashed one ("Natural Henna/Mehedi") — never guessed. 29 of 315 have one. | The point of generic names is that a manufacturer searches for what they call the thing. Inventing synonyms would put words in BSTI's mouth on a screen that decides whether someone can apply for a licence; an empty field is honest and curation is a data job. |
+| D47 | **Standard PDFs live in S3-compatible object storage, and a download is a short-lived signed URL issued only after the purchase check.** `Bds.pdfObjectKey` / `pdfBytes` / `pdfSha256` model it; the object key never leaves the server. | Chosen by the client 2026-09-01 over local disk, which would tie the app to one machine's filesystem — and there are two. It is also where certificates will eventually live, so the kernel document store gets one backend rather than two. **Schema only so far**: no client, no bucket, no credentials, and the UI still says plainly that uploaded files are not kept. |
 | D32 | **The payment gateway is an interface with a built-in sandbox provider behind it** — `lib/payments/provider.ts` defines it, `sandbox.ts` implements it, `registry.ts` selects it from `PAYMENT_PROVIDER`. **Stripe was considered and rejected.** | Decided 2026-08-31. Stripe does not support Bangladesh as a merchant country and does not support BDT at all — the only route is a US LLC front, so every line of it would be thrown away, and it needs API keys plus a webhook tunnel merely to test. The sandbox needs no keys, no network and no account, and the interface is shaped after **SSLCommerz and the e-Challan** (session → redirect → IPN → server-side validation), not after the mock. SSLCommerz is the realistic production candidate if an aggregator is permitted. |
 | D33 | **Only a server-side `verify()` may mark a payment paid.** The browser returning from a gateway settles nothing; the IPN body is read for a reference and nothing else. | The return URL is attacker-controlled — anyone can navigate to it — and an IPN is an unauthenticated POST from the open internet. Both are hints that something happened, never evidence of what. The sandbox implements `verify()` too, against its own separate ledger table, so the discipline is exercised now rather than bolted on when a real gateway lands. |
 | D34 | **Money is stored as integer poisha, and the Income/VAT split is one function, `splitFee()`.** | 15% VAT on a whole-taka price is fractional for most prices (৳350 → ৳52.50), and a float would eventually make the two e-Challan account totals disagree with what was charged. `income + vat === total` holds by construction. Whether the catalogue price is VAT-inclusive or exclusive is an open question, so it sits behind one function (D8). |
@@ -335,6 +339,38 @@ stands in), and the real document list.
 not replace the standard as the thing an application is made against — that is
 D40 and it is now load-bearing in three places.
 
+### 🚧 Step 7b — The mandatory product list
+Landed 2026-09-01: BSTI's published list of 315 mandatory-certification
+products is now real data in the database, replacing the guess that
+`isMandatory315` used to be.
+
+**Source and provenance.** `utils/mandatory list.pdf` (BSTI, June 2025) →
+`prisma/import/parse-mandatory-315.py` → `prisma/data/mandatory-315.json` →
+`npm run import:products`. The PDF is a Word table printed to PDF, so the
+parser had to handle Word's vertically-centred serial cells (six rows render
+their number on the row's *second* line), designations that wrap across a
+neighbouring row's line, and one pair of designations fused by the original
+wrap. **Verified**: 315 items, serials 1–315 with no gaps, the five category
+counts equal to the totals the PDF declares for itself, every item with a name
+and at least one designation, every designation starting with "BDS".
+
+**In the database:** 5 `ProductCategory`, 315 `Product`, 376 `ProductStandard`,
+and 375 new `Bds` rows for designations the catalogue did not hold — the
+catalogue had exactly **one** of them, the other 54 rows being the placeholders
+`seed-bds.ts` documents as invented.
+
+- [x] Parse and verify the list
+- [x] `Product`, `ProductCategory`, `ProductStandard`; `Application.productId`
+- [x] Importer, idempotent and batched (per-row upserts against the remote
+      database took ~100 minutes; batched, under a minute)
+- [x] Refuse to sell a standard whose price is a stand-in (D45)
+- [ ] **Move the application flow onto `Product`** — `setProduct()`, the picker,
+      `attachBds()`'s equality test becoming "a purchase of one of *this
+      product's* standards", and `productEligibilityPolicy()` reading the
+      product rather than the BDS flag
+- [ ] Search products by generic name
+- [ ] Object storage for the standard PDFs and the paid download (D47)
+
 ### ⬜ Step 8+ — Workflow engine (Phase D)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer
 inbox, SLA clocks (§4.2). The reusable prize — do not build it as "just enough
@@ -414,6 +450,9 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | **Should `EmployeeCategory` be editable?** Regularising a daily-basis worker into a staff post is a real HR event the system cannot currently record. | Anyone changing pay regime | 2026-08-30 |
 | **Sonali branch details for 22 offices** — seeded values are improvised and flagged. | Correct bank advice outside Head Office | 2026-08-29 |
 | **The CM application fee schedule.** A flat ৳1,000 stands in (`applicationFeePoisha()`); the real schedule varies by product category, and the category table is Phase G reference data. | Charging applicants correctly | 2026-08-31 |
+| **Prices for the 375 standards created from the mandatory list.** The published list carries designations, not prices. Until the Standards Wing's price list lands, every mandatory standard is unsaleable (D45) and therefore **no CM application can reach submission**. This is now the single biggest blocker on the CM flow. | Any applicant buying the standard they need | 2026-09-01 |
+| **Titles for those 375 standards.** The list names the *product*, not the standard, so each created catalogue row is titled after the product it certifies. Correct enough to search by, wrong as a catalogue title. | The store reading truthfully | 2026-09-01 |
+| **Curated generic names.** 29 of 315 products carry a name derived from the source (D46); the rest have none, and Bengali generic names have none at all. | Manufacturers finding their product | 2026-09-01 |
 | **The real mandatory-315 product list.** `Bds.isMandatory315` now *gates* which standards a CM application may be made against (D43), but the flag is set by the catalogue seed's own judgement — 15 of 55. Populating it correctly is a data job, not a code one; the rule does not change when the list arrives. | Applicants seeing the right products | 2026-08-31 |
 | **The CM document checklist.** `CM_DOCUMENTS` is nine items assembled from the spec and general practice, at the same `[ASSUMPTION]` standing as the §2.3 company field set. | Applicants bringing the right papers | 2026-08-31 |
 | **Shortfall policy (§10 #7)** — maximum rounds, response deadline, consequence of lapse. Not yet reached, but it gates the Phase 2 review loop. | Step 8+ | 2026-08-31 |

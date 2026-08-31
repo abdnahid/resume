@@ -16,7 +16,8 @@
     "import:report": "tsx prisma/import/report.ts",
     "import:employees": "tsx prisma/import/run.ts",
     "import:retire": "tsx prisma/import/retire.ts",
-    "migrate:postings": "tsx prisma/migrate-postings.ts"
+    "migrate:postings": "tsx prisma/migrate-postings.ts",
+    "import:products": "tsx prisma/import/mandatory-315.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
