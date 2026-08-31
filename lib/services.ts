@@ -41,10 +41,7 @@ export const CITIZEN_SERVICES: readonly CitizenService[] = [
     labelBn: "মান সনদ",
     blurb:
       "Apply for a CM quality certification licence for a product manufactured at your factory, and track the file through every stage.",
-    status: {
-      kind: "planned",
-      note: "Opens with the CM module.",
-    },
+    status: { kind: "live", href: "/public/services/cm-licence" },
   },
   {
     key: "verify-certificate",

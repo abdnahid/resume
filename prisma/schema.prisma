@@ -309,6 +309,9 @@ model User {
 
   payments      Payment[]
   bdsPurchases  BdsPurchase[]
+
+  applications        Application[]
+  applicationEvents   ApplicationEvent[]
 }
 
 model Session {
@@ -373,6 +376,8 @@ model Office {
   bankAdvices BankAdvice[]
   bankAccount OfficeBankAccount?
   factories   Factory[]
+
+  applications Application[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -846,6 +851,8 @@ model Organization {
 
   payments     Payment[]
   bdsPurchases BdsPurchase[]
+
+  applications Application[]
 }
 
 /// One person's standing in one organization.
@@ -911,6 +918,8 @@ model Factory {
 
   @@index([organizationId])
   @@index([bstiOfficeId])
+
+  applications Application[]
 }
 
 /// What kind of paper a client has attached to their profile.
@@ -1489,6 +1498,48 @@ enum PaymentStatus {
   refunded
 }
 
+/// Where a CM licence application has got to (spec §5.2).
+///
+/// The whole machine is declared, not just the states the applicant reaches, so
+/// the workflow engine has somewhere to move a file to rather than needing a
+/// migration on its first day. Only `draft` → `pending_app_fee` → `submitted`
+/// have transitions implemented today; everything below `submitted` is Phase 2
+/// and is reached by the routing engine.
+enum ApplicationState {
+  draft
+  pending_app_fee
+  submitted
+  received_by_director
+  in_channel_descending
+  assigned_to_fdo
+  under_review
+  shortfall_issued
+  shortfall_responded
+  review_passed
+  inspection_proposed
+  inspection_pending_approval
+  inspection_revision_requested
+  inspection_approved
+  inspection_scheduled
+  inspection_in_progress
+  inspection_completed
+  inspection_report_submitted
+  test_fee_demanded
+  test_fee_paid
+  sample_received
+  // Terminal and side states.
+  rejected
+  withdrawn
+  lapsed
+  inspection_failed
+}
+
+/// What kind of certification is being applied for. Only CM exists today; the
+/// column is here so the kernel's application table is not CM-shaped.
+enum ServiceKind {
+  cm_licence
+}
+
 /// Standards division — the subject grouping the store uses as its primary
 /// facet. A table rather than an enum so labels stay bilingual and a new
 /// division is data entry, not a migration.
@@ -1630,6 +1681,8 @@ model Payment {
   @@index([payerUserId])
   @@index([organizationId])
   @@index([subjectType, subjectId])
+
+  applicationFeeFor Application? @relation("ApplicationFee")
 }
 
 /// Append-only audit of everything that happened to a payment.
@@ -1717,4 +1770,125 @@ model SandboxGatewayTxn {
 
   createdAt  DateTime  @default(now())
   settledAt  DateTime?
+}
+
+
+// ─── CM licence applications ─────────────────────────────────────────────────
+
+/// One application = one product = one factory.
+///
+/// Settled with the client on 2026-08-31, resolving spec §10 #1 — the decision
+/// the spec flagged as carrying the highest rework cost. The licence is issued
+/// to the entity that owns the factory, never to its group parent (D29).
+model Application {
+  id Int @id @default(autoincrement())
+
+  /// `CM-2026-000123`. Assigned when the application is **submitted**, not when
+  /// the draft is created: a number that has been quoted to an applicant should
+  /// mean a file exists, and abandoned drafts would otherwise burn numbers.
+  applicationNo String? @unique
+
+  service ServiceKind      @default(cm_licence)
+  state   ApplicationState @default(draft)
+
+  /// The applicant entity. A group parent can never appear here (D29).
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  /// The premises the licence would cover. Its district decides the office.
+  factoryId Int
+  factory   Factory @relation(fields: [factoryId], references: [id])
+
+  /// The office that receives the file, **snapshotted at submission** from the
+  /// factory (spec §4.2 — the routing path is fixed when the file starts
+  /// moving). Null while the application is still a draft.
+  bstiOfficeId Int?
+  bstiOffice   Office? @relation(fields: [bstiOfficeId], references: [id])
+
+  /// What is being certified. There is no product catalogue yet (Phase G), so
+  /// the attached BDS carries the product identity and these name the specific
+  /// article and brand it is sold under.
+  productName String?
+  brandName   String?
+  /// Free text: pack sizes, variants, grades covered by this application.
+  productDetails String?
+
+  /// The purchased standard this application is made against (spec §3.3). The
+  /// UNIQUE side of the one-purchase-one-application rule lives on
+  /// `BdsPurchase.consumedByApplicationId`; this is the convenience direction.
+  bdsPurchaseId Int?
+
+  /// The application fee. Reaching `submitted` requires it to be `paid`.
+  applicationFeePaymentId Int?     @unique
+  applicationFeePayment   Payment? @relation("ApplicationFee", fields: [applicationFeePaymentId], references: [id])
+
+  submittedAt DateTime?
+  createdBy   String
+  creator     User   @relation(fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  documents ApplicationDocument[]
+  events    ApplicationEvent[]
+
+  @@index([organizationId])
+  @@index([factoryId])
+  @@index([state])
+  @@index([bstiOfficeId, state])
+}
+
+/// A document attached to an application.
+///
+/// The file itself is not stored yet — the kernel document store does not
+/// exist. `storageKey` is where it will go; a row with none is a declared
+/// attachment that has not been uploaded.
+model ApplicationDocument {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// Which requirement this satisfies, e.g. "trade_licence", "layout_plan".
+  kind     String
+  label    String
+  fileName String?
+  mimeType String?
+  sizeBytes Int?
+  storageKey String?
+
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
+
+  /// One document per requirement. Re-uploading replaces rather than
+  /// accumulating, so a reviewing officer never has to work out which of three
+  /// trade licences is the current one.
+  @@unique([applicationId, kind])
+  @@index([applicationId])
+}
+
+/// The movement log (spec §4.2).
+///
+/// Append-only. Every state change writes one, which is what lets an applicant
+/// see "exactly which stage their file is at and who holds it" — the single
+/// feature §8 calls most of the perceived value of the system.
+model ApplicationEvent {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// The state the file moved into, when the event moved it.
+  state ApplicationState?
+  /// "created", "bds_attached", "fee_raised", "submitted", "forwarded"…
+  kind  String
+  note  String?
+
+  /// Who acted. Null for events the system raised on its own.
+  actorUserId String?
+  actor       User?   @relation(fields: [actorUserId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId])
 }

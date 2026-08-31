@@ -309,6 +309,59 @@ settled fixation.
   loudly rather than paying wrong money. `utils/payscale.xlsx` overrides it if
   present.
 
+## CM licence applications
+
+Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
+`states.ts` are Prisma-free (D9), `applications.ts` is the server half.
+
+- **One application = one product = one factory**, and the licence goes to the
+  entity that owns the factory, never to its group parent. This settled §10 #1,
+  the decision the spec flagged as carrying the highest rework cost.
+
+- **The factory decides the office, snapshotted at submission.** The routing
+  path is fixed when the file starts moving (§4.2), so a jurisdiction redrawn
+  next year cannot move a file already in flight. Before submission the screen
+  still names the office the file *would* go to — the applicant should not
+  discover that after committing.
+
+- **The BDS attachment rule has three layers, and the UI is not one of them**
+  (§3.3): the UNIQUE index on `consumedByApplicationId`, the checks in
+  `attachBds()`, and a conditional `updateMany` inside a transaction that is the
+  actual lock. Two concurrent attaches of one purchase — exactly one wins.
+  **Swapping the standard on a draft releases the previous purchase**, or
+  changing your mind would consume it for ever.
+
+- **Submission is not a button.** The file submits the moment the fee settles,
+  because a paid fee against an unsubmitted application is money held for
+  nothing. `fulfilPayment()` dispatches on payment purpose;
+  `submitApplication()` is guarded on the fee being `paid` **in the database**,
+  not on the caller saying so — it runs from the payment return page, which
+  anyone can navigate to.
+
+- **The application number is assigned at submission, not at creation.** A
+  number quoted to an applicant should mean a file exists; numbering drafts
+  burns numbers and leaves gaps that read as lost files.
+
+- **Every unresolved policy question lives in `lib/cm/policy.ts`** with its
+  default, the reasoning, and what changes when the real answer lands (D8).
+  Superseded standards are attachable with a warning; a group member may not use
+  the parent's purchase; the fee is a flat ৳1,000 standing in for a schedule
+  that does not exist yet. None of these are settled — they are defaults chosen
+  so the build could proceed.
+
+- **There is no product catalogue.** The attached BDS carries the product
+  identity, with free-text product and brand beside it. Replacing this with a
+  real `Product` table later is additive.
+
+- **Documents are recorded, not stored.** The kernel document store does not
+  exist, so the bytes are discarded and **the screen says so plainly**. A
+  progress bar that silently drops the file would leave an applicant believing
+  BSTI holds their trade licence when it does not.
+
+- **The stage tracker names who holds the file**, not just where it is. Spec §8
+  calls that single feature most of the perceived value of the system, because
+  it replaces a phone call.
+
 ## Payments
 
 Decisions D32–D35. `lib/payments/` is the kernel money service — every module

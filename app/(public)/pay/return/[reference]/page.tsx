@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, XCircle, Clock, ArrowRight, Download, FlaskConical } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireClient } from "@/lib/auth-guard";
-import { fulfilBdsPurchase } from "@/lib/store/purchase";
-import { settlePayment } from "@/lib/payments/service";
+import { fulfilPayment } from "@/lib/payments/fulfil";
 import { formatPoisha } from "@/lib/payments/money";
 import Footer from "@/components/layout/Footer";
 
@@ -28,7 +27,7 @@ export default async function PaymentReturnPage({
 
   const existing = await prisma.payment.findUnique({
     where: { reference },
-    select: { purpose: true, payerUserId: true },
+    select: { payerUserId: true },
   });
   if (!existing) notFound();
 
@@ -40,11 +39,9 @@ export default async function PaymentReturnPage({
   if (existing.payerUserId !== viewer.id) notFound();
 
   // Settling here as well as in the IPN handler is deliberate: whichever
-  // arrives first does the work, and `newlyPaid` makes fulfilment happen once.
-  const result =
-    existing.purpose === "bds_purchase"
-      ? await fulfilBdsPurchase(reference)
-      : { ...(await settlePayment(reference)), purchase: null };
+  // arrives first does the work, and every branch of `fulfilPayment` is
+  // idempotent so the other one changes nothing.
+  const result = await fulfilPayment(reference);
 
   const payment = await prisma.payment.findUniqueOrThrow({ where: { reference } });
 
@@ -97,6 +94,28 @@ export default async function PaymentReturnPage({
             {payment.method && <Row k="Paid with" v={payment.method} />}
             {payment.providerRef && <Row k="Gateway reference" v={payment.providerRef} mono />}
           </dl>
+
+          {paid && result.application && (
+            <div className="mt-6 rounded-xl border border-primary/40 bg-secondary/40 p-5">
+              <p className="text-sm font-medium text-foreground">
+                {result.application.state === "submitted"
+                  ? "Your application has been submitted to BSTI."
+                  : "Payment received, but the application is not yet submitted."}
+              </p>
+              {result.application.applicationNo && (
+                <p className="mt-1 font-mono text-sm font-semibold text-primary">
+                  {result.application.applicationNo}
+                </p>
+              )}
+              <Link
+                href={`/public/applications/${result.application.id}`}
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                Track this application
+                <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+              </Link>
+            </div>
+          )}
 
           {paid && result.purchase && (
             <div className="mt-6 rounded-xl border border-primary/40 bg-secondary/40 p-5">

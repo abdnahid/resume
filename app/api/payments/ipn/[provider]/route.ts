@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { providerByKey } from "@/lib/payments/registry";
-import { settlePayment } from "@/lib/payments/service";
-import { fulfilBdsPurchase } from "@/lib/store/purchase";
+import { fulfilPayment } from "@/lib/payments/fulfil";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -36,16 +35,13 @@ export async function POST(
 
   const payment = await prisma.payment.findUnique({
     where: { reference },
-    select: { purpose: true },
+    select: { id: true },
   });
   if (!payment) return NextResponse.json({ error: "Unknown reference" }, { status: 404 });
 
   // Fulfilment runs here as well as on the return page: an IPN arrives even when
   // the payer closes the tab on the gateway and never comes back.
-  const result =
-    payment.purpose === "bds_purchase"
-      ? await fulfilBdsPurchase(reference)
-      : await settlePayment(reference);
+  const result = await fulfilPayment(reference);
 
   return NextResponse.json({ ok: true, status: result.status });
 }

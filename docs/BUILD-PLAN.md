@@ -43,6 +43,11 @@ card layout were taken from.
 | D22 | **A court verdict is applied by raising fixation versions, not by a parallel pay path.** Recording a verdict imposes it in the same request; if imposing fails the verdict is rolled back. Salary processing and the bank advice are untouched — they pay the version in force. | Decided 2026-08-28. Fixation is already versioned and effective-dated, so a punishment is just another reason to raise a version. A separate "punished pay" path would have to be consulted by processing, payslips and the advice, and would drift. |
 | D23 | **Arrears are a sum of differences, never a replay of history.** A verdict-derived version stores `baselineFixationId`; the pay withheld in a month is `baseline.netSalary − process.netSalary`. Revoking with `arrearsOrdered` totals that across the months paid under the punishment and writes one `SalaryArrear`, settled by the next month processed. | The alternative — recomputing what each past month "would have" paid — needs the scale, heads, rent slabs and verdict all as they were on that date. Both figures are already stored, so the difference is exact and cheap. |
 | D24 | **`case_officer` is a new role that reaches every office**, and only it and `superadmin` may touch cases. Verdict-derived fixation versions cannot be hand-edited. | Cases are run by a central legal cell, so office scoping would be wrong. A disciplinary record is more sensitive than a salary record, so salary admins are excluded. Locking the derived version keeps the court order the single source of the punishment. |
+| D36 | **The whole §5.2 state machine is declared; only the applicant's three transitions are implemented.** `canApplicantMove()` is a deliberately short table covering `draft → pending_app_fee → submitted` (plus withdrawal). | The workflow engine needs somewhere to move a file to without a migration on its first day. But a transition table the applicant's routes can reach is a transition the applicant can eventually be tricked into making, so the reachable set is kept to what they actually drive. |
+| D37 | **Submission is not a button — the file submits the moment the application fee settles.** `fulfilPayment()` dispatches on purpose and calls `submitApplication()`, guarded on the fee being `paid` in the database rather than on the caller saying so. | A paid fee against an unsubmitted application is money held for nothing, and refunds are not modelled. Guarding on stored state rather than on the call is what makes it safe from the payment return page, which anyone can navigate to. |
+| D38 | **The application number is assigned at submission, not at draft creation.** | A number quoted to an applicant should mean a file exists. Numbering drafts would burn numbers on applications nobody ever finished, and leave gaps that read as lost files. |
+| D39 | **The BDS attachment rule is enforced in three layers**, as §3.3 demands: the UNIQUE index, the application-layer checks, and a conditional `updateMany` inside a transaction that is the actual lock. Swapping the standard on a draft **releases** the previous purchase. | The spec is explicit that the UI is not the enforcement point. Verified with two concurrent attaches of one purchase: exactly one wins. Releasing on swap stops an applicant permanently consuming a purchase by changing their mind in a draft. |
+| D40 | **There is no product catalogue, so the attached BDS carries the product identity**, with free-text product and brand names beside it. | The `Product` table is Phase G reference data and does not exist. Inverting the wizard — pick the standard, which names the product — avoids inventing a catalogue and makes §3.3's "bds.product_id matches the product applied for" check trivially true. Replacing it later is additive. |
 | D32 | **The payment gateway is an interface with a built-in sandbox provider behind it** — `lib/payments/provider.ts` defines it, `sandbox.ts` implements it, `registry.ts` selects it from `PAYMENT_PROVIDER`. **Stripe was considered and rejected.** | Decided 2026-08-31. Stripe does not support Bangladesh as a merchant country and does not support BDT at all — the only route is a US LLC front, so every line of it would be thrown away, and it needs API keys plus a webhook tunnel merely to test. The sandbox needs no keys, no network and no account, and the interface is shaped after **SSLCommerz and the e-Challan** (session → redirect → IPN → server-side validation), not after the mock. SSLCommerz is the realistic production candidate if an aggregator is permitted. |
 | D33 | **Only a server-side `verify()` may mark a payment paid.** The browser returning from a gateway settles nothing; the IPN body is read for a reference and nothing else. | The return URL is attacker-controlled — anyone can navigate to it — and an IPN is an unauthenticated POST from the open internet. Both are hints that something happened, never evidence of what. The sandbox implements `verify()` too, against its own separate ledger table, so the discipline is exercised now rather than bolted on when a real gateway lands. |
 | D34 | **Money is stored as integer poisha, and the Income/VAT split is one function, `splitFee()`.** | 15% VAT on a whole-taka price is fractional for most prices (৳350 → ৳52.50), and a float would eventually make the two e-Challan account totals disagree with what was charged. `income + vat === total` holds by construction. Whether the catalogue price is VAT-inclusive or exclusive is an open question, so it sits behind one function (D8). |
@@ -277,25 +282,43 @@ is schema-only; the storage decision is not taken.
 **The jurisdiction map is a documented default, not real data** — see the open
 questions below.
 
-### ⬜ Step 5 — Application wizard (draft only)
-Service catalog + form. No submission.
+### ✅ Steps 5–7 — Application, BDS attachment, fee and submit
+Built 2026-08-31. The applicant's half of §5 runs end to end: `draft` →
+`pending_app_fee` → `submitted`, with the file landing in the right office.
 
-**§10 #1 is settled** (2026-08-31, by the client): **one application = one
-product = one factory**, and the licence is issued to the entity that owns the
-factory, not to its parent. The factory picker on the application form is
-therefore a single choice, and it determines the receiving office from the
-factory's stored `bstiOfficeId`. This was the spec's highest rework risk.
+**Schema:** `Application` (the full §5.2 state machine declared, D36),
+`ApplicationDocument` (one per requirement, unique on `(applicationId, kind)`),
+`ApplicationEvent` (the append-only movement log §4.2 asks for).
 
-**Needs:** the party registry (done), and the BDS attachment rule for step 6.
+| Path | What it is |
+|---|---|
+| `/public/services/cm-licence` | Service detail page (§8.2) — steps, documents, fees. Public and **static** |
+| `/public/applications/new` | Company → factory, with the receiving office named beside each |
+| `/public/applications/[id]` | Product, BDS attachment, documents, fee — and the stage tracker |
+| `/public/applications` | The list, each row showing who holds the file |
 
-### ⬜ Step 6 — BDS attachment rule
-The join between store and application (§3.3). UNIQUE constraint + application
-check + transactional lock at attach time. Release policy isolated per D8.
-**Needs:** §10 #2 (superseded editions), #3 (release on rejection), #4
-(group-scoped purchases). Ship with a default policy behind one function.
+**Step 6, the attachment rule, is done properly** — three layers per §3.3
+(D39), verified under concurrency. **Step 7** is the fee and submission (D37).
 
-### ⬜ Step 7 — Application fee + submit
-Reaches `SUBMITTED` (§5.2 state 3).
+**Policy decisions, all behind named functions in `lib/cm/policy.ts` (D8):**
+
+| §10 | Question | Default taken |
+|---|---|---|
+| #2 | Superseded BDS attachable? | **Yes, with a warning.** Withdrawn is refused. The spec notes this "will happen constantly"; refusing outright penalises the applicant for BSTI's publication schedule |
+| #3 | Purchase released on rejection? | **Freed on withdrawal and lapse, consumed on rejection.** Nothing calls it yet — those states are Phase 2 |
+| #4 | Group-scoped purchases? | **No** — the spec's own preferred answer. A purchase bought before any company profile existed stays usable by its buyer |
+| #6 | Company field set | Already behind `missingForSubmission()` |
+
+**Verified against the live database:** a second application cannot reuse a
+purchase; two concurrent attaches, exactly one wins; swapping releases the
+previous purchase; another company's purchase is refused; the fee is refused on
+an incomplete file; submission is refused before the fee is raised and while it
+is unpaid; concurrent fulfilment yields one application number; a submitted file
+is frozen.
+
+**Still to do:** document *storage* (the kernel document store — the UI says
+plainly that files are not kept yet), the real CM fee schedule (a flat ৳1,000
+stands in), and the real document list.
 
 ### ⬜ Step 8+ — Workflow engine (Phase D)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer
@@ -368,13 +391,16 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | Payment gateway — Sonali mandatory or aggregator? (§6). **No longer blocking** — the sandbox ships behind the `PaymentProvider` interface (D32), so the answer replaces one file. Stripe is ruled out: no Bangladesh merchant support, no BDT. | Going live with real money | 2026-08-24 |
 | ~~One application = one product = one factory? (§10 #1)~~ **Answered 2026-08-31: yes, and the licence goes to the entity, not the parent.** | Step 5 | 2026-08-24 |
 | Company mandatory field set (§10 #6) — now behind `missingForSubmission()` (D30), so the assumed set is in use and swappable | Step 5 submission | — |
-| Superseded BDS attachable? (§10 #2) | Step 6 | — |
-| Purchase released on rejection/withdrawal? (§10 #3) | Step 6 | — |
-| Subsidiary using parent's purchase? (§10 #4) | Step 6 | — |
+| Superseded BDS attachable? (§10 #2) — **default in force: yes with a warning**, withdrawn refused (`bdsEditionPolicy`) | Confirming the default | — |
+| Purchase released on rejection/withdrawal? (§10 #3) — **default in force: freed on withdrawal/lapse, consumed on rejection** (`purchaseReleasePolicy`). Nothing calls it until Phase 2 | Phase 2 terminal states | — |
+| Subsidiary using parent's purchase? (§10 #4) — **default in force: no** (`purchaseOwnershipPolicy`). The spec expects complaints, so the refusal says what to do instead | Confirming the default | — |
 | Password reset with no OTP (§10 #9) | Step 2 launch | — |
 | **BSTI's authoritative allowance and deduction list** — MEDICAL, WELFARE and AIT have been entered by hand and House Rent is seeded, but nothing confirms that set is complete or the rates current. | Payroll that matches the books | 2026-08-28 |
 | **Should `EmployeeCategory` be editable?** Regularising a daily-basis worker into a staff post is a real HR event the system cannot currently record. | Anyone changing pay regime | 2026-08-30 |
 | **Sonali branch details for 22 offices** — seeded values are improvised and flagged. | Correct bank advice outside Head Office | 2026-08-29 |
+| **The CM application fee schedule.** A flat ৳1,000 stands in (`applicationFeePoisha()`); the real schedule varies by product category, and the category table is Phase G reference data. | Charging applicants correctly | 2026-08-31 |
+| **The CM document checklist.** `CM_DOCUMENTS` is nine items assembled from the spec and general practice, at the same `[ASSUMPTION]` standing as the §2.3 company field set. | Applicants bringing the right papers | 2026-08-31 |
+| **Shortfall policy (§10 #7)** — maximum rounds, response deadline, consequence of lapse. Not yet reached, but it gates the Phase 2 review loop. | Step 8+ | 2026-08-31 |
 | **Is the BDS catalogue price VAT-inclusive or VAT-exclusive?** Treated as exclusive — the price is the income fee and 15% is added on top (D34). The other reading gives a different total for the same standard, so it is a real question, not a rounding detail. Behind `splitFee()`. | What customers are actually charged | 2026-08-31 |
 | **The real Income Fee and VAT account numbers** for the e-Challan split. The proportions are modelled; the accounts they settle into are not. | Money reaching the right government accounts | 2026-08-31 |
 | **The district → BSTI office jurisdiction map.** 64 districts, 23 offices, and the boundaries are an administrative decision rather than a geographic one. Resolving today by a documented default (D28): an office in the factory's own district, else that district's divisional office, else Head Office. That routes all 64 districts with no fallbacks — 22 by district, 42 by division — but it is a guess, and two consequences need checking: **Dhaka district goes to Head Office**, and **DMI receives nothing**. | Every application reaching the right office | 2026-08-31 |
