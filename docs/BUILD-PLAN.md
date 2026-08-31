@@ -47,7 +47,9 @@ card layout were taken from.
 | D37 | **Submission is not a button — the file submits the moment the application fee settles.** `fulfilPayment()` dispatches on purpose and calls `submitApplication()`, guarded on the fee being `paid` in the database rather than on the caller saying so. | A paid fee against an unsubmitted application is money held for nothing, and refunds are not modelled. Guarding on stored state rather than on the call is what makes it safe from the payment return page, which anyone can navigate to. |
 | D38 | **The application number is assigned at submission, not at draft creation.** | A number quoted to an applicant should mean a file exists. Numbering drafts would burn numbers on applications nobody ever finished, and leave gaps that read as lost files. |
 | D39 | **The BDS attachment rule is enforced in three layers**, as §3.3 demands: the UNIQUE index, the application-layer checks, and a conditional `updateMany` inside a transaction that is the actual lock. Swapping the standard on a draft **releases** the previous purchase. | The spec is explicit that the UI is not the enforcement point. Verified with two concurrent attaches of one purchase: exactly one wins. Releasing on swap stops an applicant permanently consuming a purchase by changing their mind in a draft. |
-| D40 | **There is no product catalogue, so the attached BDS carries the product identity**, with free-text product and brand names beside it. | The `Product` table is Phase G reference data and does not exist. Inverting the wizard — pick the standard, which names the product — avoids inventing a catalogue and makes §3.3's "bds.product_id matches the product applied for" check trivially true. Replacing it later is additive. |
+| D40 | **The BDS catalogue *is* the product list.** The applicant picks a standard from the catalogue and that names the product — there is no free-text product field. The attached purchase must be a purchase of **that** standard. | Confirmed by the client 2026-08-31. BSTI certifies conformity to a published standard, so a product it has no standard for is not a product it can certify — a free-text box could name one, and would produce a file nobody could act on. It also turns §3.3 check 3 ("the BDS matches the product applied for") from a stub into a real equality test, and makes the standard the applicant must buy a determined fact rather than a judgement call. The Phase G `Product` table becomes an attribute of a BDS later, not a replacement for this. |
+| D41 | **Changing the product releases the attached purchase.** `setProduct()` detaches and un-consumes it in the same transaction. | A purchase of the old standard cannot certify the new product, and leaving it attached would let an application reach submission with a standard that does not match. Releasing rather than consuming keeps it usable elsewhere — changing your mind in a draft must not destroy a purchase. |
+| D42 | **A standard can be bought from inside the application and returns to the draft** — `beginCheckout(…, next)`, validated by `safeNext()`. | Spec §3.4: "never send them to the store and lose the draft". The path is accepted only if it is app-relative — an absolute URL, `//host` or a scheme is discarded rather than corrected, so a crafted checkout cannot turn the receipt page into an open redirect. |
 | D32 | **The payment gateway is an interface with a built-in sandbox provider behind it** — `lib/payments/provider.ts` defines it, `sandbox.ts` implements it, `registry.ts` selects it from `PAYMENT_PROVIDER`. **Stripe was considered and rejected.** | Decided 2026-08-31. Stripe does not support Bangladesh as a merchant country and does not support BDT at all — the only route is a US LLC front, so every line of it would be thrown away, and it needs API keys plus a webhook tunnel merely to test. The sandbox needs no keys, no network and no account, and the interface is shaped after **SSLCommerz and the e-Challan** (session → redirect → IPN → server-side validation), not after the mock. SSLCommerz is the realistic production candidate if an aggregator is permitted. |
 | D33 | **Only a server-side `verify()` may mark a payment paid.** The browser returning from a gateway settles nothing; the IPN body is read for a reference and nothing else. | The return URL is attacker-controlled — anyone can navigate to it — and an IPN is an unauthenticated POST from the open internet. Both are hints that something happened, never evidence of what. The sandbox implements `verify()` too, against its own separate ledger table, so the discipline is exercised now rather than bolted on when a real gateway lands. |
 | D34 | **Money is stored as integer poisha, and the Income/VAT split is one function, `splitFee()`.** | 15% VAT on a whole-taka price is fractional for most prices (৳350 → ৳52.50), and a float would eventually make the two e-Challan account totals disagree with what was charged. `income + vat === total` holds by construction. Whether the catalogue price is VAT-inclusive or exclusive is an open question, so it sits behind one function (D8). |
@@ -294,8 +296,14 @@ Built 2026-08-31. The applicant's half of §5 runs end to end: `draft` →
 |---|---|
 | `/public/services/cm-licence` | Service detail page (§8.2) — steps, documents, fees. Public and **static** |
 | `/public/applications/new` | Company → factory, with the receiving office named beside each |
-| `/public/applications/[id]` | Product, BDS attachment, documents, fee — and the stage tracker |
+| `/public/applications/[id]` | Product (searched from the catalogue), BDS attachment, documents, fee, stage tracker |
 | `/public/applications` | The list, each row showing who holds the file |
+| `GET /api/store/bds/search` | The product search behind the picker. Public; withdrawn standards excluded |
+
+**Choosing the product is choosing the standard** (D40). The picker searches the
+BDS catalogue, and only a purchase of that exact standard can then be attached —
+which is what makes §3.3 check 3 a real test. If the applicant owns none, they
+buy it **in flow** and land back on the draft (D42).
 
 **Step 6, the attachment rule, is done properly** — three layers per §3.3
 (D39), verified under concurrency. **Step 7** is the fee and submission (D37).
@@ -319,6 +327,11 @@ is frozen.
 **Still to do:** document *storage* (the kernel document store — the UI says
 plainly that files are not kept yet), the real CM fee schedule (a flat ৳1,000
 stands in), and the real document list.
+
+**Note for Phase G:** when the `Product` reference table arrives it hangs off
+`Bds` as an attribute (`bds.productId`), refining the picker's search. It does
+not replace the standard as the thing an application is made against — that is
+D40 and it is now load-bearing in three places.
 
 ### ⬜ Step 8+ — Workflow engine (Phase D)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer

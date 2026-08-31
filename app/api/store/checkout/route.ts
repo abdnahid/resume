@@ -54,6 +54,7 @@ export async function POST(req: Request) {
       mobile: (user as { mobile?: string | null }).mobile ?? null,
     },
     `${bds.number} — ${bds.titleEn}`,
+    typeof body.next === "string" ? body.next : null,
   );
 
   return NextResponse.json({ reference: payment.reference, redirectUrl: checkout.redirectUrl });

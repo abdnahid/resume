@@ -40,7 +40,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
   const [gaps, bdsOptions] = await Promise.all([
     gapsFor(id),
-    attachableBds(app.organizationId, viewer.id),
+    attachableBds(app.organizationId, viewer.id, app.bdsId),
   ]);
 
   const editable = isEditable(app.state) && membership.role !== "viewer";
@@ -65,6 +65,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <h1 className="mt-1.5 font-display text-3xl font-medium text-foreground">
               {app.applicationNo ?? "Draft application"}
             </h1>
+            {app.bds && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {app.bds.titleEn}
+                <span className="ml-2 font-mono text-xs">{app.bds.number}</span>
+              </p>
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <Building2 className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
@@ -100,7 +106,17 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           <div className="space-y-6">
             <ProductStep
               applicationId={app.id}
-              productName={app.productName}
+              chosen={
+                app.bds
+                  ? {
+                      id: app.bds.id,
+                      number: app.bds.number,
+                      titleEn: app.bds.titleEn,
+                      status: app.bds.status,
+                      division: { nameEn: app.bds.division.nameEn },
+                    }
+                  : null
+              }
               brandName={app.brandName}
               productDetails={app.productDetails}
               editable={editable}
@@ -108,6 +124,16 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
             <BdsStep
               applicationId={app.id}
+              chosenBds={
+                app.bds
+                  ? {
+                      id: app.bds.id,
+                      number: app.bds.number,
+                      titleEn: app.bds.titleEn,
+                      priceBdt: app.bds.priceBdt,
+                    }
+                  : null
+              }
               options={bdsOptions}
               attachedPurchaseId={app.bdsPurchaseId}
               editable={editable}

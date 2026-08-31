@@ -75,7 +75,7 @@ export default async function ApplicationsPage() {
                             {a.applicationNo ?? "Draft application"}
                           </p>
                           <p className="mt-1 text-sm text-muted-foreground">
-                            {a.productName ?? "Product not named yet"}
+                            {a.bds ? a.bds.titleEn : "Product not chosen yet"}
                           </p>
                           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                             <span className="inline-flex items-center gap-1.5">

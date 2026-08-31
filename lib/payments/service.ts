@@ -77,6 +77,14 @@ export async function beginCheckout(
   origin: string,
   payer: { name: string; email?: string | null; mobile?: string | null },
   description: string,
+  /**
+   * Where to send the payer after the receipt — an app-relative path.
+   *
+   * Buying a standard from inside an application must return to that
+   * application, never to the store (spec §3.4: "never send them to the store
+   * and lose the draft").
+   */
+  next?: string | null,
 ) {
   const payment = await prisma.payment.findUniqueOrThrow({ where: { reference } });
   if (payment.status === "paid") {
@@ -90,8 +98,12 @@ export async function beginCheckout(
     purpose: payment.purpose as PaymentPurposeKey,
     description,
     payer,
-    returnUrl: `${origin}/pay/return/${encodeURIComponent(payment.reference)}`,
-    cancelUrl: `${origin}/pay/return/${encodeURIComponent(payment.reference)}?cancelled=1`,
+    returnUrl: `${origin}/pay/return/${encodeURIComponent(payment.reference)}${
+      safeNext(next) ? `?next=${encodeURIComponent(safeNext(next)!)}` : ""
+    }`,
+    cancelUrl: `${origin}/pay/return/${encodeURIComponent(payment.reference)}?cancelled=1${
+      safeNext(next) ? `&next=${encodeURIComponent(safeNext(next)!)}` : ""
+    }`,
     ipnUrl: `${origin}/api/payments/ipn/${provider.key}`,
   });
 
@@ -107,6 +119,19 @@ export async function beginCheckout(
   });
 
   return session;
+}
+
+/**
+ * An app-relative path, or null.
+ *
+ * Anything else — an absolute URL, a protocol-relative `//host`, a bare word —
+ * is discarded rather than corrected, so a crafted checkout cannot turn the
+ * receipt page into an open redirect.
+ */
+export function safeNext(next?: string | null): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/") || next.startsWith("//")) return null;
+  return next;
 }
 
 export type SettleResult = {

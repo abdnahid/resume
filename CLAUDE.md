@@ -349,9 +349,20 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   that does not exist yet. None of these are settled — they are defaults chosen
   so the build could proceed.
 
-- **There is no product catalogue.** The attached BDS carries the product
-  identity, with free-text product and brand beside it. Replacing this with a
-  real `Product` table later is additive.
+- **The BDS catalogue is the product list.** The applicant searches the
+  catalogue and picks a standard; that *is* the product, and there is no
+  free-text product field. BSTI certifies conformity to a published standard, so
+  a product it has no standard for is not one it can certify.
+  **Only a purchase of that exact standard may be attached** — which is what
+  makes spec §3.3 check 3 a real equality test rather than a stub. Changing the
+  product releases the attached purchase in the same transaction (D41);
+  consuming it would punish an applicant for changing their mind in a draft.
+  Owning none, they buy it in flow and land back on the draft — §3.4 is explicit
+  that they must never be sent to the store to lose it.
+- **`safeNext()` guards the in-flow return.** Only an app-relative path
+  survives; an absolute URL, `//host` or a scheme is discarded rather than
+  corrected, so a crafted checkout cannot make the receipt page an open
+  redirect.
 
 - **Documents are recorded, not stored.** The kernel document store does not
   exist, so the bytes are discarded and **the screen says so plainly**. A

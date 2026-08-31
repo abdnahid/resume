@@ -4,6 +4,7 @@ import { CheckCircle2, XCircle, Clock, ArrowRight, Download, FlaskConical } from
 import { prisma } from "@/lib/prisma";
 import { requireClient } from "@/lib/auth-guard";
 import { fulfilPayment } from "@/lib/payments/fulfil";
+import { safeNext } from "@/lib/payments/service";
 import { formatPoisha } from "@/lib/payments/money";
 import Footer from "@/components/layout/Footer";
 
@@ -19,10 +20,16 @@ export const metadata = { title: "Payment — BSTI e-Services" };
  */
 export default async function PaymentReturnPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ reference: string }>;
+  searchParams: Promise<{ next?: string }>;
 }) {
   const { reference } = await params;
+  const { next } = await searchParams;
+  // Validated the same way it was written, so a hand-edited URL cannot make
+  // this page bounce someone off-site.
+  const back = safeNext(next);
   const viewer = await requireClient(`/pay/return/${encodeURIComponent(reference)}`);
 
   const existing = await prisma.payment.findUnique({
@@ -133,12 +140,25 @@ export default async function PaymentReturnPage({
           )}
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
+            {back && (
+              <Link
+                href={back}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                Back to your application
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              </Link>
+            )}
             <Link
               href="/public/dashboard"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              className={
+                back
+                  ? "text-sm font-medium text-primary hover:underline"
+                  : "inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              }
             >
               My account
-              <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              {!back && <ArrowRight className="h-4 w-4" strokeWidth={2} />}
             </Link>
             {!paid && (
               <Link

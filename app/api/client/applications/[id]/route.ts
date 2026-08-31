@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { membershipFor } from "@/lib/cm/applications";
+import { membershipFor, setProduct } from "@/lib/cm/applications";
 import { isEditable } from "@/lib/cm/states";
 
 async function guard(applicationId: number) {
@@ -15,7 +15,7 @@ async function guard(applicationId: number) {
   return { userId };
 }
 
-const EDITABLE = ["productName", "brandName", "productDetails"] as const;
+const EDITABLE = ["brandName", "productDetails"] as const;
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
@@ -38,6 +38,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  // The product is the standard, so choosing it goes through `setProduct()` —
+  // it has to release any purchase attached for the previous one.
+  if ("bdsId" in body) {
+    const bdsId = Number(body.bdsId);
+    if (!Number.isInteger(bdsId))
+      return NextResponse.json({ error: "Which product?" }, { status: 400 });
+    try {
+      await setProduct(id, bdsId, g.userId);
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Could not choose that product." },
+        { status: 409 },
+      );
+    }
+  }
+
   const data: Record<string, string | null> = {};
   for (const key of EDITABLE) {
     if (!(key in body)) continue;
@@ -55,7 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await prisma.application.update({ where: { id }, data: { factoryId } });
   }
 
-  if (Object.keys(data).length === 0 && !("factoryId" in body))
+  if (Object.keys(data).length === 0 && !("factoryId" in body) && !("bdsId" in body))
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
   const updated = Object.keys(data).length

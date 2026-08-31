@@ -14,6 +14,7 @@ import type { ApplicationState } from "@/generated/prisma/client";
 
 const APP_INCLUDE = {
   organization: { select: { id: true, nameEn: true, nameBn: true, type: true } },
+  bds: { include: { division: true } },
   factory: {
     include: { bstiOffice: { select: { id: true, nameEn: true, nameBn: true } } },
   },
@@ -52,12 +53,24 @@ export async function applicationsFor(userId: string) {
   });
 }
 
-/** Purchases this company may attach, with why each one can or cannot be used. */
-export async function attachableBds(organizationId: number, userId: string) {
+/**
+ * Purchases this company may attach, with why each one can or cannot be used.
+ *
+ * When the application has chosen its product, only purchases of **that**
+ * standard are considered — spec §3.3 check 3. Showing every standard the
+ * applicant has ever bought and then refusing most of them would be a list of
+ * near-misses rather than an answer.
+ */
+export async function attachableBds(
+  organizationId: number,
+  userId: string,
+  bdsId: number | null,
+) {
   const purchases = await prisma.bdsPurchase.findMany({
     where: {
       buyerUserId: userId,
       payment: { status: "paid" },
+      ...(bdsId ? { bdsId } : {}),
     },
     include: {
       bds: { include: { division: true } },
@@ -163,6 +176,18 @@ export async function attachBds(applicationId: number, purchaseId: number, userI
   if (purchase.buyerUserId !== userId) throw new Error("That purchase is not yours.");
   if (purchase.payment.status !== "paid") throw new Error("That purchase has not been paid for.");
 
+  // Spec §3.3 check 3 — the standard attached must be the standard the
+  // application is for. The product *is* the BDS, so this is an equality test
+  // rather than the product-code join the spec assumed.
+  if (!app.bdsId) {
+    throw new Error("Choose the product you are certifying before attaching a standard.");
+  }
+  if (purchase.bdsId !== app.bdsId) {
+    throw new Error(
+      `This application is for ${(await prisma.bds.findUnique({ where: { id: app.bdsId }, select: { number: true } }))?.number ?? "another standard"}, but that purchase is for ${purchase.bds.number}.`,
+    );
+  }
+
   const owner = purchaseOwnershipPolicy(purchase.organizationId, app.organizationId);
   if (!owner.allowed) throw new Error(owner.reason);
 
@@ -205,6 +230,48 @@ export async function attachBds(applicationId: number, purchaseId: number, userI
   });
 }
 
+/**
+ * Choose the product — that is, the standard being certified against.
+ *
+ * Changing it detaches whatever purchase was attached: a purchase of the old
+ * standard cannot certify the new product, and leaving it attached would let an
+ * application reach submission with a standard that does not match its product.
+ * The purchase is released rather than consumed, so it stays usable elsewhere.
+ */
+export async function setProduct(applicationId: number, bdsId: number, userId: string) {
+  const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+  if (app.state !== "draft" && app.state !== "pending_app_fee") {
+    throw new Error("This application can no longer be edited.");
+  }
+
+  const bds = await prisma.bds.findUnique({ where: { id: bdsId } });
+  if (!bds) throw new Error("That standard is not in the catalogue.");
+
+  const edition = bdsEditionPolicy(bds.status);
+  if (!edition.allowed) throw new Error(edition.reason);
+
+  if (app.bdsId === bdsId) return app;
+
+  return prisma.$transaction(async (tx) => {
+    if (app.bdsPurchaseId) {
+      await tx.bdsPurchase.updateMany({
+        where: { id: app.bdsPurchaseId, consumedByApplicationId: applicationId },
+        data: { consumedByApplicationId: null },
+      });
+    }
+    return tx.application.update({
+      where: { id: applicationId },
+      data: {
+        bdsId,
+        bdsPurchaseId: null,
+        events: {
+          create: { kind: "product_chosen", note: `${bds.number} — ${bds.titleEn}`, actorUserId: userId },
+        },
+      },
+    });
+  });
+}
+
 /** What still stands between this application and submission. */
 export async function gapsFor(applicationId: number) {
   const app = await prisma.application.findUnique({
@@ -217,7 +284,7 @@ export async function gapsFor(applicationId: number) {
   if (!app) return null;
 
   return missingForSubmission({
-    productName: app.productName,
+    bdsId: app.bdsId,
     bdsPurchaseId: app.bdsPurchaseId,
     factoryId: app.factoryId,
     documents: app.documents,

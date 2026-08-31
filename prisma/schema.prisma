@@ -1597,7 +1597,8 @@ model Bds {
   // check 3) matches a purchase against the product being applied for. The
   // product catalogue arrives with Phase G reference data.
 
-  purchases BdsPurchase[]
+  purchases    BdsPurchase[]
+  applications Application[] @relation("AppliedStandard")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1805,10 +1806,20 @@ model Application {
   bstiOfficeId Int?
   bstiOffice   Office? @relation(fields: [bstiOfficeId], references: [id])
 
-  /// What is being certified. There is no product catalogue yet (Phase G), so
-  /// the attached BDS carries the product identity and these name the specific
-  /// article and brand it is sold under.
-  productName String?
+  /// **The product being certified.** The BDS catalogue *is* the product list —
+  /// an applicant picks the standard their article is made to, and that names
+  /// the product. There is no free-text product field on purpose: a licence is
+  /// granted against a published standard, so a product BSTI has no standard
+  /// for is not a product it can certify.
+  ///
+  /// This is also what makes spec §3.3 check 3 — "the BDS matches the product
+  /// applied for" — a real equality test rather than a stub: the attached
+  /// purchase must be a purchase of *this* standard.
+  bdsId Int?
+  bds   Bds? @relation("AppliedStandard", fields: [bdsId], references: [id])
+
+  /// The applicant's own brand for the article. Not the product — a brand is
+  /// what it is sold as, the BDS is what it is.
   brandName   String?
   /// Free text: pack sizes, variants, grades covered by this application.
   productDetails String?
@@ -1816,6 +1827,7 @@ model Application {
   /// The purchased standard this application is made against (spec §3.3). The
   /// UNIQUE side of the one-purchase-one-application rule lives on
   /// `BdsPurchase.consumedByApplicationId`; this is the convenience direction.
+  /// Its `bdsId` must equal this application's `bdsId`.
   bdsPurchaseId Int?
 
   /// The application fee. Reaching `submitted` requires it to be `paid`.
@@ -1834,6 +1846,7 @@ model Application {
 
   @@index([organizationId])
   @@index([factoryId])
+  @@index([bdsId])
   @@index([state])
   @@index([bstiOfficeId, state])
 }

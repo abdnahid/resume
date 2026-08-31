@@ -159,7 +159,7 @@ export default async function ClientDashboardPage() {
                           {a.applicationNo ?? "Draft application"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {a.productName ?? "Product not named yet"} · {a.factory.nameEn}
+                          {a.bds ? a.bds.titleEn : "Product not chosen yet"} · {a.factory.nameEn}
                         </p>
                       </div>
                       <span

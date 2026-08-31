@@ -201,7 +201,7 @@ export const CM_DOCUMENTS: readonly DocumentRequirement[] = [
 export type Gap = { field: string; label: string };
 
 export function missingForSubmission(app: {
-  productName: string | null;
+  bdsId: number | null;
   bdsPurchaseId: number | null;
   factoryId: number | null;
   documents: { kind: string }[];
@@ -211,10 +211,9 @@ export function missingForSubmission(app: {
   if (!app.organizationComplete)
     gaps.push({ field: "organization", label: "Complete the company profile" });
   if (!app.factoryId) gaps.push({ field: "factory", label: "Choose the factory" });
-  if (!app.bdsPurchaseId)
-    gaps.push({ field: "bds", label: "Attach the Bangladesh Standard for this product" });
-  if (!app.productName?.trim())
-    gaps.push({ field: "productName", label: "Name the product" });
+  if (!app.bdsId) gaps.push({ field: "product", label: "Choose the product to certify" });
+  else if (!app.bdsPurchaseId)
+    gaps.push({ field: "bds", label: "Attach your purchase of that standard" });
 
   const held = new Set(app.documents.map((d) => d.kind));
   for (const req of CM_DOCUMENTS) {
