@@ -349,10 +349,22 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   that does not exist yet. None of these are settled — they are defaults chosen
   so the build could proceed.
 
-- **The BDS catalogue is the product list.** The applicant searches the
-  catalogue and picks a standard; that *is* the product, and there is no
-  free-text product field. BSTI certifies conformity to a published standard, so
-  a product it has no standard for is not one it can certify.
+- **The BDS catalogue is the product list, narrowed to the mandatory 315.** The
+  applicant searches the catalogue and picks a standard; that *is* the product,
+  and there is no free-text product field. BSTI certifies conformity to a
+  published standard, so a product it has no standard for is not one it can
+  certify. **And only a standard under mandatory certification can be applied
+  for** — spec §1: CM operates on a closed list of 315 products while Metrology
+  operates on an open one. A CM licence is the permission to sell a product the
+  state has placed under compulsory certification; outside that list there is no
+  licence to issue. `productEligibilityPolicy()` is the rule, enforced in
+  `setProduct()` and again in `missingForSubmission()` so a row written before
+  the rule cannot reach the fee. The picker still *shows* non-mandatory
+  standards, marked ineligible with the reason — a search for a genuinely
+  unregulated product should answer "you do not need this licence", not "no such
+  standard". `Bds.isMandatory315` is the flag, and it is currently the seed's own
+  judgement (15 of 55); the real list is Phase G data and the rule does not
+  change when it lands.
   **Only a purchase of that exact standard may be attached** — which is what
   makes spec §3.3 check 3 a real equality test rather than a stub. Changing the
   product releases the attached purchase in the same transaction (D41);

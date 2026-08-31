@@ -48,6 +48,45 @@ export function bdsEditionPolicy(status: string): PolicyVerdict & { warning?: st
 }
 
 /**
+ * May a CM licence be applied for against this standard at all?
+ *
+ * **The closed list of 315.** Spec §1 draws the asymmetry that shapes this
+ * module: "CM/Chemical/Physical operate on a closed list of 315 products.
+ * Metrology operates on an open product universe." A CM licence is the
+ * *mandatory* quality licence — the permission to sell a product the state has
+ * placed under compulsory certification. A standard outside that list is a
+ * specification anyone may build to; it is not a thing BSTI licences.
+ *
+ * So a non-mandatory standard is refused here rather than three screens later,
+ * and the refusal tells the applicant the useful half: they do not need this
+ * licence. That is a better answer than hiding the standard from the picker,
+ * which would tell someone whose product is genuinely unregulated only that
+ * BSTI has never heard of it.
+ *
+ * **[ASSUMPTION — needs the real 315 list]** `isMandatory315` is seeded from the
+ * catalogue seed's own judgement, and 15 of the 55 seeded standards carry it.
+ * The authoritative list is Phase G reference data. Populating the flag is a
+ * data job; this function is where the *rule* lives, and it does not change
+ * when the data arrives.
+ */
+export function productEligibilityPolicy(bds: {
+  isMandatory315: boolean;
+  status: string;
+}): PolicyVerdict {
+  const edition = bdsEditionPolicy(bds.status);
+  if (!edition.allowed) return edition;
+
+  if (!bds.isMandatory315) {
+    return {
+      allowed: false,
+      reason:
+        "This standard is not on BSTI's mandatory certification list, so no quality licence is required to sell products made to it — and none can be issued. You may still buy the standard and manufacture to it. If you believe this product does require a licence, contact the CM Wing.",
+    };
+  }
+  return { allowed: true };
+}
+
+/**
  * §10 #4 — may a group member attach a purchase the mother organisation made?
  *
  * **Default: no.** The spec's own view — "cleanest answer is no (purchase is
@@ -202,6 +241,8 @@ export type Gap = { field: string; label: string };
 
 export function missingForSubmission(app: {
   bdsId: number | null;
+  /** The chosen standard, so eligibility is re-checked at the money gate. */
+  bds?: { isMandatory315: boolean; status: string } | null;
   bdsPurchaseId: number | null;
   factoryId: number | null;
   documents: { kind: string }[];
@@ -212,7 +253,12 @@ export function missingForSubmission(app: {
     gaps.push({ field: "organization", label: "Complete the company profile" });
   if (!app.factoryId) gaps.push({ field: "factory", label: "Choose the factory" });
   if (!app.bdsId) gaps.push({ field: "product", label: "Choose the product to certify" });
-  else if (!app.bdsPurchaseId)
+  else if (app.bds && !productEligibilityPolicy(app.bds).allowed) {
+    // Second layer on the closed list of 315: `setProduct()` refuses one, but a
+    // row written before the rule existed — or a standard later taken off the
+    // list — must not reach the fee.
+    gaps.push({ field: "product", label: "Choose a product under mandatory certification" });
+  } else if (!app.bdsPurchaseId)
     gaps.push({ field: "bds", label: "Attach your purchase of that standard" });
 
   const held = new Set(app.documents.map((d) => d.kind));

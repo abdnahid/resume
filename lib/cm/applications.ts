@@ -6,7 +6,13 @@
  * reachable from here.
  */
 import { prisma } from "@/lib/prisma";
-import { missingForSubmission, applicationFeePoisha, bdsEditionPolicy, purchaseOwnershipPolicy } from "./policy";
+import {
+  missingForSubmission,
+  applicationFeePoisha,
+  bdsEditionPolicy,
+  productEligibilityPolicy,
+  purchaseOwnershipPolicy,
+} from "./policy";
 import { canApplicantMove } from "./states";
 import { missingForSubmission as companyGaps } from "@/lib/client/organization";
 import { raisePayment } from "@/lib/payments/service";
@@ -247,8 +253,11 @@ export async function setProduct(applicationId: number, bdsId: number, userId: s
   const bds = await prisma.bds.findUnique({ where: { id: bdsId } });
   if (!bds) throw new Error("That standard is not in the catalogue.");
 
-  const edition = bdsEditionPolicy(bds.status);
-  if (!edition.allowed) throw new Error(edition.reason);
+  // The closed list of 315 (spec §1). A CM licence is the mandatory quality
+  // licence; a standard outside that list is not something BSTI licences, so
+  // it is refused here rather than at submission.
+  const eligible = productEligibilityPolicy(bds);
+  if (!eligible.allowed) throw new Error(eligible.reason);
 
   if (app.bdsId === bdsId) return app;
 
@@ -279,12 +288,14 @@ export async function gapsFor(applicationId: number) {
     include: {
       documents: { select: { kind: true } },
       organization: { include: { factories: { select: { id: true } } } },
+      bds: { select: { isMandatory315: true, status: true } },
     },
   });
   if (!app) return null;
 
   return missingForSubmission({
     bdsId: app.bdsId,
+    bds: app.bds,
     bdsPurchaseId: app.bdsPurchaseId,
     factoryId: app.factoryId,
     documents: app.documents,

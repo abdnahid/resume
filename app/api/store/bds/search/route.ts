@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { productEligibilityPolicy } from "@/lib/cm/policy";
 
 /**
  * Search the BDS catalogue — the product list for a CM application.
@@ -7,6 +8,11 @@ import { prisma } from "@/lib/prisma";
  * Public, like the store it searches. Withdrawn standards are excluded: nothing
  * can be certified against a withdrawn specification, so offering one as a
  * product would only produce a refusal two steps later.
+ *
+ * Standards *outside* the mandatory 315 are deliberately still returned, marked
+ * ineligible with the reason. Hiding them would answer a search for a genuinely
+ * unregulated product with "no such standard", when the useful answer is "that
+ * one exists, and you do not need a licence for it".
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -33,15 +39,20 @@ export async function GET(req: Request) {
   });
 
   return NextResponse.json({
-    results: results.map((b) => ({
-      id: b.id,
-      number: b.number,
-      titleEn: b.titleEn,
-      titleBn: b.titleBn,
-      status: b.status,
-      priceBdt: b.priceBdt,
-      isMandatory315: b.isMandatory315,
-      division: b.division.nameEn,
-    })),
+    results: results.map((b) => {
+      const eligible = productEligibilityPolicy(b);
+      return {
+        id: b.id,
+        number: b.number,
+        titleEn: b.titleEn,
+        titleBn: b.titleBn,
+        status: b.status,
+        priceBdt: b.priceBdt,
+        isMandatory315: b.isMandatory315,
+        division: b.division.nameEn,
+        eligible: eligible.allowed,
+        ineligibleReason: eligible.reason ?? null,
+      };
+    }),
   });
 }

@@ -17,6 +17,8 @@ type Hit = {
   priceBdt: number;
   isMandatory315: boolean;
   division: string;
+  eligible: boolean;
+  ineligibleReason: string | null;
 };
 
 export type ChosenBds = {
@@ -104,7 +106,8 @@ export default function ProductStep({
       <h2 className="font-semibold text-foreground">Product</h2>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         Choose the Bangladesh Standard your product is made to. BSTI certifies against published
-        standards, so the standard is the product.
+        standards, so the standard is the product. Only standards under mandatory certification can
+        be licensed — those are the products that may not be sold without a BSTI quality licence.
       </p>
 
       {chosen ? (
@@ -289,8 +292,13 @@ function ProductPicker({
               <li key={h.id}>
                 <button
                   type="button"
-                  onClick={() => onPick(h.id)}
-                  className="w-full rounded-lg border border-border p-3 text-left transition hover:border-primary hover:bg-secondary/40"
+                  disabled={!h.eligible}
+                  onClick={() => h.eligible && onPick(h.id)}
+                  className={
+                    h.eligible
+                      ? "w-full rounded-lg border border-border p-3 text-left transition hover:border-primary hover:bg-secondary/40"
+                      : "w-full cursor-not-allowed rounded-lg border border-dashed border-border/70 p-3 text-left opacity-70"
+                  }
                 >
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                     {h.number}
@@ -309,6 +317,11 @@ function ProductPicker({
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{h.titleEn}</p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">{h.division}</p>
+                  {!h.eligible && h.ineligibleReason && (
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                      {h.ineligibleReason}
+                    </p>
+                  )}
                 </button>
               </li>
             ))}
