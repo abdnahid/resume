@@ -304,6 +304,8 @@ model User {
   sessions Session[]
   accounts Account[]
   employee Employee?
+
+  organizationMemberships OrganizationMembership[]
 }
 
 model Session {
@@ -367,6 +369,7 @@ model Office {
   postings    Posting[]
   bankAdvices BankAdvice[]
   bankAccount OfficeBankAccount?
+  factories   Factory[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -737,6 +740,208 @@ model SalaryFixationItem {
   head   SalaryHead @relation(fields: [headId], references: [id])
 
   @@unique([fixationId, headId])
+}
+
+// ─── Client parties: organizations and factories ─────────────────────────────
+
+/// The three shapes a BSTI client takes, for CM licensing purposes.
+///
+/// A mother organisation with several companies under it, a company with
+/// several factories, and a single factory-cum-company are all expressible
+/// here: the first is a `group_parent` over `group_member`s, the other two are
+/// a `standalone` with many or one factory.
+enum OrganizationType {
+  /// Applies in its own right and owns its factories directly.
+  standalone
+  /// A holding company. Administrative only — it never applies for a licence
+  /// and holds no factories; its members do.
+  group_parent
+  /// A company under a parent. Applies, holds licences, and pays for itself.
+  group_member
+}
+
+/// The progressive ladder from §2.1: a profile can be started long before it is
+/// complete, and only a complete one may submit an application.
+enum OrganizationStatus {
+  /// Tier 2 — enough to start and save a draft application.
+  draft
+  /// Tier 3 — the mandatory set is present; applications may be submitted.
+  complete
+  /// Withdrawn or merged away. Keeps history without offering itself.
+  archived
+}
+
+enum CompanyLegalForm {
+  proprietorship
+  partnership
+  limited
+  group_entity
+}
+
+/// What a member of staff may do on behalf of an organization.
+enum OrganizationRole {
+  /// Manages the profile, its factories and its members.
+  org_admin
+  /// Files and tracks applications.
+  representative
+  /// Read-only.
+  viewer
+}
+
+/// A client company, or the parent of several.
+///
+/// Depth is one level by design (§2.4): a `group_member` may not itself be a
+/// parent. Multi-tier holding structures are not modelled until someone
+/// confirms BSTI has them.
+model Organization {
+  id Int @id @default(autoincrement())
+
+  type   OrganizationType   @default(standalone)
+  status OrganizationStatus @default(draft)
+
+  nameEn    String
+  nameBn    String
+  legalForm CompanyLegalForm?
+
+  /// Set only on a `group_member`.
+  parentId Int?
+  parent   Organization?  @relation("OrganizationGroup", fields: [parentId], references: [id])
+  members  Organization[] @relation("OrganizationGroup")
+
+  // ── Registration identifiers (§2.3) ──
+  tradeLicenceNo        String?
+  tradeLicenceAuthority String?
+  /// Stored `DD-MM-YYYY`, like every other document date in this codebase.
+  tradeLicenceExpiry    String?
+  binNo                 String?
+  tinNo                 String?
+
+  // ── Registered office ──
+  addressLine String?
+  division    String?
+  district    String?
+  upazila     String?
+  postCode    String?
+
+  // ── Authorised representative ──
+  repName        String?
+  repDesignation String?
+  repMobile      String?
+  repEmail       String?
+  repNid         String?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  memberships OrganizationMembership[]
+  factories   Factory[]
+  documents   OrganizationDocument[]
+
+  @@index([type])
+  @@index([parentId])
+}
+
+/// One person's standing in one organization.
+///
+/// A single login may hold several — the profile switcher picks which one is
+/// active, and everything is scoped to it (§2.2 path E).
+model OrganizationMembership {
+  id Int @id @default(autoincrement())
+
+  role      OrganizationRole @default(representative)
+  /// Which organization this user lands in when they sign in.
+  isDefault Boolean          @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+}
+
+/// A premises where goods are made.
+///
+/// A licence is granted for a product made at a *specific* factory, which is
+/// why an inspection targets a premises rather than a company — and why the
+/// factory's district, not the company's, decides which BSTI office receives
+/// the application.
+model Factory {
+  id Int @id @default(autoincrement())
+
+  nameEn String
+  nameBn String
+
+  addressLine String
+  division    String?
+  /// Required, unlike every other address part: this is the field that decides
+  /// which BSTI office receives applications from this factory.
+  district    String
+  upazila     String?
+  postCode    String?
+
+  contactName   String?
+  contactMobile String?
+
+  isActive Boolean @default(true)
+
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  /// The office that will receive applications from this factory. Resolved from
+  /// the district when the factory is saved, and stored rather than computed at
+  /// application time — a jurisdiction that is redrawn later must not silently
+  /// re-route files already in flight.
+  bstiOfficeId Int?
+  bstiOffice   Office? @relation(fields: [bstiOfficeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([organizationId])
+  @@index([bstiOfficeId])
+}
+
+/// What kind of paper a client has attached to their profile.
+enum OrganizationDocumentType {
+  trade_licence
+  bin_certificate
+  tin_certificate
+  incorporation
+  memorandum
+  representative_nid
+  factory_layout
+  other
+}
+
+/// A document on a company profile.
+///
+/// The row exists whether or not a file has been stored against it, so a
+/// profile can record "trade licence no. X expiring on Y" before anyone has
+/// scanned it — and the completeness rule can say which papers are still
+/// missing.
+model OrganizationDocument {
+  id Int @id @default(autoincrement())
+
+  type      OrganizationDocumentType
+  label     String?
+  /// Where the stored file lives. Null until one is uploaded.
+  filePath  String?
+  mimeType  String?
+  sizeBytes Int?
+
+  organizationId Int
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  @@index([organizationId, type])
 }
 
 // ─── Banking ─────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShoppingBag, FileText, Phone, Mail, ArrowRight, Lock } from "lucide-react";
+import { ShoppingBag, FileText, Phone, Mail, ArrowRight, Lock, Building2 } from "lucide-react";
 import { requireClient } from "@/lib/auth-guard";
 import Footer from "@/components/layout/Footer";
 
@@ -67,8 +67,28 @@ export default async function ClientDashboardPage() {
             </Link>
           </section>
 
+          {/* Companies */}
+          <section className="rounded-2xl border border-border bg-card p-8">
+            <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
+              <Building2 className="h-5 w-5 text-primary" strokeWidth={1.8} />
+            </div>
+            <h2 className="font-semibold text-foreground">My companies</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              A CM quality licence is issued to a company for a product made at
+              one of its factories. Set the profile up before you apply — buying
+              standards does not need one.
+            </p>
+            <Link
+              href="/public/companies"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              Set up or manage companies
+              <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+            </Link>
+          </section>
+
           {/* Applications */}
-          <section className="rounded-2xl border border-dashed border-border bg-card/60 p-8">
+          <section className="rounded-2xl border border-dashed border-border bg-card/60 p-8 lg:col-span-2">
             <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
               <FileText className="h-5 w-5 text-primary" strokeWidth={1.8} />
             </div>
@@ -79,7 +99,7 @@ export default async function ClientDashboardPage() {
             </p>
             <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
               <Lock className="h-3.5 w-3.5" strokeWidth={2} />
-              Opens with the CM module.
+              Applying opens with the CM module. Company profiles can be set up now.
             </span>
           </section>
         </div>

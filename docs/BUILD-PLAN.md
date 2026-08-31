@@ -43,6 +43,10 @@ card layout were taken from.
 | D22 | **A court verdict is applied by raising fixation versions, not by a parallel pay path.** Recording a verdict imposes it in the same request; if imposing fails the verdict is rolled back. Salary processing and the bank advice are untouched — they pay the version in force. | Decided 2026-08-28. Fixation is already versioned and effective-dated, so a punishment is just another reason to raise a version. A separate "punished pay" path would have to be consulted by processing, payslips and the advice, and would drift. |
 | D23 | **Arrears are a sum of differences, never a replay of history.** A verdict-derived version stores `baselineFixationId`; the pay withheld in a month is `baseline.netSalary − process.netSalary`. Revoking with `arrearsOrdered` totals that across the months paid under the punishment and writes one `SalaryArrear`, settled by the next month processed. | The alternative — recomputing what each past month "would have" paid — needs the scale, heads, rent slabs and verdict all as they were on that date. Both figures are already stored, so the difference is exact and cheap. |
 | D24 | **`case_officer` is a new role that reaches every office**, and only it and `superadmin` may touch cases. Verdict-derived fixation versions cannot be hand-edited. | Cases are run by a central legal cell, so office scoping would be wrong. A disciplinary record is more sensitive than a salary record, so salary admins are excluded. Locking the derived version keeps the court order the single source of the punishment. |
+| D28 | **A factory's district decides which BSTI office receives its applications**, resolved by `resolveJurisdiction()` in `lib/client/jurisdiction.ts` and **stored on the factory**, not computed at application time. | Decided 2026-08-31. A licence is granted for a product made at a named premises, so the plant's district decides the office — not the company's registered address, which is often a city head office far away. Storing it means a jurisdiction redrawn later cannot silently re-route files already in flight. **The real map is not in the repo** — see the open questions. |
+| D29 | **A mother organisation is administrative: it holds no factories and never applies.** Group depth is one level, enforced at the API. A licence is issued to the entity that owns the plant. | The client's own description of their three shapes. Without the depth check a member could be given a member and the group quietly becomes a tree, which the routing and licence-holder rules do not survive. |
+| D30 | **Profile completeness is one function, `missingForSubmission()`,** returning named fields rather than a percentage, and returning nothing at all for a group parent. | D8 applied: spec §2.3's mandatory field set is still an assumption awaiting CM Wing, so it changes in one place. Named fields tell the client what to do next; a progress bar tells them only how far they are. A parent gates nothing, so listing thirteen missing fields against it is noise it can never act on. |
+| D31 | **Acting-as is stored on the membership, not in a cookie.** | Someone signing in from a second device should land on the company they left off in — and the acting-as company is what an application gets filed under, so it is a real choice, not a UI highlight. |
 | D20 | **`computeSheet()` in `lib/salary/compute.ts` is the only calculation path**, called by both the preview and the save route. Prisma-free, per D9. | The operator has to approve a sheet before submitting; two code paths would eventually disagree, and the one they approved would not be the one stored. |
 
 ---
@@ -201,15 +205,54 @@ creating a Tier-1 account (§2.2 Path A). Income Fee + 15% VAT split via
 e-Challan (§6).
 **Blocked on:** payment gateway answer — Sonali Bank mandatory, or aggregator?
 
-### 🔒 Step 4 — Party registry
-Company profile, factories, memberships, profile switcher (§2.3–2.5).
-**Blocked on:** §10 #6 — confirm the mandatory company field set against what
-CM Wing demands today.
+### ✅ Step 4 — Party registry
+Built 2026-08-31. Company profiles, factories, memberships and the profile
+switcher (§2.3–2.5), plus the jurisdiction rule that decides which office an
+application reaches.
 
-### 🔒 Step 5 — Application wizard (draft only)
+**Schema:** `Organization` (`standalone | group_parent | group_member`, one
+level deep), `OrganizationMembership` (`org_admin | manager | viewer`, carrying
+the acting-as flag), `Factory` (`district` and `addressLine` are the only
+required address parts — the district decides routing), `OrganizationDocument`.
+
+**Surfaces**
+
+| Path | What it is |
+|---|---|
+| `/public/companies` | The list, doubling as the profile switcher; members nested under their group |
+| `/public/companies/new` | The guided wizard — type → company → address → representative → factories → review |
+| `/public/companies/[id]` | The profile, what it still needs, editing, and adding factories |
+| `/api/client/organizations`, `…/[id]`, `…/factories`, `…/context` | The writes |
+
+**The wizard writes nothing until the last step**, so an abandoned setup leaves
+no half-made company behind. The three shapes are offered in the client's own
+terms — a group, a company with several plants, or a single factory — because
+someone registering one plant should not have to work out that they are a
+`standalone`. A single-premises company is never asked for its address twice:
+its factory is built from the company address it already gave.
+
+**Verified end to end** against the live database for all three shapes: বাগেরহাট
+→ Khulna divisional (no office in the district), সিলেট → Sylhet, রংপুর →
+Rangpur; group parent complete with no factory; member companies each routed
+independently.
+
+**Still open:** §10 #6 — the mandatory field set is behind
+`missingForSubmission()` (D30) pending CM Wing confirmation. Document *upload*
+is schema-only; the storage decision is not taken.
+
+**The jurisdiction map is a documented default, not real data** — see the open
+questions below.
+
+### ⬜ Step 5 — Application wizard (draft only)
 Service catalog + form. No submission.
-**Blocked on:** §10 #1 — one application = one product = one factory? Highest
-rework cost in the spec.
+
+**§10 #1 is settled** (2026-08-31, by the client): **one application = one
+product = one factory**, and the licence is issued to the entity that owns the
+factory, not to its parent. The factory picker on the application form is
+therefore a single choice, and it determines the receiving office from the
+factory's stored `bstiOfficeId`. This was the spec's highest rework risk.
+
+**Needs:** the party registry (done), and the BDS attachment rule for step 6.
 
 ### ⬜ Step 6 — BDS attachment rule
 The join between store and application (§3.3). UNIQUE constraint + application
@@ -289,8 +332,8 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 |---|---|---|
 | Does a digital BDS list exist (count, format, prices, PDFs)? | Real catalogue data | 2026-08-24 |
 | Payment gateway — Sonali mandatory or aggregator? (§6) | Step 3 | 2026-08-24 |
-| One application = one product = one factory? (§10 #1) | Step 5 | 2026-08-24 |
-| Company mandatory field set (§10 #6) | Step 4 | — |
+| ~~One application = one product = one factory? (§10 #1)~~ **Answered 2026-08-31: yes, and the licence goes to the entity, not the parent.** | Step 5 | 2026-08-24 |
+| Company mandatory field set (§10 #6) — now behind `missingForSubmission()` (D30), so the assumed set is in use and swappable | Step 5 submission | — |
 | Superseded BDS attachable? (§10 #2) | Step 6 | — |
 | Purchase released on rejection/withdrawal? (§10 #3) | Step 6 | — |
 | Subsidiary using parent's purchase? (§10 #4) | Step 6 | — |
@@ -298,6 +341,8 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | **BSTI's authoritative allowance and deduction list** — MEDICAL, WELFARE and AIT have been entered by hand and House Rent is seeded, but nothing confirms that set is complete or the rates current. | Payroll that matches the books | 2026-08-28 |
 | **Should `EmployeeCategory` be editable?** Regularising a daily-basis worker into a staff post is a real HR event the system cannot currently record. | Anyone changing pay regime | 2026-08-30 |
 | **Sonali branch details for 22 offices** — seeded values are improvised and flagged. | Correct bank advice outside Head Office | 2026-08-29 |
+| **The district → BSTI office jurisdiction map.** 64 districts, 23 offices, and the boundaries are an administrative decision rather than a geographic one. Resolving today by a documented default (D28): an office in the factory's own district, else that district's divisional office, else Head Office. That routes all 64 districts with no fallbacks — 22 by district, 42 by division — but it is a guess, and two consequences need checking: **Dhaka district goes to Head Office**, and **DMI receives nothing**. | Every application reaching the right office | 2026-08-31 |
+| **Where uploaded company documents are stored.** `OrganizationDocument` exists but nothing writes a file yet — local disk, object storage, or the same place certificates will live. | Document upload in the profile wizard | 2026-08-31 |
 | **Mymensingh's house rent zone** — a divisional office, but not among the eight cities `rent.xlsx` names, so seeded as `other_district`. | Correct house rent for that office | 2026-08-28 |
 
 ---
