@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ShoppingBag, FileText, Phone, Mail, ArrowRight, Lock, Building2 } from "lucide-react";
 import { requireClient } from "@/lib/auth-guard";
+import { purchasesFor } from "@/lib/store/purchase";
+import { formatPoisha } from "@/lib/payments/money";
 import Footer from "@/components/layout/Footer";
 
 export const metadata = { title: "My account — BSTI e-Services" };
@@ -15,6 +17,7 @@ export const metadata = { title: "My account — BSTI e-Services" };
  */
 export default async function ClientDashboardPage() {
   const viewer = await requireClient("/public/dashboard");
+  const purchases = await purchasesFor(viewer.id);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -55,9 +58,45 @@ export default async function ClientDashboardPage() {
               Standards you buy will appear here to download, and can be attached
               to a certification application later.
             </p>
-            <p className="mt-4 rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
-              You have not bought any standards yet.
-            </p>
+            {purchases.length === 0 ? (
+              <p className="mt-4 rounded-lg bg-muted/60 px-3 py-2.5 text-xs text-muted-foreground">
+                You have not bought any standards yet.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {purchases.map((p) => (
+                  <li
+                    key={p.id}
+                    className="rounded-lg border border-border bg-background px-3 py-2.5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <span className="text-sm font-medium text-foreground">{p.bds.number}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatPoisha(p.payment.totalPoisha)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                      {p.bds.titleEn}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {p.purchaseNumber}
+                      </span>
+                      {p.payment.isSandbox && (
+                        <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                          sandbox
+                        </span>
+                      )}
+                      {p.organization && (
+                        <span className="text-[11px] text-muted-foreground">
+                          for {p.organization.nameEn}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
             <Link
               href="/store/bds"
               className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"

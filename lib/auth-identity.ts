@@ -30,12 +30,35 @@ export function isInternalPath(pathname: string): boolean {
 }
 
 /**
- * API routes are internal by default. `/api/auth/*` is better-auth itself and
- * must stay reachable, and `/api/client/*` is the client-facing lane.
+ * API lanes that are *not* internal-only. Everything else under `/api` is.
+ *
+ * Default-deny is the right way round, so each entry here is a decision:
+ *
+ * - `/api/auth`     better-auth itself; signing in cannot require being signed in.
+ * - `/api/client`   the client-facing lane (company profiles, factories).
+ * - `/api/store`    buying a standard. Any signed-in account may (D13) — an
+ *                   employee buying a BDS is a buyer who happens to have an
+ *                   employee ID — so gating it on INTERNAL would refuse every
+ *                   actual customer.
+ * - `/api/payments` the gateway's lane. The IPN callback is made by the payment
+ *                   gateway server-to-server with **no session at all**, so it
+ *                   cannot sit behind an account check of any kind.
+ *
+ * Being outside the internal gate is not the same as being unguarded: each
+ * route still enforces its own rule. `/api/store/checkout` demands a session;
+ * the IPN handler trusts the request body for nothing but a reference, and asks
+ * the gateway what really happened before settling anything.
  */
+export const PUBLIC_API_PREFIXES = [
+  "/api/auth",
+  "/api/client",
+  "/api/store",
+  "/api/payments",
+] as const;
+
 export function isInternalApiPath(pathname: string): boolean {
   if (!pathname.startsWith("/api")) return false;
-  return !pathname.startsWith("/api/auth") && !pathname.startsWith("/api/client");
+  return !PUBLIC_API_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 // ─── Mobile numbers ──────────────────────────────────────────────────────────

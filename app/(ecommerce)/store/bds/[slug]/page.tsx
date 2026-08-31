@@ -5,12 +5,12 @@ import {
   ArrowRight,
   ShieldCheck,
   FileText,
-  Download,
-  ShoppingCart,
   Info,
   AlertTriangle,
 } from "lucide-react";
 import Navbar, { STORE_NAV } from "../../Navbar";
+import BuyButton from "../_components/BuyButton";
+import { activeProvider } from "@/lib/payments/registry";
 import { getBdsBySlug, getRelatedBds, formatTaka } from "@/lib/store/bds";
 
 type Props = { params: { slug: string } };
@@ -169,30 +169,22 @@ export default async function BdsDetailPage({ params }: Props) {
                 {formatTaka(bds.priceBdt)}
               </p>
               <p className="mt-2 text-[13px] text-muted-foreground">
-                Digital copy (PDF). VAT added at checkout.
+                Digital copy (PDF).
               </p>
 
-              <div className="mt-5 flex flex-col gap-2">
-                <button
-                  disabled
-                  className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-[14px] font-semibold text-primary-foreground opacity-45"
-                >
-                  <ShoppingCart className="h-4 w-4" strokeWidth={2} />
-                  Add to cart
-                </button>
-                <button
-                  disabled
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 text-[14px] font-semibold text-body opacity-45"
-                >
-                  <Download className="h-4 w-4" strokeWidth={2} />
-                  Buy and download
-                </button>
+              <div className="mt-5">
+                <BuyButton
+                  bdsId={bds.id}
+                  priceBdt={bds.priceBdt}
+                  isSandbox={activeProvider().isSandbox}
+                />
               </div>
 
               <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-muted px-3.5 py-3">
                 <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={2} />
                 <p className="text-[12.5px] leading-relaxed text-body">
-                  Online purchase opens when payments go live. The catalogue is browsable now.
+                  The PDF download arrives with the kernel document store. Your purchase is recorded
+                  against your account now.
                 </p>
               </div>
 

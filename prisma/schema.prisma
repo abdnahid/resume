@@ -306,6 +306,9 @@ model User {
   employee Employee?
 
   organizationMemberships OrganizationMembership[]
+
+  payments      Payment[]
+  bdsPurchases  BdsPurchase[]
 }
 
 model Session {
@@ -840,6 +843,9 @@ model Organization {
 
   @@index([type])
   @@index([parentId])
+
+  payments     Payment[]
+  bdsPurchases BdsPurchase[]
 }
 
 /// One person's standing in one organization.
@@ -1457,6 +1463,32 @@ enum BdsStatus {
   withdrawn
 }
 
+/// What a payment is for. The kernel payment service is shared by every module
+/// (spec §1: a module that reimplements payments means the kernel is wrong), so
+/// the purpose lives on the payment rather than the payment living on the thing
+/// being paid for.
+enum PaymentPurpose {
+  bds_purchase
+  application_fee
+  testing_fee
+  licence_fee
+}
+
+/// Where a payment has got to.
+///
+/// `initiated` means the payer was sent to the gateway and we are waiting.
+/// Only a server-side `verify()` may move a row to `paid` — never the browser
+/// coming back from a success URL, which anyone can navigate to directly.
+enum PaymentStatus {
+  pending
+  initiated
+  paid
+  failed
+  cancelled
+  expired
+  refunded
+}
+
 /// Standards division — the subject grouping the store uses as its primary
 /// facet. A table rather than an enum so labels stay bilingual and a new
 /// division is data entry, not a migration.
@@ -1471,7 +1503,6 @@ model BdsDivision {
 }
 
 /// A published Bangladesh Standard, as sold by the Standards Wing.
-/// Catalogue only — purchases arrive in step 3.
 model Bds {
   id Int @id @default(autoincrement())
 
@@ -1515,6 +1546,8 @@ model Bds {
   // check 3) matches a purchase against the product being applied for. The
   // product catalogue arrives with Phase G reference data.
 
+  purchases BdsPurchase[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1522,4 +1555,166 @@ model Bds {
   @@index([status])
   @@index([publishedOn])
   @@index([priceBdt])
+}
+
+
+// ─── Payments (kernel service) ───────────────────────────────────────────────
+
+/// One money event, whatever module raised it.
+///
+/// Amounts are **integer poisha**, never taka floats: 15% VAT on a whole-taka
+/// price is fractional for most prices, and a float would eventually make the
+/// Income and VAT account totals disagree with what was charged.
+model Payment {
+  id Int @id @default(autoincrement())
+
+  /// Human-readable, printed on the demand note and invoice. Spec §6 requires
+  /// reconciliation to key on **this and nothing else** — not name, not amount,
+  /// not date — because the payer may pay "from anywhere" and all three collide.
+  reference String @unique
+
+  purpose PaymentPurpose
+
+  /// What is being paid for. Deliberately loose rather than a FK per purpose:
+  /// applications, test plans and licences do not exist yet, and the payment
+  /// service must not need a schema change to serve each new one.
+  subjectType String
+  subjectId   String
+
+  /// The Income Fee account's share, in poisha.
+  incomePoisha Int
+  /// The VAT account's share, in poisha.
+  vatPoisha    Int
+  /// What the payer is charged. Always `income + vat` — the e-Challan splits one
+  /// payment across two accounts and they have to reconcile.
+  totalPoisha  Int
+  /// The VAT rate used, in basis points (1500 = 15%). Snapshot, so a later rate
+  /// change cannot restate a settled payment.
+  vatRateBp    Int @default(1500)
+
+  status PaymentStatus @default(pending)
+
+  /// Which gateway handled it, so a record always says who processed the money.
+  provider    String
+  /// True when no real money could move. Stored rather than derived from the
+  /// provider name, so a sandbox payment stays identifiable for ever.
+  isSandbox   Boolean @default(false)
+  /// The gateway's own transaction id.
+  providerRef String?
+  /// "bkash", "nagad", "visa"… as the gateway names it.
+  method      String?
+
+  /// The gateway's reported amount at settlement, kept even when it matches, so
+  /// a mismatch is visible in the record rather than only in a log.
+  settledPoisha Int?
+  paidAt        DateTime?
+  failureReason String?
+
+  /// Who paid. Per D13 a payment always hangs off a User — an employee buying a
+  /// standard is a buyer who happens to have an employee ID.
+  payerUserId String
+  payer       User   @relation(fields: [payerUserId], references: [id])
+
+  /// The acting-as company, when there was one (spec §2.5 — purchases and
+  /// payments are scoped to the active context).
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt @default(now())
+
+  events   PaymentEvent[]
+  purchase BdsPurchase?
+
+  @@index([status])
+  @@index([payerUserId])
+  @@index([organizationId])
+  @@index([subjectType, subjectId])
+}
+
+/// Append-only audit of everything that happened to a payment.
+///
+/// Money needs a trail that survives the row being updated: "who says it was
+/// paid, and what exactly did they say" is the question a reconciliation
+/// dispute turns on.
+model PaymentEvent {
+  id Int @id @default(autoincrement())
+
+  paymentId Int
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  /// "created", "redirected", "ipn", "verified", "settled", "rejected"…
+  kind String
+  /// The status the payment moved to, when this event moved it.
+  status PaymentStatus?
+  note   String?
+  /// Whatever the gateway sent, verbatim.
+  raw    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+}
+
+/// A bought standard (spec §3.2).
+model BdsPurchase {
+  id Int @id @default(autoincrement())
+
+  /// Printed on the invoice.
+  purchaseNumber String @unique
+
+  bdsId Int
+  bds   Bds @relation(fields: [bdsId], references: [id])
+
+  /// Spec §3.2 models the buyer as `buyer_type` + `buyer_id`. Deviating per
+  /// D13: the buyer is always a User, and the company they were acting as (if
+  /// any) is a separate nullable link. That keeps one identity across both
+  /// surfaces instead of two mutually exclusive id columns.
+  buyerUserId String
+  buyer       User   @relation(fields: [buyerUserId], references: [id])
+
+  organizationId Int?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  paymentId Int     @unique
+  payment   Payment @relation(fields: [paymentId], references: [id])
+
+  purchasedAt DateTime @default(now())
+
+  /// D5 / spec §3.3 — a purchased BDS may be attached to exactly one new
+  /// application, ever. UNIQUE from day one even though nothing reads it until
+  /// step 6: retrofitting a unique index onto a live purchase table is the
+  /// expensive version. Nulls are excluded from uniqueness in PostgreSQL, so
+  /// any number of unconsumed purchases coexist.
+  consumedByApplicationId Int? @unique
+
+  @@index([buyerUserId])
+  @@index([bdsId])
+  @@index([organizationId])
+}
+
+/// The sandbox gateway's own ledger.
+///
+/// A deliberate separate table, not a column on `Payment`. The sandbox stands in
+/// for an external gateway, and the discipline being rehearsed is that a payment
+/// is settled by **asking the gateway**, never by reading its own status. If the
+/// sandbox recorded its outcome on the payment row, `verify()` would be circular
+/// and the habit would not transfer to SSLCommerz or the e-Challan.
+///
+/// Nothing outside `lib/payments/sandbox.ts` may touch this table.
+model SandboxGatewayTxn {
+  id Int @id @default(autoincrement())
+
+  /// The merchant reference the session was opened against.
+  reference String @unique
+  /// The gateway's own id, the shape a real one would issue.
+  gatewayTxnId String @unique
+
+  amountPoisha Int
+  /// "created" until the payer acts, then "paid" | "failed" | "cancelled".
+  outcome String @default("created")
+  method  String?
+
+  createdAt  DateTime  @default(now())
+  settledAt  DateTime?
 }
