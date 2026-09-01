@@ -44,6 +44,8 @@ const APP_INCLUDE = {
   },
   bstiOffice: { select: { id: true, nameEn: true, nameBn: true } },
   documents: { orderBy: { id: "asc" as const } },
+  production: { include: { capacityUnit: { include: { sizeType: true } } } },
+  answers: true,
   applicationFeePayment: true,
   events: { orderBy: { id: "desc" as const }, take: 20 },
 };
@@ -454,6 +456,8 @@ export async function gapsFor(applicationId: number) {
         include: { standards: { include: { bds: { select: { id: true, number: true } } } } },
       },
       attachedPurchases: { select: { bdsId: true } },
+      production: { select: { annualCapacityValue: true, currentYearLabel: true } },
+      answers: { select: { questionKey: true, answerText: true, answerNumber: true } },
       _count: { select: { skus: true } },
     },
   });
@@ -474,6 +478,9 @@ export async function gapsFor(applicationId: number) {
     factoryId: app.factoryId,
     documents: app.documents,
     organizationComplete: companyGaps(app.organization).length === 0,
+    production: app.production,
+    answers: app.answers,
+    consentAcceptedAt: app.consentAcceptedAt,
   });
 }
 

@@ -7,7 +7,7 @@
  * that a licence gains over its life, not a paragraph written once.
  */
 import { prisma } from "@/lib/prisma";
-import { validateSku, type SkuInput } from "./policy";
+import { validateSku, validateLabelImage, type SkuInput } from "./policy";
 
 /** The size vocabulary the form offers — 12 types, 43 units. */
 export async function sizeVocabulary() {
@@ -49,6 +49,25 @@ async function guard(applicationId: number, userId: string) {
     throw new Error("You do not have permission to change this application.");
   }
   return app;
+}
+
+/**
+ * The label columns, or nothing.
+ *
+ * `undefined` for `labelImageName` means "leave whatever is there" — an edit
+ * that does not touch the label must not clear it. An explicit `null` clears.
+ */
+function labelFields(input: SkuInput) {
+  if (input.labelImageName === undefined) return {};
+  const problem = validateLabelImage(input);
+  if (problem) throw new Error(problem.message);
+  return input.labelImageName === null
+    ? { labelImageName: null, labelImageSizeBytes: null, labelImageMime: null }
+    : {
+        labelImageName: input.labelImageName,
+        labelImageSizeBytes: input.labelImageSizeBytes ?? null,
+        labelImageMime: input.labelImageMime ?? null,
+      };
 }
 
 async function resolveSize(input: SkuInput) {
@@ -105,6 +124,7 @@ export async function addSku(applicationId: number, input: SkuInput, userId: str
       grade: text(input.grade),
       sortOrder: (last?.sortOrder ?? -1) + 1,
       ...size,
+      ...labelFields(input),
     },
     include: SKU_INCLUDE,
   });
@@ -144,6 +164,7 @@ export async function updateSku(
       packaging: text(input.packaging),
       grade: text(input.grade),
       ...size,
+      ...labelFields(input),
     },
     include: SKU_INCLUDE,
   });

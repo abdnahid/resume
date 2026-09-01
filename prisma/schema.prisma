@@ -310,8 +310,9 @@ model User {
   payments     Payment[]
   bdsPurchases BdsPurchase[]
 
-  applications      Application[]
-  applicationEvents ApplicationEvent[]
+  applications        Application[]
+  applicationEvents   ApplicationEvent[]
+  applicationConsents Application[]      @relation("ApplicationConsent")
 }
 
 model Session {
@@ -1854,6 +1855,13 @@ model Application {
   applicationFeePaymentId Int?     @unique
   applicationFeePayment   Payment? @relation("ApplicationFee", fields: [applicationFeePaymentId], references: [id])
 
+  /// The applicant's declaration that everything stated is true, taken at the
+  /// end of the form. Stored as a time and a person, not a boolean: a consent
+  /// that cannot say who gave it or when is not a declaration.
+  consentAcceptedAt DateTime?
+  consentAcceptedBy String?
+  consenter         User?     @relation("ApplicationConsent", fields: [consentAcceptedBy], references: [id])
+
   submittedAt DateTime?
   createdBy   String
   creator     User      @relation(fields: [createdBy], references: [id])
@@ -1890,7 +1898,9 @@ model Application {
   /// mango 2 L in a plastic bottle — and the licence names each. Replaced the
   /// free-text `brandName` + `productDetails` pair, which could hold the same
   /// information but not count it, group it, or carry it onto a certificate.
-  skus ApplicationSku[]
+  skus       ApplicationSku[]
+  production ApplicationProduction?
+  answers    ApplicationAnswer[]
 
   @@index([organizationId])
   @@index([factoryId])
@@ -2101,7 +2111,8 @@ model SizeUnit {
 
   sortOrder Int @default(0)
 
-  skus ApplicationSku[]
+  skus       ApplicationSku[]
+  capacities ApplicationProduction[]
 
   @@unique([sizeTypeId, code])
   @@index([sizeTypeId])
@@ -2159,6 +2170,18 @@ model ApplicationSku {
   /// Grade or class where the standard defines them — "Grade A", "OPC 53".
   grade String?
 
+  /// The packaging artwork for **this article**, recorded per SKU rather than
+  /// once per application: a licence covers each brand/size/flavour separately
+  /// and each is sold in its own wrapper, so one label per file could only ever
+  /// describe one of them.
+  ///
+  /// **Metadata only — the bytes are not kept.** The kernel document store does
+  /// not exist yet (D47 is schema, not a client), and the screen says so rather
+  /// than showing a progress bar that quietly discards the file.
+  labelImageName      String?
+  labelImageSizeBytes Int?
+  labelImageMime      String?
+
   sortOrder Int @default(0)
 
   createdAt DateTime @default(now())
@@ -2167,4 +2190,74 @@ model ApplicationSku {
   @@index([applicationId])
   @@index([sizeTypeId])
   @@index([sizeUnitId])
+}
+
+/// Who registered the plant, and therefore whose approved capacity figure the
+/// applicant is quoting. A Bangladeshi manufacturer sits under one of four.
+enum CapacityAuthority {
+  bida  // Bangladesh Investment Development Authority
+  beza  // Bangladesh Economic Zones Authority
+  bepza // Bangladesh Export Processing Zones Authority
+  bscic // Bangladesh Small and Cottage Industries Corporation
+  other
+}
+
+/// What the factory can make of **this product**, and what it actually made.
+///
+/// On the application rather than the factory, and deliberately: one plant may
+/// run several product lines, so a capacity figure is only meaningful next to
+/// the product it is for. It is also a statement made on a date — a file has to
+/// keep saying what was claimed when it was submitted, the same reason the
+/// receiving office is snapshotted.
+model ApplicationProduction {
+  applicationId Int         @id
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  authority      CapacityAuthority
+  /// The registration or approval number the capacity is quoted from. Null when
+  /// the authority is `other` and the applicant has no number to give.
+  registrationNo String?
+
+  /// Approved annual capacity, in the same units the article is measured in —
+  /// `SizeUnit` is reused so a capacity in litres cannot be recorded against a
+  /// product sold by weight.
+  annualCapacityValue Decimal @db.Decimal(16, 3)
+  capacityUnitId      Int
+  capacityUnit        SizeUnit @relation(fields: [capacityUnitId], references: [id])
+
+  /// The year being reported, as the applicant writes it — "2025-2026". Free
+  /// text because Bangladesh's fiscal year and the calendar year are both in
+  /// ordinary use and the form should not force a choice.
+  currentYearLabel      String
+  currentYearProduction Decimal @db.Decimal(16, 3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([capacityUnitId])
+}
+
+/// One answer to one of BSTI's questions about how the factory runs.
+///
+/// Rows keyed by question rather than columns, because the question set is an
+/// `[ASSUMPTION]` awaiting CM Wing (the same standing as the document checklist)
+/// and a set that changes must not mean a migration. `CM_QUESTIONS` in
+/// `lib/cm/policy.ts` is the catalogue.
+model ApplicationAnswer {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// Matches a `key` in `CM_QUESTIONS`.
+  questionKey String
+  answerText  String?
+  /// For a `number` question — manpower counts and the like.
+  answerNumber Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([applicationId, questionKey])
+  @@index([applicationId])
 }

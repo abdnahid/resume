@@ -41,6 +41,17 @@ function readSku(body: Record<string, unknown>): SkuInput | null {
         ? null
         : (body.unitsPerPack as string | number),
     grade: typeof body.grade === "string" ? body.grade : null,
+    // `undefined` when the client did not mention the label at all, so an edit
+    // of the other fields leaves it alone; explicit null clears it.
+    labelImageName:
+      "labelImageName" in body
+        ? typeof body.labelImageName === "string" && body.labelImageName
+          ? body.labelImageName
+          : null
+        : undefined,
+    labelImageSizeBytes:
+      typeof body.labelImageSizeBytes === "number" ? body.labelImageSizeBytes : null,
+    labelImageMime: typeof body.labelImageMime === "string" ? body.labelImageMime : null,
   };
 }
 

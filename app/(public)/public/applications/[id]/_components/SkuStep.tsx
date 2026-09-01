@@ -26,6 +26,8 @@ export type Sku = {
   packaging: string | null;
   unitsPerPack: number | null;
   grade: string | null;
+  labelImageName: string | null;
+  labelImageSizeBytes: number | null;
   sizeType: { id: number; nameEn: string; kind: string };
   sizeUnit: { id: number; code: string };
 };
@@ -39,6 +41,9 @@ type Draft = {
   packaging: string;
   unitsPerPack: string;
   grade: string;
+  labelImageName: string;
+  labelImageSizeBytes: number | null;
+  labelImageMime: string;
 };
 
 const EMPTY: Draft = {
@@ -50,6 +55,9 @@ const EMPTY: Draft = {
   packaging: "",
   unitsPerPack: "",
   grade: "",
+  labelImageName: "",
+  labelImageSizeBytes: null,
+  labelImageMime: "",
 };
 
 /** `200 ml × 24` — how one SKU's size reads on its row. */
@@ -121,6 +129,9 @@ export default function SkuStep({
       packaging: s.packaging ?? "",
       unitsPerPack: s.unitsPerPack ? String(s.unitsPerPack) : "",
       grade: s.grade ?? "",
+      labelImageName: s.labelImageName ?? "",
+      labelImageSizeBytes: s.labelImageSizeBytes,
+      labelImageMime: "",
     });
   }
 
@@ -158,6 +169,9 @@ export default function SkuStep({
         packaging: draft.packaging,
         unitsPerPack: draft.unitsPerPack,
         grade: draft.grade,
+        labelImageName: draft.labelImageName || null,
+        labelImageSizeBytes: draft.labelImageSizeBytes,
+        labelImageMime: draft.labelImageMime || null,
       };
       const res = await fetch(`/api/client/applications/${applicationId}/skus`, {
         method: editingId ? "PATCH" : "POST",
@@ -420,6 +434,53 @@ export default function SkuStep({
                   onChange={set("grade")}
                 />
               </div>
+            </div>
+
+            {/* The label belongs to the article, not the application: every
+                brand, size and flavour is sold in its own wrapper, so one
+                artwork per file could only ever describe one of them. */}
+            <div className="mt-5 border-t border-border pt-5">
+              <label className={label}>Packaging label / artwork for this variant</label>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    setDraft((d) =>
+                      d
+                        ? {
+                            ...d,
+                            labelImageName: f?.name ?? "",
+                            labelImageSizeBytes: f?.size ?? null,
+                            labelImageMime: f?.type ?? "",
+                          }
+                        : d,
+                    );
+                  }}
+                  className="block w-full max-w-sm text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-border file:bg-secondary/50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground"
+                />
+                {draft.labelImageName && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((d) =>
+                        d ? { ...d, labelImageName: "", labelImageSizeBytes: null, labelImageMime: "" } : d,
+                      )
+                    }
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                <strong className="font-medium text-foreground">
+                  The file itself is not stored yet.
+                </strong>{" "}
+                BSTI&apos;s document store is not built, so only the file name is recorded against
+                this variant — bring the artwork with you. JPEG, PNG, WebP or PDF, up to 8 MB.
+              </p>
             </div>
           </div>
 

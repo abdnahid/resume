@@ -479,6 +479,36 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   progress bar that silently drops the file would leave an applicant believing
   BSTI holds their trade licence when it does not.
 
+- **The application is a four-step form** (D52), routed by `?step=1..4` with
+  `StepNavButton` — same pattern as the profile wizard, because `loading.tsx`
+  does not fire for a same-route navigation. Step 1 reads the company and
+  factory back without letting them be edited there (they are shared by every
+  application, so an edit inside one file would change the others); step 2 is
+  the product, standards, SKUs and documents; step 3 is production capacity;
+  step 4 is BSTI's questions and the declaration.
+
+- **Two trackers, and they swap at submission.** `FormProgress` while the file
+  is editable, `StageTracker` once it is not. "Who holds my file" is only a
+  question after submission — before it every draft answers identically — and
+  "what is still missing" is only a question before. `Gap.step` is what lets one
+  gap list drive both, so a new requirement is one `missingForSubmission()` entry
+  and appears in the tracker on its own.
+
+- **Packaging artwork hangs off each SKU, not the application** (D53). A licence
+  covers every brand, size and flavour separately and each is sold in its own
+  wrapper. Still **metadata only** — the bytes are discarded and the field says
+  so, exactly like the documents.
+
+- **Production capacity and the questionnaire live on the application** (D54),
+  because one plant may run several product lines and a capacity figure only
+  means something beside the product it is for. `prefillableAnswers()` carries
+  the *factory-level* answers — manpower, quality control, records — across from
+  that factory's most recent other application, and never the capacity, which
+  would be the wrong product's numbers.
+
+- **The declaration is a time and a person** (D55), refused while a required
+  answer is blank and withdrawable while the file is a draft.
+
 - **The stage tracker names who holds the file**, not just where it is. Spec §8
   calls that single feature most of the perceived value of the system, because
   it replaces a phone call.

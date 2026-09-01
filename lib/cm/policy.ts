@@ -284,7 +284,34 @@ export type SkuInput = {
   packaging?: string | null;
   unitsPerPack?: number | string | null;
   grade?: string | null;
+  /**
+   * The packaging artwork for this article — **metadata only**. The bytes are
+   * not kept: there is no document store yet, and a form that silently drops a
+   * file is worse than one that says it cannot take it.
+   */
+  labelImageName?: string | null;
+  labelImageSizeBytes?: number | null;
+  labelImageMime?: string | null;
 };
+
+/** What a label image may be. Checked server-side, not just by the file input. */
+export const LABEL_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
+export const LABEL_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
+export function validateLabelImage(input: {
+  labelImageName?: string | null;
+  labelImageSizeBytes?: number | null;
+  labelImageMime?: string | null;
+}): SkuProblem | null {
+  if (!input.labelImageName) return null;
+  if (input.labelImageMime && !LABEL_IMAGE_MIMES.includes(input.labelImageMime as never)) {
+    return { field: "labelImage", message: "The label must be a JPEG, PNG, WebP or PDF." };
+  }
+  if ((input.labelImageSizeBytes ?? 0) > LABEL_IMAGE_MAX_BYTES) {
+    return { field: "labelImage", message: "The label must be 8 MB or smaller." };
+  }
+  return null;
+}
 
 export type SkuProblem = { field: string; message: string };
 
@@ -373,7 +400,188 @@ export function describeSku(sku: {
  * same reason: the requirement set is an assumption, and named gaps tell the
  * applicant what to do next where a percentage does not.
  */
-export type Gap = { field: string; label: string };
+
+/**
+ * The authorities a Bangladeshi manufacturer's approved capacity is registered
+ * with. Fixed list rather than free text: the figure in step 3 means "approved
+ * by whom", and an unnamed approver is not a reference.
+ */
+export const CAPACITY_AUTHORITIES = [
+  { value: "bida", labelEn: "BIDA", nameEn: "Bangladesh Investment Development Authority" },
+  { value: "beza", labelEn: "BEZA", nameEn: "Bangladesh Economic Zones Authority" },
+  { value: "bepza", labelEn: "BEPZA", nameEn: "Bangladesh Export Processing Zones Authority" },
+  { value: "bscic", labelEn: "BSCIC", nameEn: "Bangladesh Small and Cottage Industries Corporation" },
+  { value: "other", labelEn: "Other", nameEn: "Registered elsewhere, or not registered" },
+] as const;
+
+export type CapacityAuthorityValue = (typeof CAPACITY_AUTHORITIES)[number]["value"];
+
+export function isCapacityAuthority(v: unknown): v is CapacityAuthorityValue {
+  return CAPACITY_AUTHORITIES.some((a) => a.value === v);
+}
+
+/**
+ * What BSTI asks about how the factory actually runs.
+ *
+ * **[ASSUMPTION — needs CM Wing confirmation]**, the same standing as
+ * `CM_DOCUMENTS`. Drafted from the client's own list: identification,
+ * isolation on a quality problem, the manufacturing steps, manpower, the
+ * quality-control system, and records. Data rather than a form, so the real
+ * set is an edit here and never a migration — `ApplicationAnswer` is keyed by
+ * `key`, not columned.
+ *
+ * `number` questions store `answerNumber`; everything else stores `answerText`.
+ */
+export type QuestionGroup = {
+  key: string;
+  titleEn: string;
+  blurbEn?: string;
+  questions: readonly Question[];
+};
+
+export type Question = {
+  key: string;
+  labelEn: string;
+  hintEn?: string;
+  type: "text" | "longtext" | "number";
+  required: boolean;
+};
+
+export const CM_QUESTIONS: readonly QuestionGroup[] = [
+  {
+    key: "identification",
+    titleEn: "Identification and traceability",
+    blurbEn:
+      "How a finished article can be traced back to the batch that made it. This is what makes a recall possible.",
+    questions: [
+      {
+        key: "how_identified",
+        labelEn: "How are the products identified?",
+        hintEn: "Batch or lot coding, date of manufacture, shift marking — whatever is printed on the article or its pack.",
+        type: "longtext",
+        required: true,
+      },
+      {
+        key: "isolation",
+        labelEn: "How does the system allow products to be isolated if there is a quality problem?",
+        hintEn: "How a suspect batch is held back, and how far it can be traced once it has left the factory.",
+        type: "longtext",
+        required: true,
+      },
+    ],
+  },
+  {
+    key: "process",
+    titleEn: "Manufacturing process",
+    questions: [
+      {
+        key: "process_steps",
+        labelEn: "Describe the stages of manufacture, in order.",
+        hintEn:
+          "A production schedule or a flow chart showing the stages is helpful — you can also attach one as the production flow chart document.",
+        type: "longtext",
+        required: true,
+      },
+      {
+        key: "process_outsourced",
+        labelEn: "Is any stage carried out by another party?",
+        hintEn: "Contract filling, printing, sterilising. Name the stage and who does it, or write None.",
+        type: "text",
+        required: false,
+      },
+    ],
+  },
+  {
+    key: "manpower",
+    titleEn: "Manpower",
+    questions: [
+      { key: "manpower_total", labelEn: "Total employees at this factory", type: "number", required: true },
+      { key: "manpower_technical", labelEn: "Technical and production staff", type: "number", required: true },
+      { key: "manpower_qc", labelEn: "Staff engaged in quality control", type: "number", required: true },
+      {
+        key: "manpower_qc_incharge",
+        labelEn: "Who is in charge of quality control, and what are their qualifications?",
+        type: "text",
+        required: true,
+      },
+    ],
+  },
+  {
+    key: "quality",
+    titleEn: "Quality control system",
+    questions: [
+      {
+        key: "qc_stages",
+        labelEn: "How is quality checked on raw materials, during production, and on the finished product?",
+        type: "longtext",
+        required: true,
+      },
+      {
+        key: "qc_lab",
+        labelEn: "What testing can you do in your own laboratory?",
+        hintEn: "Which tests in the standard you can run yourselves, and which you send out.",
+        type: "longtext",
+        required: true,
+      },
+      {
+        key: "qc_calibration",
+        labelEn: "How is testing equipment calibrated, and how often?",
+        type: "text",
+        required: true,
+      },
+      {
+        key: "qc_nonconforming",
+        labelEn: "What happens to product that fails a test?",
+        type: "longtext",
+        required: true,
+      },
+    ],
+  },
+  {
+    key: "records",
+    titleEn: "Records and documentation",
+    questions: [
+      {
+        key: "rec_kept",
+        labelEn: "What production and testing records are kept, and for how long?",
+        type: "longtext",
+        required: true,
+      },
+      {
+        key: "rec_complaints",
+        labelEn: "How are customer complaints recorded and acted on?",
+        type: "longtext",
+        required: true,
+      },
+    ],
+  },
+];
+
+export const CM_QUESTION_INDEX: ReadonlyMap<string, Question> = new Map(
+  CM_QUESTIONS.flatMap((g) => g.questions.map((q) => [q.key, q] as const)),
+);
+
+/**
+ * The four steps of the application form.
+ *
+ * The form is stepped rather than one long page because the four ask different
+ * things of different people: step 1 is a check of what the company already
+ * told us, step 2 is the product, step 3 is numbers from the plant, step 4 is a
+ * description of how it is run. A single page hid how much was left and made
+ * the company details — which the applicant can only fix elsewhere — look like
+ * just more fields to fill.
+ */
+export const FORM_STEPS = [
+  { step: 1, key: "company", titleEn: "Company and factory", blurbEn: "Check what BSTI holds about you" },
+  { step: 2, key: "product", titleEn: "Product and articles", blurbEn: "What you are certifying" },
+  { step: 3, key: "production", titleEn: "Production capacity", blurbEn: "What the plant makes" },
+  { step: 4, key: "practice", titleEn: "How the factory runs", blurbEn: "BSTI's questions, and your declaration" },
+] as const;
+
+export type FormStep = (typeof FORM_STEPS)[number]["step"];
+
+/** `step` is what lets the tracker say *where* a file is incomplete. */
+export type Gap = { field: string; label: string; step: FormStep };
 
 export function missingForSubmission(app: {
   productId: number | null;
@@ -389,23 +597,28 @@ export function missingForSubmission(app: {
   factoryId: number | null;
   documents: { kind: string }[];
   organizationComplete: boolean;
+  /** Step 3. Null until the applicant fills it in. */
+  production?: { annualCapacityValue: unknown; currentYearLabel: string } | null;
+  /** Step 4 — every answer held, keyed by question. */
+  answers?: { questionKey: string; answerText: string | null; answerNumber: number | null }[];
+  consentAcceptedAt?: Date | null;
 }): Gap[] {
   const gaps: Gap[] = [];
   if (!app.organizationComplete)
-    gaps.push({ field: "organization", label: "Complete the company profile" });
-  if (!app.factoryId) gaps.push({ field: "factory", label: "Choose the factory" });
-  if (!app.productId) gaps.push({ field: "product", label: "Choose the product to certify" });
+    gaps.push({ field: "organization", label: "Complete the company profile", step: 1 });
+  if (!app.factoryId) gaps.push({ field: "factory", label: "Choose the factory", step: 1 });
+  if (!app.productId) gaps.push({ field: "product", label: "Choose the product to certify", step: 2 });
   else if (app.product && !productEligibilityPolicy(app.product).allowed) {
     // Second layer on the closed list of 315: `setProduct()` refuses one, but a
     // row written before the rule existed — or a product later taken off the
     // list — must not reach the fee.
-    gaps.push({ field: "product", label: "Choose a product under mandatory certification" });
+    gaps.push({ field: "product", label: "Choose a product under mandatory certification", step: 2 });
   } else {
     // One gap per unattached standard, named. A product needing three parts
     // and holding one should say which two are missing, not "attach your
     // purchases".
     for (const std of app.standards.filter((s) => !s.attached)) {
-      gaps.push({ field: `bds:${std.number}`, label: `Attach your purchase of ${std.number}` });
+      gaps.push({ field: `bds:${std.number}`, label: `Attach your purchase of ${std.number}`, step: 2 });
     }
     if (app.standards.length === 0) {
       // A mandatory product with no standard recorded cannot be certified
@@ -414,6 +627,7 @@ export function missingForSubmission(app: {
       gaps.push({
         field: "product",
         label: "This product has no standard recorded — contact BSTI",
+        step: 2,
       });
     }
   }
@@ -422,14 +636,48 @@ export function missingForSubmission(app: {
   // licence anyone could issue — and the SKUs decide how many samples are drawn
   // at inspection, so the reviewing officer cannot plan without them.
   if (app.productId && app.skuCount === 0) {
-    gaps.push({ field: "skus", label: "List at least one product variant (SKU)" });
+    gaps.push({ field: "skus", label: "List at least one product variant (SKU)", step: 2 });
   }
 
   const held = new Set(app.documents.map((d) => d.kind));
   for (const req of CM_DOCUMENTS) {
     if (req.required && !held.has(req.kind)) {
-      gaps.push({ field: `doc:${req.kind}`, label: req.label });
+      gaps.push({ field: `doc:${req.kind}`, label: req.label, step: 2 });
     }
   }
+
+  // Step 3 — the plant's capacity for this product. Checked as a whole rather
+  // than field by field: the row is written in one save, so it is either given
+  // or it is not.
+  if (app.production === null || app.production === undefined) {
+    gaps.push({ field: "production", label: "Give the production capacity and this year's output", step: 3 });
+  }
+
+  // Step 4 — BSTI's questions, then the declaration. The declaration is last on
+  // purpose: it says the answers above are true, so it cannot be given first.
+  if (app.answers) {
+    const answered = new Map(app.answers.map((a) => [a.questionKey, a]));
+    for (const group of CM_QUESTIONS) {
+      for (const q of group.questions) {
+        if (!q.required) continue;
+        const a = answered.get(q.key);
+        const given =
+          q.type === "number" ? typeof a?.answerNumber === "number" : !!a?.answerText?.trim();
+        if (!given) gaps.push({ field: `q:${q.key}`, label: q.labelEn, step: 4 });
+      }
+    }
+  }
+  if (!app.consentAcceptedAt) {
+    gaps.push({ field: "consent", label: "Confirm the declaration", step: 4 });
+  }
+
   return gaps;
+}
+
+/** How complete each step is — what the tracker renders. */
+export function stepProgress(gaps: Gap[]) {
+  return FORM_STEPS.map((s) => {
+    const outstanding = gaps.filter((g) => g.step === s.step);
+    return { ...s, outstanding: outstanding.length, complete: outstanding.length === 0 };
+  });
 }

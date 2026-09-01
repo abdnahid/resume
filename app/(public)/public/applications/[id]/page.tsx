@@ -1,17 +1,23 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, Factory as FactoryIcon, MapPin } from "lucide-react";
+import { ArrowLeft, Building2, Factory as FactoryIcon } from "lucide-react";
 import { requireClient } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { getApplication, gapsFor, requirementsFor, membershipFor } from "@/lib/cm/applications";
 import { sizeVocabulary } from "@/lib/cm/skus";
-import { CM_DOCUMENTS } from "@/lib/cm/policy";
+import { prefillableAnswers } from "@/lib/cm/practice";
+import { CM_DOCUMENTS, FORM_STEPS, stepProgress, type FormStep } from "@/lib/cm/policy";
+import { missingForSubmission as companyGaps } from "@/lib/client/organization";
 import { isEditable, stageInfo } from "@/lib/cm/states";
 import Footer from "@/components/layout/Footer";
 import StageTracker from "./_components/StageTracker";
+import FormProgress, { StepGaps, StepNav } from "./_components/FormProgress";
+import CompanyStep from "./_components/CompanyStep";
 import BdsStep from "./_components/BdsStep";
 import SkuStep from "./_components/SkuStep";
 import ProductStep from "./_components/ProductStep";
+import ProductionStep from "./_components/ProductionStep";
+import PracticeStep from "./_components/PracticeStep";
 import DocumentsStep from "./_components/DocumentsStep";
 import SubmitStep from "./_components/SubmitStep";
 
@@ -25,7 +31,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: `${app?.applicationNo ?? "Draft application"} — BSTI e-Services` };
 }
 
-export default async function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ApplicationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ step?: string }>;
+}) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
 
@@ -40,14 +52,27 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const app = await getApplication(id);
   if (!app) notFound();
 
-  const [gaps, requirements, sizeTypes] = await Promise.all([
+  const [gaps, requirements, sizeTypes, prefill, organization] = await Promise.all([
     gapsFor(id),
     requirementsFor(id, viewer.id),
     sizeVocabulary(),
+    prefillableAnswers(id),
+    prisma.organization.findUnique({
+      where: { id: app.organization.id },
+      include: { factories: { select: { id: true } } },
+    }),
   ]);
 
   const editable = isEditable(app.state) && membership.role !== "viewer";
   const info = stageInfo(app.state);
+
+  const raw = Number((await searchParams).step);
+  const step = (FORM_STEPS.some((s) => s.step === raw) ? raw : 1) as FormStep;
+  const progress = stepProgress(gaps ?? []);
+  const stepGaps = (gaps ?? []).filter((g) => g.step === step);
+
+  // Required questions still unanswered — the declaration waits on these.
+  const answerGaps = (gaps ?? []).filter((g) => g.field.startsWith("q:")).length;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -85,126 +110,205 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                 <FactoryIcon className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
                 {app.factory.nameEn}
               </span>
-              <span className="inline-flex items-center gap-1.5 font-bn">
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.8} />
-                {app.factory.district}
-              </span>
             </div>
           </div>
         </div>
 
-        {/* Which office has it — named whether or not it has been sent, so the
-            applicant knows where their file goes before they commit. */}
-        <p className="mt-5 rounded-xl border border-border bg-card px-4 py-3 text-sm">
-          <span className="text-muted-foreground">
-            {app.bstiOffice ? "Handled by" : "Will be handled by"}
-          </span>{" "}
-          <span className="font-bn font-medium text-foreground">
-            {(app.bstiOffice ?? app.factory.bstiOffice)?.nameBn ?? "an office yet to be determined"}
-          </span>
-          <span className="ml-2 text-xs text-muted-foreground">
-            — decided by the factory&apos;s district
-          </span>
-        </p>
-
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
-            <ProductStep
-              applicationId={app.id}
-              chosen={
-                app.product
-                  ? {
-                      id: app.product.id,
-                      serial: app.product.serial,
-                      nameEn: app.product.nameEn,
-                      nameBn: app.product.nameBn,
-                      genericNames: app.product.genericNames,
-                      category: {
-                        letter: app.product.category.letter,
-                        nameEn: app.product.category.nameEn,
-                        nameBn: app.product.category.nameBn,
-                      },
-                      standards: app.product.standards.map((s) => ({
-                        id: s.bds.id,
-                        number: s.bds.number,
-                        titleEn: s.bds.titleEn,
-                        asPrinted: s.asPrinted,
-                      })),
-                    }
-                  : null
-              }
-              editable={editable}
-            />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Step {step} of {FORM_STEPS.length}
+              </p>
+              <h2 className="mt-1 font-display text-xl font-medium text-foreground">
+                {FORM_STEPS[step - 1].titleEn}
+              </h2>
+            </div>
 
-            <SkuStep
-              applicationId={app.id}
-              productName={app.product?.nameEn ?? null}
-              skus={app.skus.map((s) => ({
-                id: s.id,
-                brandName: s.brandName,
-                variant: s.variant,
-                sizeValue: s.sizeValue === null ? null : String(s.sizeValue),
-                packaging: s.packaging,
-                unitsPerPack: s.unitsPerPack,
-                grade: s.grade,
-                sizeType: {
-                  id: s.sizeType.id,
-                  nameEn: s.sizeType.nameEn,
-                  kind: s.sizeType.kind as string,
-                },
-                sizeUnit: { id: s.sizeUnit.id, code: s.sizeUnit.code },
-              }))}
-              sizeTypes={sizeTypes.map((t) => ({
-                id: t.id,
-                slug: t.slug,
-                nameEn: t.nameEn,
-                nameBn: t.nameBn,
-                kind: t.kind as string,
-                hintEn: t.hintEn,
-                units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
-              }))}
-              editable={editable}
-            />
-
-            <BdsStep
-              applicationId={app.id}
-              productName={app.product?.nameEn ?? null}
-              requirements={requirements}
-              editable={editable}
-            />
-
-            <DocumentsStep
-              applicationId={app.id}
-              requirements={CM_DOCUMENTS}
-              held={app.documents.map((d) => ({
-                kind: d.kind,
-                fileName: d.fileName,
-                sizeBytes: d.sizeBytes,
-              }))}
-              editable={editable}
-            />
-
-            {editable && (
-              <SubmitStep
-                applicationId={app.id}
-                gaps={gaps ?? []}
-                feeStatus={app.applicationFeePayment?.status ?? null}
-                feeReference={app.applicationFeePayment?.reference ?? null}
+            {step === 1 && (
+              <CompanyStep
+                organization={{
+                  id: organization!.id,
+                  nameEn: organization!.nameEn,
+                  nameBn: organization!.nameBn,
+                  legalForm: organization!.legalForm,
+                  tradeLicenceNo: organization!.tradeLicenceNo,
+                  tradeLicenceExpiry: organization!.tradeLicenceExpiry,
+                  binNo: organization!.binNo,
+                  tinNo: organization!.tinNo,
+                  addressLine: organization!.addressLine,
+                  district: organization!.district,
+                  repName: organization!.repName,
+                  repDesignation: organization!.repDesignation,
+                  repMobile: organization!.repMobile,
+                  repEmail: organization!.repEmail,
+                }}
+                factory={{
+                  nameEn: app.factory.nameEn,
+                  nameBn: app.factory.nameBn,
+                  addressLine: app.factory.addressLine,
+                  district: app.factory.district,
+                  contactName: app.factory.contactName,
+                  contactMobile: app.factory.contactMobile,
+                }}
+                office={app.bstiOffice ?? app.factory.bstiOffice}
+                incomplete={companyGaps(organization!).length > 0}
               />
             )}
+
+            {step === 2 && (
+              <>
+                <ProductStep
+                  applicationId={app.id}
+                  chosen={
+                    app.product
+                      ? {
+                          id: app.product.id,
+                          serial: app.product.serial,
+                          nameEn: app.product.nameEn,
+                          nameBn: app.product.nameBn,
+                          genericNames: app.product.genericNames,
+                          category: {
+                            letter: app.product.category.letter,
+                            nameEn: app.product.category.nameEn,
+                            nameBn: app.product.category.nameBn,
+                          },
+                          standards: app.product.standards.map((s) => ({
+                            id: s.bds.id,
+                            number: s.bds.number,
+                            titleEn: s.bds.titleEn,
+                            asPrinted: s.asPrinted,
+                          })),
+                        }
+                      : null
+                  }
+                  editable={editable}
+                />
+
+                <SkuStep
+                  applicationId={app.id}
+                  productName={app.product?.nameEn ?? null}
+                  skus={app.skus.map((s) => ({
+                    id: s.id,
+                    brandName: s.brandName,
+                    variant: s.variant,
+                    sizeValue: s.sizeValue === null ? null : String(s.sizeValue),
+                    packaging: s.packaging,
+                    unitsPerPack: s.unitsPerPack,
+                    grade: s.grade,
+                    labelImageName: s.labelImageName,
+                    labelImageSizeBytes: s.labelImageSizeBytes,
+                    sizeType: {
+                      id: s.sizeType.id,
+                      nameEn: s.sizeType.nameEn,
+                      kind: s.sizeType.kind as string,
+                    },
+                    sizeUnit: { id: s.sizeUnit.id, code: s.sizeUnit.code },
+                  }))}
+                  sizeTypes={sizeTypes.map((t) => ({
+                    id: t.id,
+                    slug: t.slug,
+                    nameEn: t.nameEn,
+                    nameBn: t.nameBn,
+                    kind: t.kind as string,
+                    hintEn: t.hintEn,
+                    units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
+                  }))}
+                  editable={editable}
+                />
+
+                <BdsStep
+                  applicationId={app.id}
+                  productName={app.product?.nameEn ?? null}
+                  requirements={requirements}
+                  editable={editable}
+                />
+
+                <DocumentsStep
+                  applicationId={app.id}
+                  requirements={CM_DOCUMENTS}
+                  held={app.documents.map((d) => ({
+                    kind: d.kind,
+                    fileName: d.fileName,
+                    sizeBytes: d.sizeBytes,
+                  }))}
+                  editable={editable}
+                />
+              </>
+            )}
+
+            {step === 3 && (
+              <ProductionStep
+                applicationId={app.id}
+                existing={
+                  app.production
+                    ? {
+                        authority: app.production.authority as string,
+                        registrationNo: app.production.registrationNo,
+                        annualCapacityValue: String(app.production.annualCapacityValue),
+                        capacityUnitId: app.production.capacityUnitId,
+                        currentYearLabel: app.production.currentYearLabel,
+                        currentYearProduction: String(app.production.currentYearProduction),
+                      }
+                    : null
+                }
+                sizeTypes={sizeTypes.map((t) => ({
+                  id: t.id,
+                  nameEn: t.nameEn,
+                  kind: t.kind as string,
+                  units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
+                }))}
+                editable={editable}
+              />
+            )}
+
+            {step === 4 && (
+              <>
+                <PracticeStep
+                  applicationId={app.id}
+                  answers={app.answers.map((a) => ({
+                    questionKey: a.questionKey,
+                    answerText: a.answerText,
+                    answerNumber: a.answerNumber,
+                  }))}
+                  consentAcceptedAt={app.consentAcceptedAt?.toISOString() ?? null}
+                  prefill={prefill}
+                  editable={editable}
+                  outstanding={answerGaps}
+                />
+
+                {editable && (
+                  <SubmitStep
+                    applicationId={app.id}
+                    gaps={gaps ?? []}
+                    feeStatus={app.applicationFeePayment?.status ?? null}
+                    feeReference={app.applicationFeePayment?.reference ?? null}
+                  />
+                )}
+              </>
+            )}
+
+            {editable && stepGaps.length > 0 && step !== 4 && <StepGaps gaps={stepGaps} />}
+
+            <StepNav applicationId={app.id} current={step} last={FORM_STEPS.length} />
           </div>
 
           <aside className="space-y-6">
-            <StageTracker state={app.state} />
+            {/* While the form is being filled the useful question is what is
+                still missing; once it is submitted it becomes who holds the
+                file. So the two trackers swap over at submission. */}
+            {editable ? (
+              <FormProgress applicationId={app.id} steps={progress} current={step} />
+            ) : (
+              <StageTracker state={app.state} />
+            )}
 
             <section className="rounded-2xl border border-border bg-card p-6">
               <h2 className="font-semibold text-foreground">History</h2>
               <ul className="mt-4 space-y-3">
                 {app.events.map((e) => (
                   <li key={e.id} className="text-sm">
-                    <p className="font-medium text-foreground">
-                      {e.kind.replace(/_/g, " ")}
-                    </p>
+                    <p className="font-medium text-foreground">{e.kind.replace(/_/g, " ")}</p>
                     {e.note && <p className="text-xs text-muted-foreground">{e.note}</p>}
                     <p className="text-xs text-muted-foreground">
                       {e.createdAt.toLocaleDateString("en-GB", {
