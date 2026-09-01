@@ -2,11 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Loader2, ClipboardList, Sparkles } from "lucide-react";
 import { CM_QUESTIONS } from "@/lib/cm/policy";
+import { answersSchema } from "@/lib/cm/schemas";
 
-const field =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+const fieldCls = (bad: boolean) =>
+  `w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:ring-2 ${
+    bad
+      ? "border-destructive/60 focus:border-destructive focus:ring-destructive/15"
+      : "border-border focus:border-primary focus:ring-primary/15"
+  }`;
 
 type Answer = { questionKey: string; answerText: string | null; answerNumber: number | null };
 
@@ -29,15 +36,12 @@ export default function PracticeStep({
   consentAcceptedAt,
   prefill,
   editable,
-  outstanding,
 }: {
   applicationId: number;
   answers: Answer[];
   consentAcceptedAt: string | null;
   prefill: { fromApplicationId: number; fromProduct: string | null; answers: Answer[] } | null;
   editable: boolean;
-  /** Required questions still unanswered, so the declaration knows to wait. */
-  outstanding: number;
 }) {
   const router = useRouter();
 
@@ -53,53 +57,73 @@ export default function PracticeStep({
           : (a?.answerText ?? "");
     }
 
-  const [form, setForm] = useState(initial);
   const [consent, setConsent] = useState(!!consentAcceptedAt);
-  const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
 
-  const set = (k: string) => (e: { target: { value: string } }) => {
-    setForm((f) => ({ ...f, [k]: e.target.value }));
-    setSaved(false);
-  };
+  /**
+   * Validated live against the same schema the route parses. Before this the
+   * warnings came only from the server's gap list, so a question stayed marked
+   * as missing until the applicant pressed Save — the answer was already on the
+   * screen and the form still disagreed with it.
+   *
+   * `mode: "onChange"` with `setValue(..., { shouldValidate: true })` on the
+   * prefill is what makes the count fall as the answers are typed.
+   */
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors, touchedFields, isSubmitting },
+  } = useForm<Record<string, string>>({
+    resolver: zodResolver(answersSchema.partial()),
+    mode: "onChange",
+    defaultValues: initial,
+  });
+
+  const values = watch();
+
+  // What is still missing, computed here rather than waited for from the
+  // server. The server still decides at the fee gate — this only stops the
+  // screen lying to someone who has just answered.
+  const required = CM_QUESTIONS.flatMap((g) => g.questions).filter((q) => q.required);
+  const liveOutstanding = required.filter((q) => {
+    const v = values[q.key];
+    return q.type === "number" ? !String(v ?? "").trim() : !String(v ?? "").trim();
+  }).length;
 
   function applyPrefill() {
     if (!prefill) return;
-    setForm((f) => {
-      const next = { ...f };
-      for (const a of prefill.answers) {
-        next[a.questionKey] =
-          a.answerNumber !== null && a.answerNumber !== undefined
-            ? String(a.answerNumber)
-            : (a.answerText ?? "");
-      }
-      return next;
-    });
+    for (const a of prefill.answers) {
+      const v =
+        a.answerNumber !== null && a.answerNumber !== undefined
+          ? String(a.answerNumber)
+          : (a.answerText ?? "");
+      setValue(a.questionKey, v, { shouldValidate: true, shouldDirty: true });
+    }
     setPrefilled(true);
     setSaved(false);
   }
 
-  async function save(withConsent: boolean) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/client/applications/${applicationId}/answers`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: form, consent: withConsent }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Could not save.");
-      setConsent(withConsent);
-      setSaved(true);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const save = (withConsent: boolean) =>
+    handleSubmit(async (form) => {
+      setError(null);
+      try {
+        const res = await fetch(`/api/client/applications/${applicationId}/answers`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers: form, consent: withConsent }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error ?? "Could not save.");
+        setConsent(withConsent);
+        setSaved(true);
+        router.refresh();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not save.");
+      }
+    })();
 
   return (
     <div className="space-y-6">
@@ -158,21 +182,33 @@ export default function PracticeStep({
                   <textarea
                     id={q.key}
                     rows={4}
-                    className={field}
-                    value={form[q.key] ?? ""}
-                    onChange={set(q.key)}
+                    className={fieldCls(!!errors[q.key])}
                     disabled={!editable}
+                    {...register(q.key, { onChange: () => setSaved(false) })}
                   />
                 ) : (
                   <input
                     id={q.key}
-                    className={field}
+                    className={fieldCls(!!errors[q.key])}
                     inputMode={q.type === "number" ? "numeric" : "text"}
-                    value={form[q.key] ?? ""}
-                    onChange={set(q.key)}
                     disabled={!editable}
+                    {...register(q.key, { onChange: () => setSaved(false) })}
                   />
                 )}
+                {errors[q.key]?.message && (
+                  <p className="mt-1 text-xs text-destructive">
+                    {String(errors[q.key]?.message)}
+                  </p>
+                )}
+                {/* Unanswered is not an error until they have been there. */}
+                {!errors[q.key] &&
+                  q.required &&
+                  touchedFields[q.key] &&
+                  !String(values[q.key] ?? "").trim() && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-500">
+                      This answer is needed before you can submit.
+                    </p>
+                  )}
               </div>
             ))}
           </div>
@@ -186,7 +222,7 @@ export default function PracticeStep({
             type="checkbox"
             className="mt-1 h-4 w-4 shrink-0 accent-[var(--primary)]"
             checked={consent}
-            disabled={!editable || (outstanding > 0 && !consent)}
+            disabled={!editable || (liveOutstanding > 0 && !consent)}
             onChange={(e) => {
               setConsent(e.target.checked);
               setSaved(false);
@@ -201,10 +237,10 @@ export default function PracticeStep({
           </span>
         </label>
 
-        {outstanding > 0 && !consent && (
+        {liveOutstanding > 0 && !consent && (
           <p className="mt-3 text-xs text-muted-foreground">
-            {outstanding} required answer{outstanding === 1 ? "" : "s"} above still to give before
-            you can make this declaration.
+            {liveOutstanding} required answer{liveOutstanding === 1 ? "" : "s"} above still to give
+            before you can make this declaration. This updates as you type — no need to save first.
           </p>
         )}
 
@@ -231,10 +267,10 @@ export default function PracticeStep({
             <button
               type="button"
               onClick={() => save(consent)}
-              disabled={busy}
+              disabled={isSubmitting}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
             >
-              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />}
+              {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />}
               Save answers
             </button>
             {saved && (

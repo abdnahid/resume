@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { saveAnswers, setConsent } from "@/lib/cm/practice";
+import { answersSchema, parseOrThrow } from "@/lib/cm/schemas";
 
 /**
  * Step 4 — BSTI's questions, and the declaration.
@@ -33,9 +34,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     // Answers first: the declaration says the answers are true, so it must
     // never be recorded against a version of them that failed to save.
+    // **Partial on purpose.** Saving is not submitting: a half-finished step 4
+    // has to keep what has been written, so the schema is relaxed to whatever
+    // fields are present and the *required* check stays where it belongs, in
+    // `missingForSubmission()` at the fee gate.
     const answers =
       body.answers && typeof body.answers === "object"
-        ? await saveAnswers(applicationId, body.answers as Record<string, unknown>, userId)
+        ? await saveAnswers(
+            applicationId,
+            parseOrThrow(answersSchema.partial(), body.answers),
+            userId,
+          )
         : [];
     if ("consent" in body) {
       await setConsent(applicationId, body.consent === true, userId);

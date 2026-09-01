@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { setProduction } from "@/lib/cm/practice";
+import { productionSchema, parseOrThrow } from "@/lib/cm/schemas";
 
 /** Step 3 — what the plant can make of this product, and what it made. */
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,21 +21,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const num = (v: unknown) => (v === null || v === undefined || v === "" ? NaN : Number(v));
-
   try {
-    const row = await setProduction(
-      applicationId,
-      {
-        authority: String(body.authority ?? ""),
-        registrationNo: typeof body.registrationNo === "string" ? body.registrationNo : null,
-        annualCapacityValue: num(body.annualCapacityValue),
-        capacityUnitId: Number(body.capacityUnitId),
-        currentYearLabel: String(body.currentYearLabel ?? ""),
-        currentYearProduction: num(body.currentYearProduction),
-      },
-      userId,
-    );
+    // The same schema the form validates against, so the route can never be
+    // laxer than the screen and the two can never drift apart.
+    const input = parseOrThrow(productionSchema, body);
+    const row = await setProduction(applicationId, input, userId);
     // Decimal does not survive JSON, so both figures cross as strings.
     return NextResponse.json({
       production: {

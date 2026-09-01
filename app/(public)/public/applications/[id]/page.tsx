@@ -71,8 +71,6 @@ export default async function ApplicationPage({
   const progress = stepProgress(gaps ?? []);
   const stepGaps = (gaps ?? []).filter((g) => g.step === step);
 
-  // Required questions still unanswered — the declaration waits on these.
-  const answerGaps = (gaps ?? []).filter((g) => g.field.startsWith("q:")).length;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -274,7 +272,6 @@ export default async function ApplicationPage({
                   consentAcceptedAt={app.consentAcceptedAt?.toISOString() ?? null}
                   prefill={prefill}
                   editable={editable}
-                  outstanding={answerGaps}
                 />
 
                 {editable && (

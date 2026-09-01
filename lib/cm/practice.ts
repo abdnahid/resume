@@ -10,12 +10,8 @@
  * when it was submitted.
  */
 import { prisma } from "@/lib/prisma";
-import {
-  CM_QUESTIONS,
-  CM_QUESTION_INDEX,
-  isCapacityAuthority,
-  type CapacityAuthorityValue,
-} from "./policy";
+import { CM_QUESTIONS, CM_QUESTION_INDEX, type CapacityAuthorityValue } from "./policy";
+import { productionSchema, parseOrThrow } from "./schemas";
 
 /** Editability and standing, the same gate the SKU writes go through. */
 async function guard(applicationId: number, userId: string) {
@@ -32,14 +28,8 @@ async function guard(applicationId: number, userId: string) {
   return app;
 }
 
-export type ProductionInput = {
-  authority: string;
-  registrationNo?: string | null;
-  annualCapacityValue: number;
-  capacityUnitId: number;
-  currentYearLabel: string;
-  currentYearProduction: number;
-};
+/** Whatever the form or the route hands over — parsed here, not trusted. */
+export type ProductionInput = unknown;
 
 /**
  * Record the capacity for this product.
@@ -56,41 +46,25 @@ export async function setProduction(
 ) {
   await guard(applicationId, userId);
 
-  if (!isCapacityAuthority(input.authority)) {
-    throw new Error("Choose who approved the capacity.");
-  }
-  if (!(input.annualCapacityValue > 0)) {
-    throw new Error("Annual capacity must be more than zero.");
-  }
-  if (!(input.currentYearProduction >= 0)) {
-    throw new Error("This year's production cannot be negative.");
-  }
-  if (input.currentYearProduction > input.annualCapacityValue) {
-    // Not a typo-catcher: producing above approved capacity is exactly the kind
-    // of thing a licence review exists to notice, so it is refused here and the
-    // applicant is told which of the two numbers to look at.
-    throw new Error(
-      "This year's production is more than the approved annual capacity. Check both figures — a plant cannot be licensed to make more than it is approved for.",
-    );
-  }
-  if (!input.currentYearLabel?.trim()) {
-    throw new Error("Which year are these figures for?");
-  }
+  // One rule set, shared with the form (`productionSchema`). The service parses
+  // too rather than trusting the route, because it is the layer every caller
+  // goes through — but the rules are not written twice.
+  const v = parseOrThrow(productionSchema, input);
 
+  // The only check the schema cannot make: that the unit exists.
   const unit = await prisma.sizeUnit.findUnique({
-    where: { id: input.capacityUnitId },
+    where: { id: v.capacityUnitId },
     select: { id: true, sizeTypeId: true },
   });
   if (!unit) throw new Error("Choose the unit the capacity is measured in.");
 
-  const authority = input.authority as CapacityAuthorityValue;
   const data = {
-    authority,
-    registrationNo: input.registrationNo?.trim() || null,
-    annualCapacityValue: input.annualCapacityValue,
+    authority: v.authority as CapacityAuthorityValue,
+    registrationNo: v.registrationNo ?? null,
+    annualCapacityValue: v.annualCapacityValue,
     capacityUnitId: unit.id,
-    currentYearLabel: input.currentYearLabel.trim(),
-    currentYearProduction: input.currentYearProduction,
+    currentYearLabel: v.currentYearLabel,
+    currentYearProduction: v.currentYearProduction,
   };
 
   return prisma.applicationProduction.upsert({

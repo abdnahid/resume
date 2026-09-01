@@ -479,6 +479,15 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   progress bar that silently drops the file would leave an applicant believing
   BSTI holds their trade licence when it does not.
 
+- **Form payloads are zod schemas in `lib/cm/schemas.ts`, parsed on both sides**
+  (D56). The form validates with react-hook-form + `zodResolver`
+  (`mode: "onChange"`), and the route and the service parse the *same* schema —
+  so the server can never be laxer than the screen. Saving parses
+  `.partial()`: saving is not submitting, and a half-finished step must keep
+  what was written. The submission gate stays `missingForSubmission()` on the
+  server. New CM forms use react-hook-form; HR's forms are still `useState` and
+  are being left alone.
+
 - **The application is a four-step form** (D52), routed by `?step=1..4` with
   `StepNavButton` — same pattern as the profile wizard, because `loading.tsx`
   does not fire for a same-route navigation. Step 1 reads the company and

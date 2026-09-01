@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, Loader2, Gauge } from "lucide-react";
 import { CAPACITY_AUTHORITIES } from "@/lib/cm/policy";
+import { productionSchema, type ProductionValues } from "@/lib/cm/schemas";
 
-const field =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+const base =
+  "w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:ring-2";
+const okRing = "border-border focus:border-primary focus:ring-primary/15";
+const badRing = "border-destructive/60 focus:border-destructive focus:ring-destructive/15";
 const label = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
 type Unit = { id: number; code: string; nameEn: string };
@@ -15,13 +20,14 @@ type SizeType = { id: number; nameEn: string; kind: string; units: Unit[] };
 /**
  * Step 3 — what this plant can make of this product, and what it made.
  *
- * The capacity is quoted *from* a registration, so the authority and its number
- * are asked together with it — a figure with no approver behind it is a claim,
- * not a reference.
+ * Validated live against `productionSchema`, the same schema the route parses —
+ * so "this year's production is more than the approved capacity" is answered
+ * while the applicant is still looking at the two numbers, rather than after a
+ * save round trip.
  *
- * The unit comes from the same vocabulary the SKUs use, so a capacity cannot be
- * given in litres for a product sold by weight. Only measured (`numeric`) types
- * are offered: "shirt size M" is not a quantity anything can be produced in.
+ * The unit comes from the SKU vocabulary, so a capacity cannot be given in
+ * litres for a product sold by weight. Only measured (`numeric`) types are
+ * offered: "shirt size M" is not a quantity anything is produced in.
  */
 export default function ProductionStep({
   applicationId,
@@ -44,55 +50,57 @@ export default function ProductionStep({
   const router = useRouter();
   const measurable = sizeTypes.filter((t) => t.kind === "numeric" && t.units.length > 0);
 
-  const unitTypeOf = (unitId: number) =>
+  const typeOfUnit = (unitId: number) =>
     measurable.find((t) => t.units.some((u) => u.id === unitId))?.id ?? measurable[0]?.id ?? 0;
 
+  // Which size type is selected is a UI concern only — it narrows the unit list
+  // and is not part of the payload, so it stays outside the form.
   const [sizeTypeId, setSizeTypeId] = useState<number>(
-    existing ? unitTypeOf(existing.capacityUnitId) : (measurable[0]?.id ?? 0),
+    existing ? typeOfUnit(existing.capacityUnitId) : (measurable[0]?.id ?? 0),
   );
-  const [form, setForm] = useState({
-    authority: existing?.authority ?? "bida",
-    registrationNo: existing?.registrationNo ?? "",
-    annualCapacityValue: existing?.annualCapacityValue ?? "",
-    capacityUnitId: existing?.capacityUnitId ?? (measurable[0]?.units[0]?.id ?? 0),
-    currentYearLabel: existing?.currentYearLabel ?? defaultYear(),
-    currentYearProduction: existing?.currentYearProduction ?? "",
-  });
-  const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting, isDirty },
+  } = useForm<ProductionValues>({
+    resolver: zodResolver(productionSchema),
+    mode: "onChange",
+    defaultValues: {
+      authority: existing?.authority ?? "bida",
+      registrationNo: existing?.registrationNo ?? "",
+      annualCapacityValue: existing?.annualCapacityValue ?? "",
+      capacityUnitId: existing?.capacityUnitId ?? (measurable[0]?.units[0]?.id ?? 0),
+      currentYearLabel: existing?.currentYearLabel ?? defaultYear(),
+      currentYearProduction: existing?.currentYearProduction ?? "",
+    },
+  });
 
   const units = measurable.find((t) => t.id === sizeTypeId)?.units ?? [];
 
-  const set =
-    (k: keyof typeof form) =>
-    (e: { target: { value: string } }) => {
-      setForm((f) => ({ ...f, [k]: e.target.value }));
-      setSaved(false);
-      setError(null);
-    };
-
-  async function save() {
-    setBusy(true);
-    setError(null);
+  const onSubmit = handleSubmit(async (values) => {
+    setServerError(null);
     try {
       const res = await fetch(`/api/client/applications/${applicationId}/production`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, capacityUnitId: Number(form.capacityUnitId) }),
+        body: JSON.stringify(values),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Could not save.");
       setSaved(true);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save.");
-    } finally {
-      setBusy(false);
+      setServerError(e instanceof Error ? e.message : "Could not save.");
     }
-  }
+  });
+
+  const cls = (bad: unknown) => `${base} ${bad ? badRing : okRing}`;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
+    <form onSubmit={onSubmit} className="rounded-2xl border border-border bg-card p-6 sm:p-8">
       <h2 className="flex items-center gap-2 font-semibold text-foreground">
         <Gauge className="h-4 w-4 text-primary" strokeWidth={1.8} />
         Production capacity
@@ -103,16 +111,11 @@ export default function ProductionStep({
       </p>
 
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <div>
-          <label className={label} htmlFor="authority">
-            Capacity approved by
-          </label>
+        <Field label="Capacity approved by" error={errors.authority?.message}>
           <select
-            id="authority"
-            className={field}
-            value={form.authority}
-            onChange={set("authority")}
+            className={cls(errors.authority)}
             disabled={!editable}
+            {...register("authority", { onChange: () => setSaved(false) })}
           >
             {CAPACITY_AUTHORITIES.map((a) => (
               <option key={a.value} value={a.value}>
@@ -120,24 +123,16 @@ export default function ProductionStep({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        <div>
-          <label className={label} htmlFor="registrationNo">
-            Registration / approval number
-            <span className="ml-1 font-normal text-muted-foreground/70">
-              {form.authority === "other" ? "(optional)" : ""}
-            </span>
-          </label>
+        <Field label="Registration / approval number" error={errors.registrationNo?.message}>
           <input
-            id="registrationNo"
-            className={field}
-            value={form.registrationNo}
-            onChange={set("registrationNo")}
-            disabled={!editable}
+            className={cls(errors.registrationNo)}
             placeholder="As printed on the approval"
+            disabled={!editable}
+            {...register("registrationNo", { onChange: () => setSaved(false) })}
           />
-        </div>
+        </Field>
 
         <div>
           <label className={label} htmlFor="sizeType">
@@ -145,16 +140,16 @@ export default function ProductionStep({
           </label>
           <select
             id="sizeType"
-            className={field}
+            className={`${base} ${okRing}`}
             value={sizeTypeId}
+            disabled={!editable}
             onChange={(e) => {
               const id = Number(e.target.value);
               setSizeTypeId(id);
               const first = measurable.find((t) => t.id === id)?.units[0]?.id ?? 0;
-              setForm((f) => ({ ...f, capacityUnitId: first }));
+              setValue("capacityUnitId", first, { shouldValidate: true });
               setSaved(false);
             }}
-            disabled={!editable}
           >
             {measurable.map((t) => (
               <option key={t.id} value={t.id}>
@@ -164,16 +159,11 @@ export default function ProductionStep({
           </select>
         </div>
 
-        <div>
-          <label className={label} htmlFor="capacityUnitId">
-            Unit
-          </label>
+        <Field label="Unit" error={errors.capacityUnitId?.message}>
           <select
-            id="capacityUnitId"
-            className={field}
-            value={form.capacityUnitId}
-            onChange={set("capacityUnitId")}
+            className={cls(errors.capacityUnitId)}
             disabled={!editable}
+            {...register("capacityUnitId", { onChange: () => setSaved(false) })}
           >
             {units.map((u) => (
               <option key={u.id} value={u.id}>
@@ -181,72 +171,60 @@ export default function ProductionStep({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
 
-        <div>
-          <label className={label} htmlFor="annualCapacityValue">
-            Approved annual capacity
-          </label>
+        <Field label="Approved annual capacity" error={errors.annualCapacityValue?.message}>
           <input
-            id="annualCapacityValue"
-            className={field}
+            className={cls(errors.annualCapacityValue)}
             inputMode="decimal"
-            value={form.annualCapacityValue}
-            onChange={set("annualCapacityValue")}
-            disabled={!editable}
             placeholder="e.g. 120000"
+            disabled={!editable}
+            {...register("annualCapacityValue", { onChange: () => setSaved(false) })}
           />
-        </div>
+        </Field>
 
         <div className="grid grid-cols-[1fr_auto] gap-3">
-          <div>
-            <label className={label} htmlFor="currentYearProduction">
-              Produced this year
-            </label>
+          <Field label="Produced this year" error={errors.currentYearProduction?.message}>
             <input
-              id="currentYearProduction"
-              className={field}
+              className={cls(errors.currentYearProduction)}
               inputMode="decimal"
-              value={form.currentYearProduction}
-              onChange={set("currentYearProduction")}
-              disabled={!editable}
               placeholder="e.g. 84500"
-            />
-          </div>
-          <div className="w-32">
-            <label className={label} htmlFor="currentYearLabel">
-              Year
-            </label>
-            <input
-              id="currentYearLabel"
-              className={field}
-              value={form.currentYearLabel}
-              onChange={set("currentYearLabel")}
               disabled={!editable}
-              placeholder="2025-2026"
+              {...register("currentYearProduction", { onChange: () => setSaved(false) })}
             />
+          </Field>
+          <div className="w-32">
+            <label className={label}>Year</label>
+            <input
+              className={cls(errors.currentYearLabel)}
+              placeholder="2025-2026"
+              disabled={!editable}
+              {...register("currentYearLabel", { onChange: () => setSaved(false) })}
+            />
+            {errors.currentYearLabel?.message && (
+              <p className="mt-1 text-xs text-destructive">{errors.currentYearLabel.message}</p>
+            )}
           </div>
         </div>
       </div>
 
-      {error && (
+      {serverError && (
         <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {error}
+          {serverError}
         </p>
       )}
 
       {editable && (
         <div className="mt-6 flex items-center gap-3">
           <button
-            type="button"
-            onClick={save}
-            disabled={busy}
+            type="submit"
+            disabled={isSubmitting}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
           >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />}
+            {isSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />}
             Save
           </button>
-          {saved && (
+          {saved && !isDirty && (
             <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
               <Check className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
               Saved
@@ -254,7 +232,25 @@ export default function ProductionStep({
           )}
         </div>
       )}
-    </section>
+    </form>
+  );
+}
+
+function Field({
+  label: text,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className={label}>{text}</label>
+      {children}
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+    </div>
   );
 }
 
