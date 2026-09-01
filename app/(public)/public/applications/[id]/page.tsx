@@ -297,7 +297,14 @@ export default async function ApplicationPage({
             {editable ? (
               <FormProgress applicationId={app.id} steps={progress} current={step} />
             ) : (
-              <StageTracker state={app.state} />
+              <StageTracker
+                state={app.state}
+                holder={
+                  app.holder
+                    ? { name: app.holder.nameEn, designation: app.holder.designationEn }
+                    : null
+                }
+              />
             )}
 
             <section className="rounded-2xl border border-border bg-card p-6">

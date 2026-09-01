@@ -522,6 +522,35 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   calls that single feature most of the perceived value of the system, because
   it replaces a phone call.
 
+## Workflow — files moving inside BSTI
+
+Decisions D57–D59, spec §4.2. `lib/workflow/chain.ts` is Prisma-free (D9),
+`inbox.ts` is the server half. Both avoid mentioning CM: `holderEmployeeId` and
+`ApplicationMovement` are generic, so the next service that needs a file to move
+can reuse them.
+
+- **`office_head` is its own role.** It receives an office's submitted
+  applications; `officeadmin` does not. Payroll authority and file-routing
+  authority are different jobs. `User.role` is one enum, so nobody is both —
+  accepted deliberately (D57).
+- **A file is held by a person**, `Application.holderEmployeeId`, and every
+  hand-off writes an `ApplicationMovement`. "Nobody holds it" *is* the
+  definition of unclaimed — there is no parallel state to disagree with.
+- **Seniority is the pay grade, not the org tree.** The organogram puts a branch
+  Director in the Executive unit beside their stenographer while the officers
+  sit in sibling units, so depth is useless. It is the **employee's** grade, not
+  the post's: an officer on grade 9 may sit on a post graded 11.
+  **`Posting.orgPostId` is null on all 554 rows** — the organogram link is
+  `Employee.orgPostId`. Read the posting's org post and every desk gets a null
+  section and no chain.
+- **Peers cannot pass to each other.** Sideways movement would make "who holds
+  it" a matter of who clicked, with no chain to read back.
+- **An office head passing down is exempt from the grade test**, because an
+  acting head is the top of their section whatever their own grade — which is
+  the whole reason it is a role and not a designation.
+- **251 of 554 employees have no `orgPostId`**, so they have no section and
+  cannot be handed a file. That is missing organogram placement, not a bug.
+
 ## Payments
 
 Decisions D32–D35. `lib/payments/` is the kernel money service — every module

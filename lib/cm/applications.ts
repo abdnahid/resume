@@ -44,6 +44,7 @@ const APP_INCLUDE = {
   },
   bstiOffice: { select: { id: true, nameEn: true, nameBn: true } },
   documents: { orderBy: { id: "asc" as const } },
+  holder: { select: { nameEn: true, designationEn: true } },
   production: { include: { capacityUnit: { include: { sizeType: true } } } },
   answers: true,
   applicationFeePayment: true,

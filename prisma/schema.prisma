@@ -33,6 +33,14 @@ enum PostingType {
 enum Role {
   superadmin
   officeadmin
+  /// Receives CM applications for their office and starts them moving (D57).
+  /// Deliberately separate from `officeadmin`: payroll authority and
+  /// file-routing authority are different jobs, and welding them together
+  /// would mean whoever runs an office's salaries also decides who reviews
+  /// its licence applications. Usually the senior desk in the office's
+  /// Executive section, but it is a role and not a designation because when
+  /// that desk is vacant a more junior officer has to act in it.
+  office_head
   data_entry
   /// Handles court and departmental cases for staff across every office, and is
   /// the only role besides superadmin that may record a verdict. Carries no
@@ -310,9 +318,10 @@ model User {
   payments     Payment[]
   bdsPurchases BdsPurchase[]
 
-  applications        Application[]
-  applicationEvents   ApplicationEvent[]
-  applicationConsents Application[]      @relation("ApplicationConsent")
+  applications         Application[]
+  applicationEvents    ApplicationEvent[]
+  applicationConsents  Application[]         @relation("ApplicationConsent")
+  applicationMovements ApplicationMovement[]
 }
 
 model Session {
@@ -372,8 +381,9 @@ model Office {
   phone         String?
   email         String?
 
-  employees   Employee[]
-  postings    Posting[]
+  employees Employee[]
+  postings  Posting[]
+
   bankAdvices BankAdvice[]
   bankAccount OfficeBankAccount?
   factories   Factory[]
@@ -507,6 +517,9 @@ model Employee {
   languages           Language[]
   curriculars         Curricular[]
   disciplinaryActions DisciplinaryAction[]
+  heldApplications    Application[]         @relation("ApplicationHolder")
+  movementsSent       ApplicationMovement[] @relation("MovementFrom")
+  movementsReceived   ApplicationMovement[] @relation("MovementTo")
 }
 
 // ─── Pay scale (versioned) ───────────────────────────────────────────────────
@@ -1898,9 +1911,17 @@ model Application {
   /// mango 2 L in a plastic bottle — and the licence names each. Replaced the
   /// free-text `brandName` + `productDetails` pair, which could hold the same
   /// information but not count it, group it, or carry it onto a certificate.
+  /// **Who inside BSTI currently holds the file.** Null until it is submitted
+  /// and the receiving office's head picks it up. This is what the applicant's
+  /// stage tracker names, and spec §8 calls that most of the perceived value of
+  /// the system, because it replaces a phone call.
+  holderEmployeeId String?
+  holder           Employee? @relation("ApplicationHolder", fields: [holderEmployeeId], references: [id])
+
   skus       ApplicationSku[]
   production ApplicationProduction?
   answers    ApplicationAnswer[]
+  movements  ApplicationMovement[]
 
   @@index([organizationId])
   @@index([factoryId])
@@ -2195,8 +2216,8 @@ model ApplicationSku {
 /// Who registered the plant, and therefore whose approved capacity figure the
 /// applicant is quoting. A Bangladeshi manufacturer sits under one of four.
 enum CapacityAuthority {
-  bida  // Bangladesh Investment Development Authority
-  beza  // Bangladesh Economic Zones Authority
+  bida // Bangladesh Investment Development Authority
+  beza // Bangladesh Economic Zones Authority
   bepza // Bangladesh Export Processing Zones Authority
   bscic // Bangladesh Small and Cottage Industries Corporation
   other
@@ -2221,7 +2242,7 @@ model ApplicationProduction {
   /// Approved annual capacity, in the same units the article is measured in —
   /// `SizeUnit` is reused so a capacity in litres cannot be recorded against a
   /// product sold by weight.
-  annualCapacityValue Decimal @db.Decimal(16, 3)
+  annualCapacityValue Decimal  @db.Decimal(16, 3)
   capacityUnitId      Int
   capacityUnit        SizeUnit @relation(fields: [capacityUnitId], references: [id])
 
@@ -2250,8 +2271,8 @@ model ApplicationAnswer {
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
   /// Matches a `key` in `CM_QUESTIONS`.
-  questionKey String
-  answerText  String?
+  questionKey  String
+  answerText   String?
   /// For a `number` question — manpower counts and the like.
   answerNumber Int?
 
@@ -2260,4 +2281,48 @@ model ApplicationAnswer {
 
   @@unique([applicationId, questionKey])
   @@index([applicationId])
+}
+
+/// Which way a file moved through the organogram.
+enum MovementDirection {
+  /// Handed to a more junior desk for processing.
+  down
+  /// Sent back up, usually because the work at that desk is done.
+  up
+  /// Picked up by the receiving office in the first place.
+  receive
+}
+
+/// Every hand-off of a file, append-only (spec §4.2).
+///
+/// The movement log is separate from `ApplicationEvent` because it answers a
+/// different question: events say what happened to the *application*, movements
+/// say who had it and when. A reviewing officer asking "how long did this sit
+/// with the AD" is reading this table, and mixing it into the event stream would
+/// mean parsing notes to find out.
+model ApplicationMovement {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// Null on the first receipt — the file came from the applicant, not a desk.
+  fromEmployeeId String?
+  fromEmployee   Employee? @relation("MovementFrom", fields: [fromEmployeeId], references: [id])
+
+  toEmployeeId String
+  toEmployee   Employee @relation("MovementTo", fields: [toEmployeeId], references: [id])
+
+  direction MovementDirection
+  note      String?
+
+  /// The staff account that moved it. Kept beside `fromEmployeeId` because a
+  /// superadmin may move a file they never held.
+  actorUserId String
+  actor       User   @relation(fields: [actorUserId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId])
+  @@index([toEmployeeId])
 }

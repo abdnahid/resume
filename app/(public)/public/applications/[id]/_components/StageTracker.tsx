@@ -10,7 +10,14 @@ import type { ApplicationState } from "@/generated/prisma/client";
  * every stage — not just a tick and a label — and the current stage says
  * whether the file is waiting on BSTI or on the applicant.
  */
-export default function StageTracker({ state }: { state: ApplicationState }) {
+export default function StageTracker({
+  state,
+  holder,
+}: {
+  state: ApplicationState;
+  /** The BSTI desk currently holding the file, once one has picked it up. */
+  holder?: { name: string; designation: string | null } | null;
+}) {
   const info = stageInfo(state);
   const current = stageIndex(state);
   const offPath = current === -1;
@@ -24,6 +31,19 @@ export default function StageTracker({ state }: { state: ApplicationState }) {
         </div>
         <HolderBadge holder={info.holder} />
       </div>
+
+      {/* Naming the desk is the point of this panel. Spec §8 calls it most of
+          the perceived value of the system because it replaces a phone call —
+          "with BSTI" does not, and a name does. */}
+      {holder && (
+        <p className="mt-4 rounded-xl border border-primary/25 bg-secondary/40 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Currently with</span>{" "}
+          <span className="font-medium text-foreground">{holder.name}</span>
+          {holder.designation && (
+            <span className="block text-xs text-muted-foreground">{holder.designation}</span>
+          )}
+        </p>
+      )}
 
       {offPath && (
         <p className="mt-5 rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-foreground">

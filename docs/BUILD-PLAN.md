@@ -64,6 +64,9 @@ card layout were taken from.
 | D54 | **Production capacity and the practice questionnaire belong to the application, not the factory** — with the factory-level answers prefilled from that factory's most recent other application. | The client's own reasoning, and it is right: one plant may run several product lines, so a capacity figure only means something beside the product it is for. A file also has to keep saying what was claimed when it was submitted, which an editable factory-level record could not. Prefill covers the retyping that would otherwise argue for the factory: manpower, quality control and records describe the plant, so they carry across — capacity never does, because copying it would import the wrong product's numbers. |
 | D55 | **The declaration is a time and a person, not a flag**, and cannot be given while a required answer is blank. | It is a statement someone made about the answers above it, so a consent that cannot say who gave it or when is not a declaration — and one signed over blanks is not a claim about anything. It stays withdrawable while the file is a draft, or an applicant who spotted their own mistake would be trapped by it. |
 | D56 | **One zod schema per payload, in `lib/cm/schemas.ts`, parsed by the form *and* by the server.** Forms use react-hook-form with `zodResolver` and `mode: "onChange"`. | Decided 2026-09-02. The rules were written twice — `validateSku()` on one side, hand-rolled `typeof body.x === "string"` on the other — and two rules that must agree but are written separately eventually disagree. A route that parses the schema cannot be laxer than the screen. It also fixes a real complaint: step 4's warnings came only from the server's gap list, so a question stayed marked missing until Save was pressed, with the answer already on screen. **Validation is not the submission gate** — `missingForSubmission()` stays server-side and authoritative; zod only stops the screen lying. Saving parses `.partial()`, because saving is not submitting and a half-finished step must keep what was written. react-hook-form is adopted in the CM forms only; HR's forms stay on `useState` rather than a big-bang migration. |
+| D57 | **`office_head` is a new role, separate from `officeadmin`.** Whoever holds it receives their office's submitted applications and starts them moving. | Decided 2026-09-02. Payroll authority and file-routing authority are different jobs, and welding them together would mean whoever runs an office's salaries also decides who reviews its licence applications. It is a **role and not a designation** because the client's own point is that when the senior desk is vacant a more junior officer acts in it. `User.role` is a single enum, so one person cannot be both office admin and office head — accepted deliberately. |
+| D58 | **A file is held by a person, and moves up and down the organogram by grade.** `Application.holderEmployeeId` plus an append-only `ApplicationMovement`. | The client's chain is Director → DD → AD → FO and back up. **Seniority is the pay grade, not the org tree's depth**: the organogram puts a branch Director in the Executive unit beside their stenographer while the officers who do the work sit in sibling units, so depth says nothing. Grade says exactly the right thing, and it is the *employee's* grade, not the post's — an officer on grade 9 may sit on a post graded 11, and seniority follows the officer. Peers on one grade cannot pass to each other: sideways movement would make "who holds it" a matter of who clicked, unreadable afterwards. An office head passing **down** is exempt from the grade test, because an acting head is the top of their section whatever their own grade. |
+| D59 | **The movement log is its own table, not events.** | `ApplicationEvent` says what happened to the *application*; `ApplicationMovement` says who had it and when. "How long did this sit with the AD" is a question about the second, and mixing them would mean parsing notes to answer it. |
 | D32 | **The payment gateway is an interface with a built-in sandbox provider behind it** — `lib/payments/provider.ts` defines it, `sandbox.ts` implements it, `registry.ts` selects it from `PAYMENT_PROVIDER`. **Stripe was considered and rejected.** | Decided 2026-08-31. Stripe does not support Bangladesh as a merchant country and does not support BDT at all — the only route is a US LLC front, so every line of it would be thrown away, and it needs API keys plus a webhook tunnel merely to test. The sandbox needs no keys, no network and no account, and the interface is shaped after **SSLCommerz and the e-Challan** (session → redirect → IPN → server-side validation), not after the mock. SSLCommerz is the realistic production candidate if an aggregator is permitted. |
 | D33 | **Only a server-side `verify()` may mark a payment paid.** The browser returning from a gateway settles nothing; the IPN body is read for a reference and nothing else. | The return URL is attacker-controlled — anyone can navigate to it — and an IPN is an unauthenticated POST from the open internet. Both are hints that something happened, never evidence of what. The sandbox implements `verify()` too, against its own separate ledger table, so the discipline is exercised now rather than bolted on when a real gateway lands. |
 | D34 | **Money is stored as integer poisha, and the Income/VAT split is one function, `splitFee()`.** | 15% VAT on a whole-taka price is fractional for most prices (৳350 → ৳52.50), and a float would eventually make the two e-Challan account totals disagree with what was charged. `income + vat === total` holds by construction. Whether the catalogue price is VAT-inclusive or exclusive is an open question, so it sits behind one function (D8). |
@@ -493,7 +496,40 @@ over 8 MB. Every test row was removed afterwards.
 needs CM Wing confirmation, at the same standing as `CM_DOCUMENTS`; and the
 label images are still not stored (D47).
 
-### ⬜ Step 8+ — Workflow engine (Phase D)
+### 🚧 Step 8a — Office head, and files that move
+Built 2026-09-02. The first slice of Phase D: a submitted file is received by
+its office and moves through the organogram. `/workflow` replaces a placeholder
+that advertised Projects, My Tasks, Team and Reports, none of which existed.
+
+**Schema:** `Role.office_head` (D57), `Application.holderEmployeeId`,
+`ApplicationMovement` with `MovementDirection { down | up | receive }` (D58/D59).
+
+`lib/workflow/chain.ts` is the Prisma-free half — who may hand a file to whom;
+`inbox.ts` is the server half. Both are written without reference to CM, so the
+next service that needs a file to move can use them.
+
+**Two data facts that had to be found the hard way.** `Posting.orgPostId` is
+null on all 554 rows — the organogram link lives on `Employee.orgPostId`, set
+for 303 of them — so reading the posting's org post gave every desk a null
+section and no chain at all. And the employee's grade differs from their post's
+grade in real data, so seniority follows the *employee*. With that fixed, 42
+desks at Head Office carry both a grade and a section.
+
+**Verified against the live database**, 29 checks: the Director → DD → AD → FO
+chain both ways; peers refused; cross-section refused; passing to yourself
+refused; an ungraded desk able to receive but never senior; a plain employee
+having no inbox and being unable to receive; a second receive refused; a
+non-holder unable to pass; passing a senior desk "down" refused; the movement
+log reading `receive, down, up` with its note and sender; and an acting head on
+grade 9 reaching 6 desks where grade alone gives none. The test application was
+deleted and its movements cascaded away.
+
+**Still open:** 251 of 554 employees have no `orgPostId`, so they have no
+section and cannot be passed a file — the organogram placement is incomplete,
+not the code. Nobody holds `office_head` yet; a superadmin assigns it at
+`/hr/listing/roles`.
+
+### ⬜ Step 8+ — Workflow engine (the rest)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer
 inbox, SLA clocks (§4.2). The reusable prize — do not build it as "just enough
 for CM".
@@ -580,6 +616,7 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | **Curated generic names.** 29 of 315 products carry a name derived from the source (D46); the rest have none, and Bengali generic names have none at all. | Manufacturers finding their product | 2026-09-01 |
 | ~~**The real mandatory-315 product list.**~~ **Answered 2026-09-01:** the gate is `Product.isMandatory` over the 315 real rows, not the seed's judgement on `Bds.isMandatory315`. The flag survives on `Bds` but no longer decides anything. | — | 2026-08-31 |
 | **BSTI's real questionnaire for step 4.** `CM_QUESTIONS` is five groups drafted from the client's own list — identification, isolation, process, manpower, quality control, records. Same `[ASSUMPTION]` standing as the document checklist. | Asking applicants the right questions | 2026-09-01 |
+| **Organogram placement for 251 employees.** `Employee.orgPostId` is null for them, so they have no section and cannot be handed a file. `Posting.orgPostId` is null on every row, which is why the workflow reads the employee's post instead. | Files reaching every desk | 2026-09-02 |
 | **The CM document checklist.** `CM_DOCUMENTS` is nine items assembled from the spec and general practice, at the same `[ASSUMPTION]` standing as the §2.3 company field set. | Applicants bringing the right papers | 2026-08-31 |
 | **Shortfall policy (§10 #7)** — maximum rounds, response deadline, consequence of lapse. Not yet reached, but it gates the Phase 2 review loop. | Step 8+ | 2026-08-31 |
 | **Is the BDS catalogue price VAT-inclusive or VAT-exclusive?** Treated as exclusive — the price is the income fee and 15% is added on top (D34). The other reading gives a different total for the same standard, so it is a real question, not a rounding detail. Behind `splitFee()`. | What customers are actually charged | 2026-08-31 |

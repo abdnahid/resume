@@ -14,6 +14,7 @@
 export const ASSIGNABLE_ROLES = [
   "superadmin",
   "officeadmin",
+  "office_head",
   "case_officer",
   "data_entry",
   "employee",
@@ -28,6 +29,11 @@ export function isAssignableRole(v: unknown): v is AssignableRole {
 export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }[] = [
   { value: "superadmin", label: "Superadmin", hint: "Everything, including this screen" },
   { value: "officeadmin", label: "Office admin", hint: "Their own office's staff, payroll and advice" },
+  {
+    value: "office_head",
+    label: "Office head",
+    hint: "Receives their office's licence applications and passes them down",
+  },
   { value: "case_officer", label: "Case officer", hint: "Court cases and verdicts, every office" },
   { value: "data_entry", label: "Data entry", hint: "Records only" },
   { value: "employee", label: "Employee", hint: "Their own profile" },
