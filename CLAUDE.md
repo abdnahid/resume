@@ -325,11 +325,18 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   discover that after committing.
 
 - **The BDS attachment rule has three layers, and the UI is not one of them**
-  (§3.3): the UNIQUE index on `consumedByApplicationId`, the checks in
+  (§3.3): the single scalar `BdsPurchase.consumedByApplicationId`, the checks in
   `attachBds()`, and a conditional `updateMany` inside a transaction that is the
   actual lock. Two concurrent attaches of one purchase — exactly one wins.
-  **Swapping the standard on a draft releases the previous purchase**, or
-  changing your mind would consume it for ever.
+  **Swapping the product on a draft releases the previous purchases**, or
+  changing your mind would consume them for ever.
+  That column was `@unique` until D48 and is not any more: uniqueness there
+  enforced *one purchase per application*, which a multi-standard product makes
+  wrong. One purchase serving one application is enforced by the column being a
+  single FK — a direction the index was never what held.
+  **`attachBds()` checks membership itself**, not only at the route: it is also
+  called by `fulfilPayment()` when an in-flow purchase settles, and a rule
+  enforced only where the button is holds only for people who used the button.
 
 - **Submission is not a button.** The file submits the moment the fee settles,
   because a paid fee against an unsubmitted application is money held for
@@ -350,56 +357,122 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   so the build could proceed.
 
 - **`Product` is the CM product list, and an application is filed against a
-  Product** (D44). `prisma/data/mandatory-315.json` is BSTI's published list of
-  315 mandatory-certification products, parsed from `utils/mandatory list.pdf`
+  Product** (D44) — `Application.productId`, and there is no `bdsId` any more.
+  `prisma/data/mandatory-315.json` is BSTI's published list of 315
+  mandatory-certification products, parsed from `utils/mandatory list.pdf`
   by `prisma/import/parse-mandatory-315.py` and loaded by
   `npm run import:products`. **This is real data**, unlike the placeholder half
   of the BDS catalogue. `Product` ↔ `Bds` is many-to-many through
   `ProductStandard` because 24 of the 315 name more than one standard — a
   multi-part standard is several catalogue rows covering one article. A
   manufacturer knows they make toilet soap, not BDS 13:2021, so the product is
-  what they pick and the standard follows from it.
+  what they pick and the standards follow from it.
+  The picker is `GET /api/store/products/search`, which searches name, Bangla
+  name, generic names and standard number over all 315 and filters in memory —
+  `genericNames` is a text array and Postgres cannot substring-match inside one
+  through Prisma.
 
-- **A standard with a stand-in price is not for sale** (D45). The published list
-  gives designations, not prices, so the 375 catalogue rows the importer created
-  carry `isFromMandatoryList` + `priceIsPlaceholder` and a ৳0 stand-in. Both
-  `startBdsPurchase()` and `/api/store/checkout` refuse them — at ৳0 a sale
-  would hand out a purchase for nothing, on a public store over a shared
-  database. **Consequence: until real prices land, no CM application can reach
-  submission**, because every mandatory standard is one of these. That is the
-  truth about the data; do not "fix" it by inventing prices.
+- **All of a product's standards are required, not one of them** (D48). 24
+  products name several and they are not alternatives: a multi-part standard is
+  one specification split across catalogue rows. So an application consumes
+  **one purchase per standard**, `requirementsFor()` returns a row per standard
+  with its own attach/buy state, and `missingForSubmission()` names each
+  unattached one rather than the set.
+
+- **A standard bought from inside an application attaches itself** (D50).
+  `Payment.attachToApplicationId` is set when the checkout route raises the
+  payment — against a session already proven, never read back off the
+  attacker-controlled return URL — and `fulfilPayment()` attaches the purchase
+  when the money settles. A failure there is not fatal and not silent: the
+  purchase is the buyer's whatever happens, and the reason travels to the
+  receipt.
+
+- **An in-flow purchase is scoped to the *application's* company, not to the
+  default profile.** A purchase is party-scoped and a group member may not use
+  the parent's (`purchaseOwnershipPolicy`, §10 #4), so scoping to whichever
+  profile happened to be default bought the standard for one company and then
+  refused it to the company that was applying — and where the default profile is
+  a group parent, which D29 says never applies, the purchase was usable by
+  nobody. `/api/store/checkout` reads the application's `organizationId` when
+  `applicationId` is present and only falls back to the default profile
+  otherwise.
+
+- **The sandbox gateway holds the return URL it is given.** `returnUrl` and
+  `cancelUrl` are columns on `SandboxGatewayTxn`, set in `createCheckout()` and
+  read by the hosted page. The page used to invent a bare
+  `/pay/return/<reference>`, which dropped the `?next=` that carries an in-flow
+  buyer back to their draft — so the receipt showed no way back. The cancel URL
+  is passed separately because both already carry a query string; appending
+  `?cancelled=1` to the return URL produced a second `?` and lost the `next`.
+
+- **A standard with a stand-in price sells at a labelled demo price** (D45,
+  amended by D49). The published list gives designations, not prices, so the 375
+  catalogue rows the importer created carry `isFromMandatoryList` +
+  `priceIsPlaceholder` and a ৳0 stand-in. D45 refused to sell them at all, which
+  was right — and left every mandatory standard unbuyable and therefore every CM
+  application uncompletable. **D49 substitutes ৳500 while the platform runs on
+  the sandbox gateway**, where no money can move and every payment is stamped
+  `isSandbox` for ever. What D45 protected is kept by *labelling*, not
+  refusing: `salePricePolicy()` in `lib/store/bds-catalog.ts` is the one place
+  that decides, and `isProvisional` travels with the price to the buy button,
+  the application, the store card, the detail page and the receipt. **Show the
+  price it returns, never `bds.priceBdt` raw** — otherwise the page quotes ৳0
+  and the gateway charges ৳500. A ৳0 is still refused. When the Standards Wing's
+  prices land, load them and clear the flag; the function stops applying by
+  itself.
 
 - **Generic names come only from the source** (D46) — a bracketed alternative
   ("Suji (Semolina)") or a slashed one ("Natural Henna/Mehedi"). 29 of 315 have
   one and the rest are empty on purpose. Do not invent synonyms: this field
   feeds the picker that decides what someone may apply to certify.
 
-- **The BDS catalogue is the product list, narrowed to the mandatory 315.** The
-  applicant searches the catalogue and picks a standard; that *is* the product,
-  and there is no free-text product field. BSTI certifies conformity to a
-  published standard, so a product it has no standard for is not one it can
-  certify. **And only a standard under mandatory certification can be applied
-  for** — spec §1: CM operates on a closed list of 315 products while Metrology
-  operates on an open one. A CM licence is the permission to sell a product the
-  state has placed under compulsory certification; outside that list there is no
-  licence to issue. `productEligibilityPolicy()` is the rule, enforced in
-  `setProduct()` and again in `missingForSubmission()` so a row written before
-  the rule cannot reach the fee. The picker still *shows* non-mandatory
-  standards, marked ineligible with the reason — a search for a genuinely
-  unregulated product should answer "you do not need this licence", not "no such
-  standard". `Bds.isMandatory315` is the flag, and it is currently the seed's own
-  judgement (15 of 55); the real list is Phase G data and the rule does not
-  change when it lands.
-  **Only a purchase of that exact standard may be attached** — which is what
-  makes spec §3.3 check 3 a real equality test rather than a stub. Changing the
-  product releases the attached purchase in the same transaction (D41);
-  consuming it would punish an applicant for changing their mind in a draft.
-  Owning none, they buy it in flow and land back on the draft — §3.4 is explicit
-  that they must never be sent to the store to lose it.
+- **The applicant picks a product from the 315, and the standards follow.**
+  There is no free-text product field and no standard picker. **Only a product
+  under mandatory certification can be applied for** — spec §1: CM operates on a
+  closed list of 315 products while Metrology operates on an open one. A CM
+  licence is the permission to sell a product the state has placed under
+  compulsory certification; outside that list there is no licence to issue.
+  `productEligibilityPolicy()` is the rule, reading `Product.isMandatory`,
+  enforced in `setProduct()` and again in `missingForSubmission()` so a row
+  written before the rule cannot reach the fee. An ineligible product is *shown*
+  marked ineligible with the reason — a search for a genuinely unregulated
+  product should answer "you do not need this licence", not "no such product".
+  **Only a purchase of one of that product's standards may be attached** —
+  which is what makes spec §3.3 check 3 a real test rather than a stub, now that
+  the `Product` ↔ `Bds` join answers "does this standard certify this product".
+  Changing the product releases every attached purchase in the same transaction
+  (D41); consuming them would punish an applicant for changing their mind in a
+  draft. Owning none, they buy in flow and land back on the draft with it
+  already attached (D50) — §3.4 is explicit that they must never be sent to the
+  store to lose it.
 - **`safeNext()` guards the in-flow return.** Only an app-relative path
   survives; an absolute URL, `//host` or a scheme is discarded rather than
   corrected, so a crafted checkout cannot make the receipt page an open
   redirect.
+
+- **A licence covers SKUs, and they are rows** (D51). One product is sold in
+  many shapes — orange 200 ml in a paper can, mango 2 L in a plastic bottle —
+  and `ApplicationSku` names each: brand, variant/flavour, size, packaging,
+  units per pack, grade. It replaced the free-text `brandName` +
+  `productDetails` pair, which held the same words but could not be counted,
+  grouped, or carried onto a certificate. The spec makes **inclusion** of a new
+  brand/type/size/flavour/grade its own wing service, so a licence gains SKUs
+  over its life and each one has to be identifiable alone.
+  **Brand and size are required; everything else is optional** — cement has no
+  flavour, a biscuit has no grade. At least one SKU is needed before the fee.
+
+- **The size type is chosen before the unit, and that is the whole design.**
+  `SizeType` (weight, volume, number of items, length, cross-section, surface
+  area, diameter, thickness, power, voltage, capacity, size chart) each carry
+  their own `SizeUnit` rows, so a biscuit cannot be measured in litres. Seeded by
+  `npm run seed:size-types` — 12 types, 43 units, a table not an enum (D7).
+  `SizeKind` splits them: a `numeric` type takes a number beside its unit, a
+  `categorical` one (the size chart: XS–XXXL) *is* the answer and the form stops
+  asking for a number. **`resolveSize()` re-checks that the unit belongs to the
+  chosen type** — trusting the pair as posted would store "Weight / litre",
+  which every screen downstream would render as nonsense.
+  Which size types a product may use is Phase G reference data; until it lands
+  all are offered.
 
 - **Documents are recorded, not stored.** The kernel document store does not
   exist, so the bytes are discarded and **the screen says so plainly**. A
@@ -588,6 +661,7 @@ npx prisma db push     # apply schema.prisma to the database
 npx prisma generate    # regenerate the client (also runs on npm install)
 
 npm run seed:bds       # BDS store catalogue — 6 divisions, 55 standards
+npm run seed:size-types # SKU size types and their units — 12 types, 43 units
 npm run seed:org       # organogram
 npm run seed:grades    # NPS-2015 grades onto OrgPost
 npm run seed:employees # employees — SUPERSEDED by import:employees, kept for reference

@@ -25,11 +25,17 @@ export default async function SandboxGatewayPage({
     if (bds) description = `${bds.number} — ${bds.titleEn}`;
   }
 
+  // Where the merchant asked the payer to be sent back to. Held by the gateway
+  // since session creation, exactly as a real one holds it — inventing a bare
+  // `/pay/return/<ref>` here is what dropped the `next` that carries an in-flow
+  // buyer back to the application draft they were filling in.
+  const returnUrl = session.returnUrl ?? `/pay/return/${encodeURIComponent(reference)}`;
+
   // A settled session is done; send the payer to the result rather than letting
   // them pay twice.
   if (session.outcome !== "created") {
     const { redirect } = await import("next/navigation");
-    redirect(`/pay/return/${encodeURIComponent(reference)}`);
+    redirect(returnUrl);
   }
 
   return (
@@ -38,7 +44,8 @@ export default async function SandboxGatewayPage({
         reference={reference}
         amountPoisha={payment.totalPoisha}
         description={description}
-        returnUrl={`/pay/return/${encodeURIComponent(reference)}`}
+        returnUrl={returnUrl}
+        cancelUrl={session.cancelUrl ?? returnUrl}
       />
     </div>
   );

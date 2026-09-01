@@ -136,6 +136,34 @@ export default async function PaymentReturnPage({
                 <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
                 The PDF download arrives with the kernel document store.
               </p>
+
+              {/* Bought from inside an application (D50). Whether it attached
+                  itself is said plainly either way: silence would leave the
+                  applicant assuming a file was completed when it was not. */}
+              {result.attachedTo && (
+                <p
+                  className={`mt-3 flex items-start gap-1.5 rounded-lg px-2.5 py-2 text-xs leading-relaxed ${
+                    result.attachedTo.attached
+                      ? "bg-primary/10 text-foreground"
+                      : "bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                  }`}
+                >
+                  {result.attachedTo.attached ? (
+                    <>
+                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                      Attached to your application. You can carry on where you left off.
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+                      <span>
+                        The standard is yours, but it could not be attached automatically:{" "}
+                        {result.attachedTo.reason} You can attach it from the application.
+                      </span>
+                    </>
+                  )}
+                </p>
+              )}
             </div>
           )}
 

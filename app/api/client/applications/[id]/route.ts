@@ -15,7 +15,7 @@ async function guard(applicationId: number) {
   return { userId };
 }
 
-const EDITABLE = ["brandName", "productDetails"] as const;
+
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
@@ -38,14 +38,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  // The product is the standard, so choosing it goes through `setProduct()` —
-  // it has to release any purchase attached for the previous one.
-  if ("bdsId" in body) {
-    const bdsId = Number(body.bdsId);
-    if (!Number.isInteger(bdsId))
+  // Choosing the product goes through `setProduct()` — it has to release every
+  // purchase attached for the previous one (D41).
+  if ("productId" in body) {
+    const productId = Number(body.productId);
+    if (!Number.isInteger(productId))
       return NextResponse.json({ error: "Which product?" }, { status: 400 });
     try {
-      await setProduct(id, bdsId, g.userId);
+      await setProduct(id, productId, g.userId);
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Could not choose that product." },
@@ -54,12 +54,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
   }
 
+  // Brand and variants used to live here as free text. They are rows now
+  // (D51) — see the SKU routes.
   const data: Record<string, string | null> = {};
-  for (const key of EDITABLE) {
-    if (!(key in body)) continue;
-    const v = typeof body[key] === "string" ? (body[key] as string).trim() : "";
-    data[key] = v || null;
-  }
 
   // Changing the factory would change which office receives the file, so it is
   // allowed only while the application is a draft nobody has been told about.
@@ -71,7 +68,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     await prisma.application.update({ where: { id }, data: { factoryId } });
   }
 
-  if (Object.keys(data).length === 0 && !("factoryId" in body) && !("bdsId" in body))
+  if (Object.keys(data).length === 0 && !("factoryId" in body) && !("productId" in body))
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
   const updated = Object.keys(data).length

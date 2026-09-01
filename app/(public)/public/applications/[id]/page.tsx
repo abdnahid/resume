@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, Factory as FactoryIcon, MapPin } from "lucide-react";
 import { requireClient } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { getApplication, gapsFor, attachableBds, membershipFor } from "@/lib/cm/applications";
+import { getApplication, gapsFor, requirementsFor, membershipFor } from "@/lib/cm/applications";
+import { sizeVocabulary } from "@/lib/cm/skus";
 import { CM_DOCUMENTS } from "@/lib/cm/policy";
 import { isEditable, stageInfo } from "@/lib/cm/states";
 import Footer from "@/components/layout/Footer";
 import StageTracker from "./_components/StageTracker";
 import BdsStep from "./_components/BdsStep";
+import SkuStep from "./_components/SkuStep";
 import ProductStep from "./_components/ProductStep";
 import DocumentsStep from "./_components/DocumentsStep";
 import SubmitStep from "./_components/SubmitStep";
@@ -38,9 +40,10 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const app = await getApplication(id);
   if (!app) notFound();
 
-  const [gaps, bdsOptions] = await Promise.all([
+  const [gaps, requirements, sizeTypes] = await Promise.all([
     gapsFor(id),
-    attachableBds(app.organizationId, viewer.id, app.bdsId),
+    requirementsFor(id, viewer.id),
+    sizeVocabulary(),
   ]);
 
   const editable = isEditable(app.state) && membership.role !== "viewer";
@@ -65,10 +68,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <h1 className="mt-1.5 font-display text-3xl font-medium text-foreground">
               {app.applicationNo ?? "Draft application"}
             </h1>
-            {app.bds && (
+            {app.product && (
               <p className="mt-1 text-sm text-muted-foreground">
-                {app.bds.titleEn}
-                <span className="ml-2 font-mono text-xs">{app.bds.number}</span>
+                {app.product.nameEn}
+                <span className="ml-2 font-mono text-xs">
+                  {app.product.standards.map((s) => s.asPrinted ?? s.bds.number).join(" · ")}
+                </span>
               </p>
             )}
             <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
@@ -107,35 +112,64 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <ProductStep
               applicationId={app.id}
               chosen={
-                app.bds
+                app.product
                   ? {
-                      id: app.bds.id,
-                      number: app.bds.number,
-                      titleEn: app.bds.titleEn,
-                      status: app.bds.status,
-                      division: { nameEn: app.bds.division.nameEn },
+                      id: app.product.id,
+                      serial: app.product.serial,
+                      nameEn: app.product.nameEn,
+                      nameBn: app.product.nameBn,
+                      genericNames: app.product.genericNames,
+                      category: {
+                        letter: app.product.category.letter,
+                        nameEn: app.product.category.nameEn,
+                        nameBn: app.product.category.nameBn,
+                      },
+                      standards: app.product.standards.map((s) => ({
+                        id: s.bds.id,
+                        number: s.bds.number,
+                        titleEn: s.bds.titleEn,
+                        asPrinted: s.asPrinted,
+                      })),
                     }
                   : null
               }
-              brandName={app.brandName}
-              productDetails={app.productDetails}
+              editable={editable}
+            />
+
+            <SkuStep
+              applicationId={app.id}
+              productName={app.product?.nameEn ?? null}
+              skus={app.skus.map((s) => ({
+                id: s.id,
+                brandName: s.brandName,
+                variant: s.variant,
+                sizeValue: s.sizeValue === null ? null : String(s.sizeValue),
+                packaging: s.packaging,
+                unitsPerPack: s.unitsPerPack,
+                grade: s.grade,
+                sizeType: {
+                  id: s.sizeType.id,
+                  nameEn: s.sizeType.nameEn,
+                  kind: s.sizeType.kind as string,
+                },
+                sizeUnit: { id: s.sizeUnit.id, code: s.sizeUnit.code },
+              }))}
+              sizeTypes={sizeTypes.map((t) => ({
+                id: t.id,
+                slug: t.slug,
+                nameEn: t.nameEn,
+                nameBn: t.nameBn,
+                kind: t.kind as string,
+                hintEn: t.hintEn,
+                units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
+              }))}
               editable={editable}
             />
 
             <BdsStep
               applicationId={app.id}
-              chosenBds={
-                app.bds
-                  ? {
-                      id: app.bds.id,
-                      number: app.bds.number,
-                      titleEn: app.bds.titleEn,
-                      priceBdt: app.bds.priceBdt,
-                    }
-                  : null
-              }
-              options={bdsOptions}
-              attachedPurchaseId={app.bdsPurchaseId}
+              productName={app.product?.nameEn ?? null}
+              requirements={requirements}
               editable={editable}
             />
 

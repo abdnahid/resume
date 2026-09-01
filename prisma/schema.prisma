@@ -1611,14 +1611,12 @@ model Bds {
   pdfBytes     Int?
   pdfSha256    String?
 
+  /// Which of the 315 products this standard certifies. The join is the answer
+  /// to spec §3.3 check 3 — "the BDS matches the product applied for" — now
+  /// that an application names a Product rather than a standard (D44).
   standardFor ProductStandard[]
 
-  // TODO(step 6): productId FK → Product. The BDS attachment rule (plan §3.3,
-  // check 3) matches a purchase against the product being applied for. The
-  // product catalogue arrives with Phase G reference data.
-
-  purchases    BdsPurchase[]
-  applications Application[] @relation("AppliedStandard")
+  purchases BdsPurchase[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1694,6 +1692,17 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
+  /// Set when a standard is bought from **inside** an application (D42/D50).
+  /// The purchase it grants is attached to that application automatically on
+  /// fulfilment, so the applicant is not asked to do by hand the thing they
+  /// just paid for. Recorded here, at the moment the payment is raised, rather
+  /// than read back off the attacker-controlled return URL.
+  ///
+  /// Null for an ordinary store purchase: that one attaches to the buyer only,
+  /// and waits until they choose an application for it.
+  attachToApplicationId Int?
+  attachToApplication   Application? @relation("InFlowPurchases", fields: [attachToApplicationId], references: [id])
+
   events   PaymentEvent[]
   purchase BdsPurchase?
 
@@ -1754,16 +1763,25 @@ model BdsPurchase {
 
   purchasedAt DateTime @default(now())
 
-  /// D5 / spec §3.3 — a purchased BDS may be attached to exactly one new
-  /// application, ever. UNIQUE from day one even though nothing reads it until
-  /// step 6: retrofitting a unique index onto a live purchase table is the
-  /// expensive version. Nulls are excluded from uniqueness in PostgreSQL, so
-  /// any number of unconsumed purchases coexist.
-  consumedByApplicationId Int? @unique
+  /// D5 / spec §3.3 — a purchased BDS may be attached to exactly one
+  /// application, ever. That rule is enforced by this being a single scalar
+  /// column: a purchase points at one application or at none.
+  ///
+  /// **It was `@unique` until D48 and is not any more.** Uniqueness here
+  /// enforced the *other* direction — one application may consume at most one
+  /// purchase — which was right while a product was a single standard. A
+  /// product may name several standards and an application must own all of
+  /// them (D48), so an application now consumes as many purchases as its
+  /// product has standards. The one-purchase-one-application rule is untouched;
+  /// the layer that actually locks it is still the conditional `updateMany` in
+  /// `attachBds()`, which only matches a row that is still null.
+  consumedByApplicationId Int?
+  consumedByApplication   Application? @relation("AttachedPurchases", fields: [consumedByApplicationId], references: [id])
 
   @@index([buyerUserId])
   @@index([bdsId])
   @@index([organizationId])
+  @@index([consumedByApplicationId])
 }
 
 /// The sandbox gateway's own ledger.
@@ -1787,6 +1805,14 @@ model SandboxGatewayTxn {
   /// "created" until the payer acts, then "paid" | "failed" | "cancelled".
   outcome      String  @default("created")
   method       String?
+
+  /// Where the merchant asked the payer to be sent back to, and where to send
+  /// them if they cancel. A real gateway is handed both at session creation and
+  /// holds them for the redirect — the sandbox was taking them and discarding
+  /// them, so its hosted page invented a bare return URL and dropped the `next`
+  /// that carries an in-flow buyer back to their application draft.
+  returnUrl String?
+  cancelUrl String?
 
   createdAt DateTime  @default(now())
   settledAt DateTime?
@@ -1824,30 +1850,6 @@ model Application {
   bstiOfficeId Int?
   bstiOffice   Office? @relation(fields: [bstiOfficeId], references: [id])
 
-  /// **The product being certified.** The BDS catalogue *is* the product list —
-  /// an applicant picks the standard their article is made to, and that names
-  /// the product. There is no free-text product field on purpose: a licence is
-  /// granted against a published standard, so a product BSTI has no standard
-  /// for is not a product it can certify.
-  ///
-  /// This is also what makes spec §3.3 check 3 — "the BDS matches the product
-  /// applied for" — a real equality test rather than a stub: the attached
-  /// purchase must be a purchase of *this* standard.
-  bdsId Int?
-  bds   Bds? @relation("AppliedStandard", fields: [bdsId], references: [id])
-
-  /// The applicant's own brand for the article. Not the product — a brand is
-  /// what it is sold as, the BDS is what it is.
-  brandName      String?
-  /// Free text: pack sizes, variants, grades covered by this application.
-  productDetails String?
-
-  /// The purchased standard this application is made against (spec §3.3). The
-  /// UNIQUE side of the one-purchase-one-application rule lives on
-  /// `BdsPurchase.consumedByApplicationId`; this is the convenience direction.
-  /// Its `bdsId` must equal this application's `bdsId`.
-  bdsPurchaseId Int?
-
   /// The application fee. Reaching `submitted` requires it to be `paid`.
   applicationFeePaymentId Int?     @unique
   applicationFeePayment   Payment? @relation("ApplicationFee", fields: [applicationFeePaymentId], references: [id])
@@ -1863,19 +1865,35 @@ model Application {
   events    ApplicationEvent[]
 
   /// **What the licence is applied for** (D44). The 315 mandatory products are
-  /// the closed list CM works over (spec §1), and the standard the applicant
-  /// must own is derived from the product rather than chosen beside it.
+  /// the closed list CM works over (spec §1), and the standards the applicant
+  /// must own are derived from the product rather than chosen beside it.
   ///
-  /// Nullable and coexisting with `bdsId` on purpose: the column landed before
-  /// the application flow was moved onto it, and there is no migration history
-  /// in this repo, so the two run side by side until the flow is rewired and
-  /// `bdsId` becomes the *specific* standard the attached purchase covers.
+  /// Nullable because a draft starts before anything is chosen; required by
+  /// `missingForSubmission()` well before the fee. It replaced `bdsId`, which
+  /// named a single standard and could not express the 24 products whose
+  /// certification needs several (D48).
   productId Int?
   product   Product? @relation(fields: [productId], references: [id])
 
+  /// The purchases attached to this file — one per standard the product names
+  /// (D48), each consumed for good by being pointed here (spec §3.3). The set
+  /// replaced the old single `bdsPurchaseId`, so "which standards are covered"
+  /// is read off the purchases themselves rather than duplicated on both sides.
+  attachedPurchases BdsPurchase[] @relation("AttachedPurchases")
+
+  /// Payments raised for standards bought from inside this application (D50).
+  /// Kept so an in-flow purchase can attach itself when it settles.
+  inFlowPayments Payment[] @relation("InFlowPurchases")
+
+  /// **Every article the licence would cover** (D51). A manufacturer applying
+  /// for one product sells it in many shapes — orange 200 ml in a paper can,
+  /// mango 2 L in a plastic bottle — and the licence names each. Replaced the
+  /// free-text `brandName` + `productDetails` pair, which could hold the same
+  /// information but not count it, group it, or carry it onto a certificate.
+  skus ApplicationSku[]
+
   @@index([organizationId])
   @@index([factoryId])
-  @@index([bdsId])
   @@index([productId])
   @@index([state])
   @@index([bstiOfficeId, state])
@@ -2017,4 +2035,136 @@ model ProductStandard {
 
   @@id([productId, bdsId])
   @@index([bdsId])
+}
+
+/// Whether a size type is measured or chosen from a chart.
+///
+/// `numeric` sizes are a number and a unit — 200 ml, 250 g, 1.5 sq mm. A
+/// `categorical` size has no number at all: a shirt is size M, and "M" is the
+/// whole answer. Keeping them apart is what lets the form ask for a number
+/// where there is one and refuse to invent one where there is not.
+enum SizeKind {
+  numeric
+  categorical
+}
+
+/// How a product's size is expressed — weight, volume, number of items,
+/// cross-section, surface area, diameter, size chart.
+///
+/// The applicant picks the size type first and the unit list follows from it, so
+/// a biscuit cannot be measured in litres by accident. A table rather than an
+/// enum (D7): the labels are bilingual, they are ordered for display, and the
+/// Standards Wing will add to the list without a deployment.
+///
+/// **Which size types a given product may use is Phase G reference data** and
+/// does not exist yet, so all of them are offered. When it lands it narrows this
+/// list per product; nothing else about the model changes.
+model SizeType {
+  id Int @id @default(autoincrement())
+
+  slug   String   @unique
+  nameEn String
+  nameBn String?
+  kind   SizeKind @default(numeric)
+
+  /// Shown under the field — "200 ml, 1.5 litre" — so the applicant can see
+  /// what shape of answer is wanted before they type one.
+  hintEn String?
+
+  sortOrder Int @default(0)
+
+  units SizeUnit[]
+  skus  ApplicationSku[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+/// One option under a size type.
+///
+/// For a `numeric` type this is the unit of measure — `ml`, `kg`, `sq mm` — and
+/// the SKU carries a number beside it. For a `categorical` type it is the whole
+/// value: the rows under "Size chart" are `XS`, `S`, `M`, `L`, and the SKU
+/// carries no number at all. One table because the applicant does the same
+/// thing either way — pick a size type, then pick from its list — and two
+/// tables would double the seed, the API and the form to express that.
+model SizeUnit {
+  id Int @id @default(autoincrement())
+
+  sizeTypeId Int
+  sizeType   SizeType @relation(fields: [sizeTypeId], references: [id], onDelete: Cascade)
+
+  /// What is written after the number, or the categorical value itself.
+  code   String
+  nameEn String
+  nameBn String?
+
+  sortOrder Int @default(0)
+
+  skus ApplicationSku[]
+
+  @@unique([sizeTypeId, code])
+  @@index([sizeTypeId])
+}
+
+/// One article the licence would cover.
+///
+/// A CM licence is granted for a product made at a factory, but what reaches a
+/// shelf is a SKU: a brand, a flavour, a size, a pack. The spec calls the axes
+/// "brand/type/size/flavour/grade" (§ wing services) and lists **inclusion** of a
+/// new one as its own service — which is the strongest argument for these being
+/// rows rather than a paragraph: a licence gains SKUs over its life, and each
+/// addition has to be identifiable on its own.
+///
+/// Brand and size are required (the client's rule, 2026-09-01). Everything else
+/// is optional because it does not apply to every product — cement has no
+/// flavour, a biscuit has no grade.
+model ApplicationSku {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// The brand this article is sold under. Required: an unbranded SKU cannot be
+  /// identified on a shelf or on a certificate. Most applications repeat one
+  /// brand across every row, so the form carries the previous row's brand
+  /// forward rather than asking again.
+  brandName String
+
+  /// Flavour, type or variety — "Orange", "Mango", "Whole wheat". Empty for the
+  /// many products that have no variants.
+  variant String?
+
+  sizeTypeId Int
+  sizeType   SizeType @relation(fields: [sizeTypeId], references: [id])
+
+  sizeUnitId Int
+  sizeUnit   SizeUnit @relation(fields: [sizeUnitId], references: [id])
+
+  /// The number, for a `numeric` size type. Null for a `categorical` one, where
+  /// `sizeUnit` carries the whole answer. `Decimal` rather than an integer
+  /// because 1.5 sq mm and 0.5 L are ordinary sizes.
+  sizeValue Decimal? @db.Decimal(12, 3)
+
+  /// How the article is packed — "Paper-based can", "Plastic bottle", "PP
+  /// woven sack". Free text on purpose: a packaging list across 315 products is
+  /// reference data nobody has collected, and a wrong closed list would push the
+  /// truth into a notes field.
+  packaging String?
+
+  /// For a multipack: how many of the above are in one sold unit — the 24 in
+  /// "24 × 250 ml". Null for a single.
+  unitsPerPack Int?
+
+  /// Grade or class where the standard defines them — "Grade A", "OPC 53".
+  grade String?
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([applicationId])
+  @@index([sizeTypeId])
+  @@index([sizeUnitId])
 }

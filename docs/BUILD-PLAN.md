@@ -55,6 +55,10 @@ card layout were taken from.
 | D45 | **A standard the mandatory list names but the catalogue does not price is not for sale.** Rows created by the importer carry `isFromMandatoryList` + `priceIsPlaceholder`, and both `startBdsPurchase()` and the checkout route refuse them. | The published list gives designations, not the Standards Wing's prices, and the stand-in is ৳0 — so selling one would either charge a made-up amount or hand out a purchase for nothing, on a public store, against a shared database. Refusing is the only safe default until real prices are loaded. **Consequence, deliberately accepted:** until then no CM application can be completed, because every mandatory standard is one of these. That is the truth about the data, and a working demo built on invented prices would hide it. |
 | D46 | **Generic names are derived only from what the source states** — a bracketed alternative ("Suji (Semolina)") or a slashed one ("Natural Henna/Mehedi") — never guessed. 29 of 315 have one. | The point of generic names is that a manufacturer searches for what they call the thing. Inventing synonyms would put words in BSTI's mouth on a screen that decides whether someone can apply for a licence; an empty field is honest and curation is a data job. |
 | D47 | **Standard PDFs live in S3-compatible object storage, and a download is a short-lived signed URL issued only after the purchase check.** `Bds.pdfObjectKey` / `pdfBytes` / `pdfSha256` model it; the object key never leaves the server. | Chosen by the client 2026-09-01 over local disk, which would tie the app to one machine's filesystem — and there are two. It is also where certificates will eventually live, so the kernel document store gets one backend rather than two. **Schema only so far**: no client, no bucket, no credentials, and the UI still says plainly that uploaded files are not kept. |
+| D48 | **A product that names several standards needs *all* of them.** An application consumes one purchase per standard; `Application.bdsPurchaseId` is gone, replaced by the `attachedPurchases` set, and `BdsPurchase.consumedByApplicationId` is **no longer UNIQUE**. | Confirmed by the client 2026-09-01. 24 of the 315 name more than one and they are not alternatives — a multi-part standard (`BDS ISO 4427-1/-2/-3`) is one specification split across catalogue rows, so certifying the article means conforming to every part. Attaching one part and calling the file complete would put a licence behind a fraction of its own specification. Dropping the unique index sounds like weakening §3.3 and is not: it enforced *one purchase per application*, the direction a multi-standard product makes wrong. One purchase serving one application is enforced by the column being a single scalar FK, plus the conditional `updateMany` that was always the actual lock. |
+| D49 | **A standard whose price is a stand-in sells at a labelled demo price of ৳500** while the platform runs on the sandbox gateway. `salePricePolicy()` in `lib/store/bds-catalog.ts` is the only place that decides, and `isProvisional` travels with the price to every screen that shows it. **Amends D45.** | Chosen by the client 2026-09-01. D45's refusal was right about the data and fatal for the flow: all 375 imported standards carry a ৳0 stand-in, so no CM application could be completed at all. No real money can move here — `PAYMENT_PROVIDER` defaults to the sandbox and every payment it touches is stamped `isSandbox` for ever — so the exposure D45 was guarding against is not present. What it was protecting, that nobody is quietly charged an invented amount, is kept by *labelling* rather than refusing. A ৳0 is still refused. When the real prices land they are loaded onto `Bds.priceBdt`, the flag is cleared, and the function stops applying on its own. |
+| D50 | **A standard bought from inside an application attaches itself when the payment settles.** `Payment.attachToApplicationId` is recorded when the checkout route raises the payment; `fulfilPayment()` calls the same `attachBds()` the button does. | D42 already returned the buyer to their draft, but left them to attach by hand the thing they had just paid for — a step with no decision in it, and one an applicant can abandon halfway. The application id is recorded at raise time against a session already proven, never read back off the return URL, which is attacker-controlled. Failure is neither fatal nor silent: the purchase is the buyer's whatever happens, so the reason travels to the receipt instead of a paid-for standard vanishing. It also forced `attachBds()` to check membership itself rather than trusting the route — `fulfilPayment()` is a second caller, and a rule enforced only where the button is holds only for people who used the button. |
+| D51 | **The articles a licence covers are rows, not free text.** `ApplicationSku` — brand, variant/flavour, size (a `SizeType` + `SizeUnit` + value), packaging, units per pack, grade. `Application.brandName` and `productDetails` are dropped. Brand and size are required; at least one SKU gates the fee. The size type is picked first and the unit list follows from it; `SizeKind` separates measured sizes from chosen ones (the size chart). | Decided with the client 2026-09-01. A manufacturer applying for "artificial flavoured drinks" sells orange 200 ml in a paper can, mango 2 L in a plastic bottle, and six more — different brands among them. Two free-text boxes could hold that as prose but nothing could count it, group it, or print it on a certificate, and the reviewing officer cannot plan sampling from a paragraph. The spec settles the shape: it lists **inclusion** of a new brand/type/size/flavour/grade as its own wing service, so a licence gains SKUs one at a time and each must be identifiable alone. Units are a table under the size type rather than free text because the same unit otherwise arrives spelled five ways — and choosing the type first is what stops a biscuit being measured in litres. The categorical kind exists because a shirt is size M and asking for a number would only get an invented one. |
 | D32 | **The payment gateway is an interface with a built-in sandbox provider behind it** — `lib/payments/provider.ts` defines it, `sandbox.ts` implements it, `registry.ts` selects it from `PAYMENT_PROVIDER`. **Stripe was considered and rejected.** | Decided 2026-08-31. Stripe does not support Bangladesh as a merchant country and does not support BDT at all — the only route is a US LLC front, so every line of it would be thrown away, and it needs API keys plus a webhook tunnel merely to test. The sandbox needs no keys, no network and no account, and the interface is shaped after **SSLCommerz and the e-Challan** (session → redirect → IPN → server-side validation), not after the mock. SSLCommerz is the realistic production candidate if an aggregator is permitted. |
 | D33 | **Only a server-side `verify()` may mark a payment paid.** The browser returning from a gateway settles nothing; the IPN body is read for a reference and nothing else. | The return URL is attacker-controlled — anyone can navigate to it — and an IPN is an unauthenticated POST from the open internet. Both are hints that something happened, never evidence of what. The sandbox implements `verify()` too, against its own separate ledger table, so the discipline is exercised now rather than bolted on when a real gateway lands. |
 | D34 | **Money is stored as integer poisha, and the Income/VAT split is one function, `splitFee()`.** | 15% VAT on a whole-taka price is fractional for most prices (৳350 → ৳52.50), and a float would eventually make the two e-Challan account totals disagree with what was charged. `income + vat === total` holds by construction. Whether the catalogue price is VAT-inclusive or exclusive is an open question, so it sits behind one function (D8). |
@@ -363,13 +367,94 @@ catalogue had exactly **one** of them, the other 54 rows being the placeholders
 - [x] `Product`, `ProductCategory`, `ProductStandard`; `Application.productId`
 - [x] Importer, idempotent and batched (per-row upserts against the remote
       database took ~100 minutes; batched, under a minute)
-- [x] Refuse to sell a standard whose price is a stand-in (D45)
-- [ ] **Move the application flow onto `Product`** — `setProduct()`, the picker,
-      `attachBds()`'s equality test becoming "a purchase of one of *this
-      product's* standards", and `productEligibilityPolicy()` reading the
-      product rather than the BDS flag
-- [ ] Search products by generic name
+- [x] ~~Refuse to sell a standard whose price is a stand-in (D45)~~ — superseded
+      by the labelled demo price (D49)
+- [x] **The application flow moved onto `Product`** (2026-09-01)
+- [x] Search products by generic name, Bangla name and standard number
 - [ ] Object storage for the standard PDFs and the paid download (D47)
+
+**The picker showed nothing, and that was a separate bug.** `GET
+/api/store/bds/search` read its division filter as
+`Number(searchParams.get("division"))`. An absent parameter is `null`,
+`Number(null)` is `0`, and `Number.isInteger(0)` is `true` — so every search ran
+with `divisionId: 0`, which no row has. The picker had therefore returned an
+empty list for every query since it was written. The route is gone, replaced by
+`/api/store/products/search`, which tests for an absent parameter as an absent
+parameter.
+
+**What changed to move onto `Product`:**
+
+| Piece | Now |
+|---|---|
+| `Application` | `productId` → `Product`; `bdsId` and `bdsPurchaseId` dropped |
+| `BdsPurchase.consumedByApplicationId` | no longer UNIQUE, and a real relation — `application.attachedPurchases` is the set (D48) |
+| `Payment.attachToApplicationId` | remembers an in-flow purchase's application (D50) |
+| `productEligibilityPolicy()` | reads `Product.isMandatory` — real data, not the seed's guess |
+| `attachBds()` | the standard must be one the *product* is certified against, one purchase per standard, and membership is checked here rather than only at the route |
+| `setProduct()` | releases **every** purchase attached for the old product |
+| `requirementsFor()` | replaces `attachableBds()` — one row per required standard, each with its own attach / buy state and price |
+| `missingForSubmission()` | names each unattached standard rather than the set |
+| `/api/store/products/search` | searches name, Bangla name, generic names and standard number over all 315; filters in memory because `genericNames` is a text array |
+| Store surfaces | card, landing, detail page and buy button all read `salePricePolicy()`, so the page and the gateway cannot quote different figures |
+
+**Two bugs found by walking the flow, 2026-09-01.** Both were in the in-flow
+purchase (D50), and neither was in the code D50 added:
+
+1. **The receipt offered no way back to the draft.** `beginCheckout()` builds a
+   return URL carrying `?next=/public/applications/<id>` and hands it to the
+   provider — and the sandbox threw it away. `SandboxGatewayTxn` had nowhere to
+   put it, so the hosted page invented a bare `/pay/return/<reference>`. Fixed by
+   giving the sandbox `returnUrl` + `cancelUrl` columns, which is what a real
+   gateway holds. The cancel URL is now passed separately too: the page was
+   appending `?cancelled=1` to a URL that already had a query string.
+2. **The purchase was scoped to the wrong company.** `/api/store/checkout`
+   scoped every purchase to the buyer's `isDefault` membership. Buying from
+   inside an application therefore bought the standard for the default profile
+   and then `purchaseOwnershipPolicy()` refused it to the company that was
+   applying — "This standard was bought by another company in your group."
+   Worse where the default profile is a **group parent**, which D29 says never
+   applies: the purchase was usable by nobody. An in-flow purchase now scopes to
+   the application's own `organizationId`. One live purchase stranded by this was
+   re-scoped and attached.
+
+**Verified against the live database**, 32 checks over two suites: a purchase of
+another product's standard is refused; a second application cannot reuse one;
+two concurrent attaches yield exactly one winner; changing the product releases
+what was attached; a three-standard product leaves the other two named as gaps
+until each is attached; detaching releases rather than consumes; a
+placeholder-priced standard quotes and charges ৳500 and is labelled provisional
+while a real price is untouched; an in-flow purchase attaches itself, twice-run
+fulfilment is idempotent, and a purchase pointed at an application the buyer has
+no standing on is granted but not attached.
+
+### ✅ Step 7c — The articles a licence covers
+Built 2026-09-01. An application now lists its SKUs (D51).
+
+**Schema:** `SizeType` (12) + `SizeUnit` (43), seeded by `npm run seed:size-types`;
+`ApplicationSku` hanging off the application. `Application.brandName` and
+`productDetails` are gone.
+
+| Path | What it is |
+|---|---|
+| `POST/PATCH/DELETE /api/client/applications/[id]/skus` | Add, edit, remove one article |
+
+**The size type is picked before the unit**, so the unit list is only ever the
+ones that make sense — and `resolveSize()` re-checks the pair server-side,
+because a request that posted "Weight / litre" would otherwise store a size
+nothing can read. `SizeKind` separates a measured size (200 ml) from a chosen one
+(shirt size M); the form stops asking for a number on the second, and the service
+refuses one.
+
+**Verified against the live database**, 20 checks including the client's own
+example: eight variants across two brands, three flavours, two packaging types
+and both ml and litre; a multipack keeping its `× 24`; 1.5 L surviving as a
+decimal; weight-paired-with-litre refused; brand and size enforced; a chart size
+stored with no number and refused one; a size type changed on an existing row;
+the fee blocked while no variant is listed; and a stranger refused.
+
+**Still open:** whether the fee scales with SKU count (the real schedule does not
+exist — a flat ৳1,000 stands in), and which size types each of the 315 products
+may use (Phase G — all are offered until then).
 
 ### ⬜ Step 8+ — Workflow engine (Phase D)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer
@@ -449,11 +534,14 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | **BSTI's authoritative allowance and deduction list** — MEDICAL, WELFARE and AIT have been entered by hand and House Rent is seeded, but nothing confirms that set is complete or the rates current. | Payroll that matches the books | 2026-08-28 |
 | **Should `EmployeeCategory` be editable?** Regularising a daily-basis worker into a staff post is a real HR event the system cannot currently record. | Anyone changing pay regime | 2026-08-30 |
 | **Sonali branch details for 22 offices** — seeded values are improvised and flagged. | Correct bank advice outside Head Office | 2026-08-29 |
+| **Does the application fee scale with the number of SKUs?** More variants mean more samples drawn and more tests run, so a flat fee for a one-SKU and a forty-SKU application is unlikely to be right. `applicationFeePoisha()` takes no arguments today; making it take the SKU list is a small change, but guessing the multiplier is not. | Charging applicants correctly | 2026-09-01 |
+| **Which size types may each of the 315 products use?** All 12 are offered to every product, so nothing stops a biscuit being listed by voltage. The type-per-product mapping is Phase G reference data; the rule does not change when it lands. | Clean SKU data | 2026-09-01 |
 | **The CM application fee schedule.** A flat ৳1,000 stands in (`applicationFeePoisha()`); the real schedule varies by product category, and the category table is Phase G reference data. | Charging applicants correctly | 2026-08-31 |
-| **Prices for the 375 standards created from the mandatory list.** The published list carries designations, not prices. Until the Standards Wing's price list lands, every mandatory standard is unsaleable (D45) and therefore **no CM application can reach submission**. This is now the single biggest blocker on the CM flow. | Any applicant buying the standard they need | 2026-09-01 |
+| **Prices for the 375 standards created from the mandatory list.** The published list carries designations, not prices. **No longer blocking the flow** — a labelled demo price of ৳500 stands in while the gateway is the sandbox (D49), so applications can be completed end to end. It is still blocking *going live*: the moment a real gateway is configured, an unlabelled real charge would be made against an invented amount. Load them onto `Bds.priceBdt` and clear `priceIsPlaceholder`; `salePricePolicy()` then stops applying by itself. | Charging real money for standards | 2026-09-01 |
+| **Are a product's several standards genuinely all required?** D48 says yes and the client confirmed it, but the 24 affected rows were read off the published list's punctuation — some look like parts of one specification (`BDS ISO 4427-1/-2/-3`), others like alternatives for different variants ("a) Soluble coffee powder b) Roasted and ground coffee"). If any are alternatives, requiring all three makes an applicant buy two standards they will never be certified against. Worth checking those 24 with the CM Wing. | Applicants buying standards they do not need | 2026-09-01 |
 | **Titles for those 375 standards.** The list names the *product*, not the standard, so each created catalogue row is titled after the product it certifies. Correct enough to search by, wrong as a catalogue title. | The store reading truthfully | 2026-09-01 |
 | **Curated generic names.** 29 of 315 products carry a name derived from the source (D46); the rest have none, and Bengali generic names have none at all. | Manufacturers finding their product | 2026-09-01 |
-| **The real mandatory-315 product list.** `Bds.isMandatory315` now *gates* which standards a CM application may be made against (D43), but the flag is set by the catalogue seed's own judgement — 15 of 55. Populating it correctly is a data job, not a code one; the rule does not change when the list arrives. | Applicants seeing the right products | 2026-08-31 |
+| ~~**The real mandatory-315 product list.**~~ **Answered 2026-09-01:** the gate is `Product.isMandatory` over the 315 real rows, not the seed's judgement on `Bds.isMandatory315`. The flag survives on `Bds` but no longer decides anything. | — | 2026-08-31 |
 | **The CM document checklist.** `CM_DOCUMENTS` is nine items assembled from the spec and general practice, at the same `[ASSUMPTION]` standing as the §2.3 company field set. | Applicants bringing the right papers | 2026-08-31 |
 | **Shortfall policy (§10 #7)** — maximum rounds, response deadline, consequence of lapse. Not yet reached, but it gates the Phase 2 review loop. | Step 8+ | 2026-08-31 |
 | **Is the BDS catalogue price VAT-inclusive or VAT-exclusive?** Treated as exclusive — the price is the income fee and 15% is added on top (D34). The other reading gives a different total for the same standard, so it is a real question, not a rounding detail. Behind `splitFee()`. | What customers are actually charged | 2026-08-31 |

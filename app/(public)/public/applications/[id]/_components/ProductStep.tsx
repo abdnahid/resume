@@ -2,96 +2,71 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Check, Search, ShieldCheck, X, AlertTriangle } from "lucide-react";
+import { Loader2, Search, ShieldCheck, X, AlertTriangle } from "lucide-react";
 
 const field =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
-const label = "mb-1.5 block text-xs font-medium text-muted-foreground";
 
 type Hit = {
   id: number;
-  number: string;
-  titleEn: string;
-  titleBn: string | null;
-  status: string;
-  priceBdt: number;
-  isMandatory315: boolean;
-  division: string;
+  serial: number;
+  nameEn: string;
+  nameBn: string | null;
+  genericNames: string[];
+  category: { letter: string; nameEn: string };
+  standards: {
+    id: number;
+    number: string;
+    titleEn: string;
+    status: string;
+    asPrinted: string | null;
+    isPrimary: boolean;
+  }[];
   eligible: boolean;
   ineligibleReason: string | null;
 };
 
-export type ChosenBds = {
+type Category = { letter: string; nameEn: string; nameBn: string | null };
+
+export type ChosenProduct = {
   id: number;
-  number: string;
-  titleEn: string;
-  status: string;
-  division: { nameEn: string };
+  serial: number;
+  nameEn: string;
+  nameBn: string | null;
+  genericNames: string[];
+  category: { letter: string; nameEn: string; nameBn: string | null };
+  standards: { id: number; number: string; titleEn: string; asPrinted: string | null }[];
 } | null;
 
 /**
  * Choosing the product.
  *
- * **The BDS catalogue is the product list.** A CM licence certifies conformity
- * to a published standard, so a product BSTI has no standard for is not a
- * product it can certify — which is why this is a search over the catalogue and
- * not a text box. It also makes the standard the applicant must attach a
- * determined fact rather than a judgement call.
+ * **The 315 are the list** (D44). A CM licence is the permission to sell a
+ * product the state has placed under compulsory certification, so the choice is
+ * made from BSTI's published list and nowhere else — there is no free-text
+ * product field. The standards follow from the product rather than being picked
+ * beside it: a manufacturer knows they make toilet soap, not BDS 13:2021.
  */
 export default function ProductStep({
   applicationId,
   chosen,
-  brandName,
-  productDetails,
   editable,
 }: {
   applicationId: number;
-  chosen: ChosenBds;
-  brandName: string | null;
-  productDetails: string | null;
+  chosen: ChosenProduct;
   editable: boolean;
 }) {
   const router = useRouter();
   const [picking, setPicking] = useState(false);
-  const [form, setForm] = useState({
-    brandName: brandName ?? "",
-    productDetails: productDetails ?? "",
-  });
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => {
-    setForm((f) => ({ ...f, [k]: e.target.value }));
-    setSaved(false);
-  };
-
-  async function save() {
-    setBusy(true);
+  async function choose(productId: number) {
     setError(null);
     try {
       const res = await fetch(`/api/client/applications/${applicationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Could not save.");
-      setSaved(true);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function choose(bdsId: number) {
-    setError(null);
-    try {
-      const res = await fetch(`/api/client/applications/${applicationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bdsId }),
+        body: JSON.stringify({ productId }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Could not choose that product.");
       setPicking(false);
@@ -105,9 +80,9 @@ export default function ProductStep({
     <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
       <h2 className="font-semibold text-foreground">Product</h2>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-        Choose the Bangladesh Standard your product is made to. BSTI certifies against published
-        standards, so the standard is the product. Only standards under mandatory certification can
-        be licensed — those are the products that may not be sold without a BSTI quality licence.
+        Choose what you make from BSTI&apos;s list of 315 products under mandatory certification.
+        Those are the products that may not be sold without a quality licence — the standards your
+        article must be certified against follow from the product you pick.
       </p>
 
       {chosen ? (
@@ -115,15 +90,36 @@ export default function ProductStep({
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-2 font-semibold text-foreground">
-                {chosen.number}
-                {chosen.status === "superseded" && (
-                  <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                    superseded
-                  </span>
-                )}
+                {chosen.nameEn}
+                <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                  #{chosen.serial} of 315
+                </span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">{chosen.titleEn}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{chosen.division.nameEn}</p>
+              {chosen.nameBn && (
+                <p className="mt-1 font-bn text-sm text-muted-foreground">{chosen.nameBn}</p>
+              )}
+              {chosen.genericNames.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Also known as {chosen.genericNames.join(", ")}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Category {chosen.category.letter} — {chosen.category.nameEn}
+              </p>
+              <p className="mt-2.5 text-xs font-medium text-foreground">
+                Certified against{" "}
+                {chosen.standards.length === 1
+                  ? "1 standard"
+                  : `all ${chosen.standards.length} standards`}
+                :
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {chosen.standards.map((s) => (
+                  <li key={s.id} className="text-xs text-muted-foreground">
+                    <span className="font-mono">{s.asPrinted ?? s.number}</span> — {s.titleEn}
+                  </li>
+                ))}
+              </ul>
             </div>
             {editable && (
               <button
@@ -151,75 +147,42 @@ export default function ProductStep({
         </p>
       )}
 
+      {/* Changing the product releases the purchases attached for the old one
+          (D41), so the applicant is told before they do it rather than after. */}
+      {picking && chosen && (
+        <p className="mt-4 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          Choosing a different product releases the standards attached to this application. You keep
+          them — they go back to your purchases and can be used on another application.
+        </p>
+      )}
+
       {picking && <ProductPicker onPick={choose} onClose={() => setPicking(false)} />}
 
-      {/* Brand and variants sit under the product, because that is what they
-          qualify — the standard says what the article is, these say how this
-          applicant sells it. */}
-      {editable ? (
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={label}>Brand name</label>
-              <input
-                className={field}
-                value={form.brandName}
-                placeholder="The brand this is sold under"
-                onChange={set("brandName")}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={label}>Variants, pack sizes or grades covered</label>
-              <textarea
-                className={`${field} min-h-20 resize-y`}
-                value={form.productDetails}
-                onChange={set("productDetails")}
-              />
-            </div>
-          </div>
-          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-          <button
-            type="button"
-            onClick={save}
-            disabled={busy}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg border border-primary bg-secondary/50 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-secondary disabled:opacity-60"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />}
-            {saved && !busy && <Check className="h-4 w-4" strokeWidth={2.5} />}
-            {busy ? "Saving…" : saved ? "Saved" : "Save"}
-          </button>
-        </>
-      ) : (
-        <dl className="mt-6 divide-y divide-border">
-          <Row k="Brand" v={brandName} />
-          <Row k="Variants" v={productDetails} />
-        </dl>
-      )}
+      {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
     </section>
   );
 }
 
-function Row({ k, v }: { k: string; v: string | null }) {
-  return (
-    <div className="grid grid-cols-1 gap-1 py-3 sm:grid-cols-3">
-      <dt className="text-xs font-medium text-muted-foreground">{k}</dt>
-      <dd className={`text-sm sm:col-span-2 ${v ? "text-foreground" : "text-muted-foreground italic"}`}>
-        {v || "Not given"}
-      </dd>
-    </div>
-  );
-}
-
-/** Search the catalogue. Debounced, because it runs on every keystroke. */
+/**
+ * Search the 315.
+ *
+ * Opens showing the list rather than an empty box: a manufacturer who does not
+ * know what BSTI calls their article can browse a category, and one who does can
+ * type. Debounced, because it runs on every keystroke.
+ */
 function ProductPicker({
   onPick,
   onClose,
 }: {
-  onPick: (bdsId: number) => void;
+  onPick: (productId: number) => void;
   onClose: () => void;
 }) {
   const [q, setQ] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [hits, setHits] = useState<Hit[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const box = useRef<HTMLInputElement>(null);
 
@@ -232,9 +195,15 @@ function ProductPicker({
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/store/bds/search?q=${encodeURIComponent(q)}`);
+        const params = new URLSearchParams({ q });
+        if (category) params.set("category", category);
+        const res = await fetch(`/api/store/products/search?${params}`);
         const data = await res.json();
-        if (!cancelled) setHits(data.results ?? []);
+        if (!cancelled) {
+          setHits(data.results ?? []);
+          setCategories(data.categories ?? []);
+          setTotal(data.total ?? null);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -243,7 +212,7 @@ function ProductPicker({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [q]);
+  }, [q, category]);
 
   return (
     <div className="mt-5 rounded-xl border border-border bg-background p-4">
@@ -256,7 +225,7 @@ function ProductPicker({
           <input
             ref={box}
             className={`${field} pl-9`}
-            placeholder="Search by standard number or product…"
+            placeholder="Search by product name, common name, or standard number…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
@@ -271,20 +240,34 @@ function ProductPicker({
         </button>
       </div>
 
-      <div className="mt-3 max-h-80 overflow-y-auto">
+      {categories.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Chip active={category === null} onClick={() => setCategory(null)}>
+            All {total ?? ""}
+          </Chip>
+          {categories.map((c) => (
+            <Chip
+              key={c.letter}
+              active={category === c.letter}
+              onClick={() => setCategory(category === c.letter ? null : c.letter)}
+            >
+              {c.letter} — {c.nameEn}
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 max-h-96 overflow-y-auto">
         {loading ? (
           <p className="flex items-center gap-2 px-1 py-4 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
             Searching…
           </p>
         ) : hits.length === 0 ? (
-          <p className="px-1 py-4 text-sm text-muted-foreground">
-            No standard matches that. BSTI can only certify products it has published a standard
-            for — try a broader term, or search the{" "}
-            <a href="/store/bds" className="font-medium text-primary hover:underline">
-              full catalogue
-            </a>
-            .
+          <p className="px-1 py-4 text-sm leading-relaxed text-muted-foreground">
+            Nothing on the mandatory list matches that. Only these 315 products need a BSTI quality
+            licence — if yours is not among them, you do not need one to sell it. Try a broader term
+            or another category; if you believe your product should be listed, contact the CM Wing.
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -301,22 +284,33 @@ function ProductPicker({
                   }
                 >
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
-                    {h.number}
-                    {h.isMandatory315 && (
+                    {h.nameEn}
+                    {h.eligible && (
                       <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                         <ShieldCheck className="h-2.5 w-2.5" strokeWidth={2.5} />
                         mandatory
                       </span>
                     )}
-                    {h.status === "superseded" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                        <AlertTriangle className="h-2.5 w-2.5" strokeWidth={2.5} />
-                        superseded
+                    {h.standards.length > 1 && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {h.standards.length} standards needed
                       </span>
                     )}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{h.titleEn}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{h.division}</p>
+                  {h.nameBn && (
+                    <p className="mt-0.5 font-bn text-xs text-muted-foreground">{h.nameBn}</p>
+                  )}
+                  {h.genericNames.length > 0 && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      Also: {h.genericNames.join(", ")}
+                    </p>
+                  )}
+                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                    {h.standards.map((s) => s.asPrinted ?? s.number).join(" · ")}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {h.category.letter} — {h.category.nameEn}
+                  </p>
                   {!h.eligible && h.ineligibleReason && (
                     <p className="mt-1.5 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
                       {h.ineligibleReason}
@@ -329,5 +323,29 @@ function ProductPicker({
         )}
       </div>
     </div>
+  );
+}
+
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+      }`}
+    >
+      {children}
+    </button>
   );
 }

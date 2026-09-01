@@ -120,6 +120,7 @@ export async function searchBds(query: BdsQuery): Promise<BdsSearchResult> {
         year: true,
         publishedOn: true,
         priceBdt: true,
+        priceIsPlaceholder: true,
         isMandatory315: true,
         division: { select: { slug: true, nameEn: true, nameBn: true } },
       },
@@ -189,6 +190,7 @@ export async function getRelatedBds(divisionId: number, excludeId: number) {
       number: true,
       titleEn: true,
       priceBdt: true,
+        priceIsPlaceholder: true,
       division: { select: { nameEn: true } },
     },
   });
@@ -201,7 +203,7 @@ export async function getFeaturedBds() {
       orderBy: { publishedOn: "desc" },
       take: 4,
       select: {
-        slug: true, number: true, titleEn: true, priceBdt: true, publishedOn: true,
+        slug: true, number: true, titleEn: true, priceBdt: true, priceIsPlaceholder: true, publishedOn: true,
         division: { select: { nameEn: true } },
       },
     }),

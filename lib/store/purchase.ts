@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { takaToPoisha } from "@/lib/payments/money";
 import { raisePayment, settlePayment } from "@/lib/payments/service";
+import { salePricePolicy } from "@/lib/cm/policy";
 
 /** `BDS-2026-000123`, printed on the invoice. */
 function purchaseNumber(id: number, year: number): string {
@@ -20,15 +21,20 @@ export async function startBdsPurchase(args: {
   bdsId: number;
   userId: string;
   organizationId?: number | null;
+  /** Set when the standard is being bought from inside an application (D50). */
+  attachToApplicationId?: number | null;
 }) {
   const bds = await prisma.bds.findUniqueOrThrow({ where: { id: args.bdsId } });
 
-  // A stand-in price is not a price. Standards created from the mandatory
-  // list carry the designation but not the Standards Wing's fee, and the
-  // stand-in is ৳0 — raising a payment for one would grant the purchase for
-  // nothing. The route refuses too; this is the layer that actually holds,
-  // because it is what every caller goes through.
-  if (bds.priceIsPlaceholder) {
+  // What it sells for. D45 refused a standard whose price is a stand-in, which
+  // left every one of the 375 imported from the mandatory list unsaleable and
+  // no CM application able to complete. D49 substitutes a provisional price
+  // while the platform runs on the sandbox gateway, where no money can move —
+  // and `salePricePolicy()` is the single place that decides, so a real price
+  // list takes it out of the loop on its own. A zero is still refused: charging
+  // nothing would hand out a purchase for free.
+  const price = salePricePolicy(bds);
+  if (price.priceBdt <= 0) {
     throw new Error(
       `${bds.number} is not on sale yet — its price has not been published to the system.`,
     );
@@ -41,12 +47,19 @@ export async function startBdsPurchase(args: {
     purpose: "bds_purchase",
     subjectType: "bds",
     subjectId: String(bds.id),
-    incomePoisha: takaToPoisha(bds.priceBdt),
+    incomePoisha: takaToPoisha(price.priceBdt),
     payerUserId: args.userId,
     organizationId: args.organizationId ?? null,
   });
 
-  return { payment, bds };
+  if (args.attachToApplicationId) {
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { attachToApplicationId: args.attachToApplicationId },
+    });
+  }
+
+  return { payment, bds, price };
 }
 
 /**

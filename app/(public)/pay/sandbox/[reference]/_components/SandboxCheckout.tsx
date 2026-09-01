@@ -25,11 +25,13 @@ export default function SandboxCheckout({
   amountPoisha,
   description,
   returnUrl,
+  cancelUrl,
 }: {
   reference: string;
   amountPoisha: number;
   description: string;
   returnUrl: string;
+  cancelUrl: string;
 }) {
   const [method, setMethod] = useState("bkash");
   const [busy, setBusy] = useState<string | null>(null);
@@ -45,8 +47,11 @@ export default function SandboxCheckout({
         body: JSON.stringify({ reference, outcome, method }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "The sandbox rejected that.");
-      // The gateway sends the browser back. Our server decides what it means.
-      window.location.href = outcome === "cancelled" ? `${returnUrl}?cancelled=1` : returnUrl;
+      // The gateway sends the browser back to whichever URL the merchant gave
+      // it. Both already carry their own query string — appending `?cancelled=1`
+      // here would produce a second `?` and lose the `next` that returns an
+      // in-flow buyer to their application. Our server decides what it means.
+      window.location.href = outcome === "cancelled" ? cancelUrl : returnUrl;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
       setBusy(null);

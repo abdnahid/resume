@@ -43,10 +43,14 @@ export const sandboxProvider: PaymentProvider = {
         reference: intent.reference,
         gatewayTxnId: txnId,
         amountPoisha: intent.amountPoisha,
+        returnUrl: intent.returnUrl,
+        cancelUrl: intent.cancelUrl,
       },
       // Re-opening checkout on an unsettled payment is normal — the payer went
-      // back. Settled rows are never reopened.
-      update: {},
+      // back. Settled rows are never reopened, but the return URLs are refreshed
+      // because the second attempt may carry a different `next` — buying the
+      // same standard from a different application is the ordinary case.
+      update: { returnUrl: intent.returnUrl, cancelUrl: intent.cancelUrl },
     });
 
     const txn = await prisma.sandboxGatewayTxn.findUniqueOrThrow({

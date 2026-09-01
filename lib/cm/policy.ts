@@ -48,43 +48,81 @@ export function bdsEditionPolicy(status: string): PolicyVerdict & { warning?: st
 }
 
 /**
- * May a CM licence be applied for against this standard at all?
+ * May a CM licence be applied for for this product at all?
  *
  * **The closed list of 315.** Spec §1 draws the asymmetry that shapes this
  * module: "CM/Chemical/Physical operate on a closed list of 315 products.
  * Metrology operates on an open product universe." A CM licence is the
  * *mandatory* quality licence — the permission to sell a product the state has
- * placed under compulsory certification. A standard outside that list is a
- * specification anyone may build to; it is not a thing BSTI licences.
+ * placed under compulsory certification. A product outside that list is one
+ * anyone may make and sell; it is not a thing BSTI licences.
  *
- * So a non-mandatory standard is refused here rather than three screens later,
+ * So a non-mandatory product is refused here rather than three screens later,
  * and the refusal tells the applicant the useful half: they do not need this
- * licence. That is a better answer than hiding the standard from the picker,
- * which would tell someone whose product is genuinely unregulated only that
+ * licence. That is a better answer than hiding the product from the picker,
+ * which would tell someone whose article is genuinely unregulated only that
  * BSTI has never heard of it.
  *
- * **[ASSUMPTION — needs the real 315 list]** `isMandatory315` is seeded from the
- * catalogue seed's own judgement, and 15 of the 55 seeded standards carry it.
- * The authoritative list is Phase G reference data. Populating the flag is a
- * data job; this function is where the *rule* lives, and it does not change
- * when the data arrives.
+ * Reads `Product.isMandatory`, which is **real data** — BSTI's published list,
+ * parsed into `prisma/data/mandatory-315.json`. Every row loaded from that list
+ * is mandatory; the column exists because Metrology works over an open product
+ * universe and will add rows that are not.
  */
-export function productEligibilityPolicy(bds: {
-  isMandatory315: boolean;
-  status: string;
+export function productEligibilityPolicy(product: {
+  isMandatory: boolean;
+  nameEn: string;
 }): PolicyVerdict {
-  const edition = bdsEditionPolicy(bds.status);
-  if (!edition.allowed) return edition;
-
-  if (!bds.isMandatory315) {
+  if (!product.isMandatory) {
     return {
       allowed: false,
-      reason:
-        "This standard is not on BSTI's mandatory certification list, so no quality licence is required to sell products made to it — and none can be issued. You may still buy the standard and manufacture to it. If you believe this product does require a licence, contact the CM Wing.",
+      reason: `${product.nameEn} is not on BSTI's mandatory certification list, so no quality licence is required to sell it — and none can be issued. If you believe it does require a licence, contact the CM Wing.`,
     };
   }
   return { allowed: true };
 }
+
+/**
+ * D48 — a product that names several standards needs **all** of them.
+ *
+ * Confirmed by the client 2026-09-01. 24 of the 315 name more than one, and
+ * they are not alternatives: a multi-part standard (`BDS ISO 4427-1/-2/-3`) is
+ * one specification split across catalogue rows, so certifying the article
+ * means conforming to every part. Attaching one part and calling the file
+ * complete would put a licence behind a fraction of its own specification.
+ *
+ * The consequence is structural, which is why it is written down here: an
+ * application consumes **one purchase per standard**, so the old single
+ * `Application.bdsPurchaseId` is gone and `BdsPurchase.consumedByApplicationId`
+ * is no longer UNIQUE. The rule that a purchase serves one application only is
+ * unchanged — that direction was never what the unique index enforced.
+ */
+export function standardsRequiredPolicy(): "all" | "any" | "primary" {
+  return "all";
+}
+
+/**
+ * What a standard sells for — **and the price question that is still open.**
+ *
+ * The rule itself lives in `lib/store/bds-catalog.ts`, because the price of a
+ * standard belongs to the store that sells it, not to the module that happens
+ * to require one (spec §1 — a module never owns data another module needs). It
+ * is re-exported here so the CM screens have it where the rest of their policy
+ * is, and so this file still lists every unresolved question.
+ *
+ * **[ASSUMPTION — needs the Standards Wing's price list]** D45 established that
+ * a standard the mandatory list names but the catalogue does not price is not
+ * for sale: the stand-in is ৳0, and selling at ৳0 would hand out a purchase for
+ * nothing. That left all 375 imported standards unsaleable and, by consequence,
+ * no CM application able to reach submission.
+ *
+ * **D49, decided 2026-09-01: a demo price stands in while the platform is on
+ * the sandbox gateway.** No real money can move — `PAYMENT_PROVIDER` defaults
+ * to the sandbox, every payment it touches is stamped `isSandbox` for ever, and
+ * the hosted page, the buy button and the receipt all say so. The honesty D45
+ * was protecting is kept by *labelling* rather than by refusing:
+ * `isProvisional` travels with the price to every screen that shows it.
+ */
+export { salePricePolicy, DEMO_PRICE_BDT } from "@/lib/store/bds-catalog";
 
 /**
  * §10 #4 — may a group member attach a purchase the mother organisation made?
@@ -231,6 +269,104 @@ export const CM_DOCUMENTS: readonly DocumentRequirement[] = [
 ];
 
 /**
+ * One article the licence would cover, as the form submits it.
+ *
+ * Prisma-free (D9) so the wizard validates with the same rules the route
+ * enforces — the applicant should be told what is wrong before they submit it,
+ * and told the same thing if they get past the form.
+ */
+export type SkuInput = {
+  brandName: string;
+  variant?: string | null;
+  sizeTypeId: number;
+  sizeUnitId: number;
+  sizeValue?: number | string | null;
+  packaging?: string | null;
+  unitsPerPack?: number | string | null;
+  grade?: string | null;
+};
+
+export type SkuProblem = { field: string; message: string };
+
+/**
+ * What makes a SKU valid.
+ *
+ * **Brand and size are required** (the client's rule, 2026-09-01): an article
+ * with neither cannot be identified on a shelf or named on a certificate.
+ * Everything else is optional because it does not apply to every product —
+ * cement has no flavour, a biscuit has no grade.
+ *
+ * A `numeric` size type needs a positive number beside its unit; a
+ * `categorical` one must not carry a number at all, because "size M × 3" is not
+ * a size. That is the whole reason `SizeKind` exists.
+ */
+export function validateSku(
+  sku: SkuInput,
+  sizeType: { kind: string; nameEn: string } | null,
+): SkuProblem[] {
+  const problems: SkuProblem[] = [];
+
+  if (!sku.brandName || sku.brandName.trim() === "") {
+    problems.push({ field: "brandName", message: "Brand is required." });
+  }
+
+  if (!sizeType) {
+    problems.push({ field: "sizeTypeId", message: "Choose how this size is measured." });
+    return problems;
+  }
+
+  if (sizeType.kind === "numeric") {
+    const n = typeof sku.sizeValue === "string" ? Number(sku.sizeValue) : sku.sizeValue;
+    if (n === null || n === undefined || Number.isNaN(n)) {
+      problems.push({ field: "sizeValue", message: `Enter the ${sizeType.nameEn.toLowerCase()}.` });
+    } else if (n <= 0) {
+      problems.push({ field: "sizeValue", message: "Size must be greater than zero." });
+    }
+  } else if (sku.sizeValue !== null && sku.sizeValue !== undefined && sku.sizeValue !== "") {
+    // A chart size is the whole answer. A number beside it would be a second,
+    // contradictory size that nothing downstream could resolve.
+    problems.push({
+      field: "sizeValue",
+      message: `${sizeType.nameEn} sizes are chosen, not measured — leave the number blank.`,
+    });
+  }
+
+  const per =
+    typeof sku.unitsPerPack === "string" ? Number(sku.unitsPerPack) : sku.unitsPerPack;
+  if (per !== null && per !== undefined && sku.unitsPerPack !== "") {
+    if (Number.isNaN(per) || !Number.isInteger(per) || per < 1) {
+      problems.push({
+        field: "unitsPerPack",
+        message: "Units per pack must be a whole number of 1 or more.",
+      });
+    }
+  }
+
+  return problems;
+}
+
+/** `Orange — 200 ml × 24, paper-based can`. One SKU on one line. */
+export function describeSku(sku: {
+  brandName: string;
+  variant?: string | null;
+  sizeValue?: number | string | null;
+  sizeUnit: { code: string };
+  packaging?: string | null;
+  unitsPerPack?: number | null;
+  grade?: string | null;
+}): string {
+  const size = sku.sizeValue ? `${sku.sizeValue} ${sku.sizeUnit.code}` : sku.sizeUnit.code;
+  const parts = [
+    sku.brandName,
+    sku.variant || null,
+    sku.unitsPerPack ? `${size} × ${sku.unitsPerPack}` : size,
+    sku.packaging || null,
+    sku.grade || null,
+  ].filter(Boolean);
+  return parts.join(" — ");
+}
+
+/**
  * What still stands between this application and submission.
  *
  * One function, like `missingForSubmission()` on the company side and for the
@@ -240,10 +376,16 @@ export const CM_DOCUMENTS: readonly DocumentRequirement[] = [
 export type Gap = { field: string; label: string };
 
 export function missingForSubmission(app: {
-  bdsId: number | null;
-  /** The chosen standard, so eligibility is re-checked at the money gate. */
-  bds?: { isMandatory315: boolean; status: string } | null;
-  bdsPurchaseId: number | null;
+  productId: number | null;
+  /** The chosen product, so eligibility is re-checked at the money gate. */
+  product?: { isMandatory: boolean; nameEn: string } | null;
+  /**
+   * Every standard the product names, and whether this application holds an
+   * attached purchase of it. All of them are required (D48).
+   */
+  standards: { number: string; attached: boolean }[];
+  /** Every article the licence would cover (D51). At least one is required. */
+  skuCount: number;
   factoryId: number | null;
   documents: { kind: string }[];
   organizationComplete: boolean;
@@ -252,14 +394,36 @@ export function missingForSubmission(app: {
   if (!app.organizationComplete)
     gaps.push({ field: "organization", label: "Complete the company profile" });
   if (!app.factoryId) gaps.push({ field: "factory", label: "Choose the factory" });
-  if (!app.bdsId) gaps.push({ field: "product", label: "Choose the product to certify" });
-  else if (app.bds && !productEligibilityPolicy(app.bds).allowed) {
+  if (!app.productId) gaps.push({ field: "product", label: "Choose the product to certify" });
+  else if (app.product && !productEligibilityPolicy(app.product).allowed) {
     // Second layer on the closed list of 315: `setProduct()` refuses one, but a
-    // row written before the rule existed — or a standard later taken off the
+    // row written before the rule existed — or a product later taken off the
     // list — must not reach the fee.
     gaps.push({ field: "product", label: "Choose a product under mandatory certification" });
-  } else if (!app.bdsPurchaseId)
-    gaps.push({ field: "bds", label: "Attach your purchase of that standard" });
+  } else {
+    // One gap per unattached standard, named. A product needing three parts
+    // and holding one should say which two are missing, not "attach your
+    // purchases".
+    for (const std of app.standards.filter((s) => !s.attached)) {
+      gaps.push({ field: `bds:${std.number}`, label: `Attach your purchase of ${std.number}` });
+    }
+    if (app.standards.length === 0) {
+      // A mandatory product with no standard recorded cannot be certified
+      // against anything. Data fault rather than applicant fault, so it names
+      // itself as one.
+      gaps.push({
+        field: "product",
+        label: "This product has no standard recorded — contact BSTI",
+      });
+    }
+  }
+
+  // A licence names the articles it covers, so a file that names none is not a
+  // licence anyone could issue — and the SKUs decide how many samples are drawn
+  // at inspection, so the reviewing officer cannot plan without them.
+  if (app.productId && app.skuCount === 0) {
+    gaps.push({ field: "skus", label: "List at least one product variant (SKU)" });
+  }
 
   const held = new Set(app.documents.map((d) => d.kind));
   for (const req of CM_DOCUMENTS) {

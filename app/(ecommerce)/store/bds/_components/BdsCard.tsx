@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, FileText, ShieldCheck } from "lucide-react";
-import { formatTaka, type BdsCard as BdsCardData } from "@/lib/store/bds-catalog";
+import { salePricePolicy, formatTaka, type BdsCard as BdsCardData } from "@/lib/store/bds-catalog";
 
 export default function BdsCard({ bds }: { bds: BdsCardData }) {
   return (
@@ -47,7 +47,12 @@ export default function BdsCard({ bds }: { bds: BdsCardData }) {
 
       <div className="mt-5 flex items-end justify-between border-t border-border pt-4">
         <span className="font-display text-[22px] font-semibold text-title">
-          {formatTaka(bds.priceBdt)}
+          {formatTaka(salePricePolicy(bds).priceBdt)}
+          {salePricePolicy(bds).isProvisional && (
+            <span className="ml-1.5 align-middle text-[11px] font-medium text-muted-foreground">
+              provisional
+            </span>
+          )}
         </span>
         <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-primary">
           View details

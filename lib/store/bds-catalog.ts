@@ -112,10 +112,50 @@ export type BdsCard = {
   year: number;
   publishedOn: Date | null;
   priceBdt: number;
+  /// True when `priceBdt` is the importer's ৳0 stand-in rather than BSTI's
+  /// price. Carried on the card so every surface can show the same figure the
+  /// gateway will actually charge — see `salePricePolicy()` below.
+  priceIsPlaceholder: boolean;
   isMandatory315: boolean;
   division: { slug: string; nameEn: string; nameBn: string };
 };
 
 export function formatTaka(amount: number): string {
   return `৳ ${amount.toLocaleString("en-IN")}`;
+}
+
+/**
+ * What a standard actually sells for, and whether that figure is BSTI's.
+ *
+ * The published mandatory-certification list gives designations, not prices, so
+ * the 375 catalogue rows the importer created carry a ৳0 stand-in and
+ * `priceIsPlaceholder`. D45 refused to sell those at all — correct, but it left
+ * every mandatory standard unbuyable and therefore every CM application
+ * uncompletable.
+ *
+ * **D49: a demo price stands in while the platform runs on the sandbox
+ * gateway**, where no real money can move and every payment is stamped
+ * `isSandbox` for ever. A made-up price charged against no money is a working
+ * flow; refusing outright is a flow nobody can walk. What D45 was protecting —
+ * that nobody is quietly charged an invented amount — is kept by *labelling*:
+ * `isProvisional` travels with the price to the buy button, the application, the
+ * store card and the receipt.
+ *
+ * One function, per D8. When the Standards Wing's list lands, load it onto
+ * `Bds.priceBdt` and clear `priceIsPlaceholder`; this stops applying by itself,
+ * because it only ever substitutes for a placeholder row.
+ */
+export const DEMO_PRICE_BDT = 500;
+
+export function salePricePolicy(bds: { priceBdt: number; priceIsPlaceholder: boolean }): {
+  priceBdt: number;
+  isProvisional: boolean;
+  note?: string;
+} {
+  if (!bds.priceIsPlaceholder) return { priceBdt: bds.priceBdt, isProvisional: false };
+  return {
+    priceBdt: DEMO_PRICE_BDT,
+    isProvisional: true,
+    note: "BSTI has not published this standard's price to the system yet. A provisional price is shown so the application can be completed; it is not the price you will finally be charged.",
+  };
 }

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { startBdsPurchase } from "@/lib/store/purchase";
 import { beginCheckout } from "@/lib/payments/service";
+import { salePricePolicy } from "@/lib/cm/policy";
 
 /**
  * Buy a standard: raise the payment, open a gateway session, hand back where to
@@ -31,12 +32,12 @@ export async function POST(req: Request) {
   const bds = await prisma.bds.findUnique({ where: { id: bdsId } });
   if (!bds) return NextResponse.json({ error: "Standard not found" }, { status: 404 });
 
-  // A standard created from the mandatory-certification list carries a
-  // stand-in price, because the published list gives the designation and not
-  // the Standards Wing's fee. Selling one would charge a made-up amount — and
-  // at the ৳0 stand-in, would hand out a purchase for nothing. Refused until a
-  // real price is loaded.
-  if (bds.priceIsPlaceholder) {
+  // What it sells for, and whether that figure is BSTI's or a stand-in (D49).
+  // The price is resolved here and again inside `startBdsPurchase()`, which is
+  // the layer that actually charges — this one exists so the refusal, if the
+  // policy ever returns one, is a 409 rather than a thrown error.
+  const price = salePricePolicy(bds);
+  if (price.priceBdt <= 0) {
     return NextResponse.json(
       {
         error:
@@ -46,17 +47,65 @@ export async function POST(req: Request) {
     );
   }
 
-  // Scope the purchase to the company being acted as, when there is one
-  // (spec §2.5). Absent one, it is a personal purchase.
-  const acting = await prisma.organizationMembership.findFirst({
-    where: { userId: user.id, isDefault: true },
-    select: { organizationId: true },
-  });
+  // Bought from inside an application (D50)? Then the purchase attaches itself
+  // to that application when the money settles, instead of leaving the
+  // applicant to do by hand the thing they just paid for.
+  //
+  // Checked here, at the moment the payment is raised, against a session that
+  // is already proven — not read back off the return URL, which anyone can
+  // edit. A caller naming an application they have no standing on is refused
+  // rather than quietly downgraded to an ordinary purchase.
+  let attachToApplicationId: number | null = null;
+  let applicationOrganizationId: number | null = null;
+  if (body.applicationId !== undefined && body.applicationId !== null) {
+    const applicationId = Number(body.applicationId);
+    if (!Number.isInteger(applicationId))
+      return NextResponse.json({ error: "Which application?" }, { status: 400 });
+
+    const app = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true, organizationId: true, state: true },
+    });
+    if (!app) return NextResponse.json({ error: "Application not found" }, { status: 404 });
+
+    const membership = await prisma.organizationMembership.findUnique({
+      where: { userId_organizationId: { userId: user.id, organizationId: app.organizationId } },
+    });
+    if (!membership || membership.role === "viewer")
+      return NextResponse.json({ error: "Application not found" }, { status: 404 });
+    if (app.state !== "draft" && app.state !== "pending_app_fee")
+      return NextResponse.json(
+        { error: "That application can no longer be edited." },
+        { status: 409 },
+      );
+
+    attachToApplicationId = app.id;
+    applicationOrganizationId = app.organizationId;
+  }
+
+  // Scope the purchase to the company being acted as (spec §2.5). Absent one,
+  // it is a personal purchase.
+  //
+  // **Buying from inside an application scopes to *that application's*
+  // company**, not to whichever profile happens to be the default. A purchase
+  // is party-scoped and a group member may not use the parent's
+  // (`purchaseOwnershipPolicy`, §10 #4) — so scoping an in-flow purchase to the
+  // default profile bought the standard for one company and then refused it to
+  // the company that was applying. Worse where the default profile is a group
+  // parent, which D29 says never applies at all: the purchase would have been
+  // unusable by anybody.
+  const acting = applicationOrganizationId
+    ? { organizationId: applicationOrganizationId }
+    : await prisma.organizationMembership.findFirst({
+        where: { userId: user.id, isDefault: true },
+        select: { organizationId: true },
+      });
 
   const { payment } = await startBdsPurchase({
     bdsId,
     userId: user.id,
     organizationId: acting?.organizationId ?? null,
+    attachToApplicationId,
   });
 
   const origin = new URL(req.url).origin;

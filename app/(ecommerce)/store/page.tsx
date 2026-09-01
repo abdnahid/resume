@@ -9,6 +9,7 @@ import {
 import Navbar from "./Navbar";
 import { prisma } from "@/lib/prisma";
 import { getFeaturedBds, formatTaka } from "@/lib/store/bds";
+import { salePricePolicy } from "@/lib/store/bds-catalog";
 
 /**
  * The landing page reads live catalogue counts, so it cannot be frozen at
@@ -164,7 +165,7 @@ export default async function StorePage() {
                       </p>
                     </div>
                     <span className="flex shrink-0 items-center gap-3 font-display text-[17px] font-semibold text-title">
-                      {formatTaka(bds.priceBdt)}
+                      {formatTaka(salePricePolicy(bds).priceBdt)}
                       <ArrowRight
                         className="h-4 w-4 text-primary transition-transform group-hover:translate-x-0.5"
                         strokeWidth={2}

@@ -3,44 +3,52 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, AlertTriangle, ShoppingCart, FileText, Info } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  AlertTriangle,
+  ShoppingCart,
+  Info,
+  FlaskConical,
+} from "lucide-react";
 import { splitFee, takaToPoisha, formatPoisha } from "@/lib/payments/money";
 
-type Option = {
-  id: number;
-  purchaseNumber: string;
+export type Requirement = {
   bds: { id: number; number: string; titleEn: string; status: string; division: string };
-  consumedBy: { id: number; applicationNo: string | null } | null;
-  selectable: boolean;
-  reason?: string;
-  warning?: string;
+  asPrinted: string | null;
+  isPrimary: boolean;
+  attached: { id: number; purchaseNumber: string } | null;
+  options: { id: number; purchaseNumber: string; selectable: boolean; reason?: string; warning?: string }[];
+  blocked: { id: number; purchaseNumber: string; reason: string }[];
+  price: { priceBdt: number; isProvisional: boolean; note?: string };
 };
 
 /**
- * Attaching the purchased standard (spec §3.4).
+ * Attaching the purchased standards (spec §3.4).
  *
- * Because the product *is* the standard, this step is no longer a choice
- * between standards — it is "do you own this one?". The three states the spec
- * sets out map onto that directly: own an unconsumed copy (one click), own only
- * consumed copies (told which application took it, offered another), own none
- * (buy it here, in flow — never sent to the store to lose the draft).
+ * One row per standard the product names, because **all of them are required**
+ * (D48) — a product certified against three parts needs three purchases, and a
+ * single list of "your purchases" could not say which part is still missing.
+ *
+ * Each row is one of the three states the spec sets out: own an unconsumed copy
+ * (one click), own only consumed copies (told which application took it), own
+ * none (buy it here, in flow — never sent to the store to lose the draft). A
+ * standard bought here attaches itself when the payment settles (D50).
  */
 export default function BdsStep({
   applicationId,
-  chosenBds,
-  options,
-  attachedPurchaseId,
+  productName,
+  requirements,
   editable,
 }: {
   applicationId: number;
-  chosenBds: { id: number; number: string; titleEn: string; priceBdt: number } | null;
-  options: Option[];
-  attachedPurchaseId: number | null;
+  productName: string | null;
+  requirements: Requirement[];
   editable: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
-  const [buying, setBuying] = useState(false);
+  const [buying, setBuying] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function attach(purchaseId: number) {
@@ -61,17 +69,35 @@ export default function BdsStep({
     }
   }
 
-  /** Buy in flow and come straight back here (§3.4). */
-  async function buy() {
-    if (!chosenBds) return;
-    setBuying(true);
+  async function detach(purchaseId: number) {
+    setBusy(purchaseId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/client/applications/${applicationId}/bds`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purchaseId }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Could not detach that standard.");
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not detach.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Buy in flow and come straight back here, already attached (§3.4, D50). */
+  async function buy(bdsId: number) {
+    setBuying(bdsId);
     setError(null);
     try {
       const res = await fetch("/api/store/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bdsId: chosenBds.id,
+          bdsId,
+          applicationId,
           next: `/public/applications/${applicationId}`,
         }),
       });
@@ -80,146 +106,228 @@ export default function BdsStep({
       window.location.href = data.redirectUrl;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start the payment.");
-      setBuying(false);
+      setBuying(null);
     }
   }
 
-  if (!chosenBds) {
+  if (requirements.length === 0) {
     return (
       <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-        <h2 className="font-semibold text-foreground">Your copy of the standard</h2>
+        <h2 className="font-semibold text-foreground">Your copies of the standards</h2>
         <p className="mt-4 flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-muted-foreground">
           <Info className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} />
-          Choose the product above first. The standard you attach must be the one your product is
-          certified against.
+          {productName
+            ? `${productName} has no standard recorded against it. That is a fault in BSTI's data rather than anything you can fix — please contact the CM Wing.`
+            : "Choose the product above first. The standards you attach are the ones your product must be certified against."}
         </p>
       </section>
     );
   }
 
-  const price = splitFee(takaToPoisha(chosenBds.priceBdt));
-  const usable = options.filter((o) => o.selectable || o.id === attachedPurchaseId);
-  const blocked = options.filter((o) => !o.selectable && o.id !== attachedPurchaseId);
+  const held = requirements.filter((r) => r.attached).length;
 
   return (
     <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-      <h2 className="font-semibold text-foreground">Your copy of the standard</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="font-semibold text-foreground">Your copies of the standards</h2>
+        <span
+          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            held === requirements.length
+              ? "bg-primary/10 text-primary"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          {held} of {requirements.length} attached
+        </span>
+      </div>
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-        Attach your purchase of <strong className="font-medium text-foreground">{chosenBds.number}</strong>.
+        {requirements.length === 1
+          ? "Attach your purchase of the standard your product is certified against."
+          : `${productName ?? "This product"} is certified against ${requirements.length} standards, and the licence covers all of them — so a purchase of each is needed.`}{" "}
         A purchase can be used on{" "}
         <strong className="font-medium text-foreground">one application only</strong>.
       </p>
 
-      {usable.length > 0 && (
-        <ul className="mt-5 space-y-2">
-          {usable.map((o) => {
-            const isAttached = o.id === attachedPurchaseId;
-            return (
-              <li
-                key={o.id}
-                className={`rounded-xl border p-4 ${
-                  isAttached
-                    ? "border-primary bg-secondary/40 ring-1 ring-primary/20"
-                    : "border-border bg-background"
-                }`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                      {o.bds.number}
-                      {isAttached && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
-                          <Check className="h-3 w-3" strokeWidth={2.5} />
-                          attached
-                        </span>
+      <ul className="mt-5 space-y-3">
+        {requirements.map((r) => (
+          <li
+            key={r.bds.id}
+            className={`rounded-xl border p-4 ${
+              r.attached ? "border-primary bg-secondary/40 ring-1 ring-primary/20" : "border-border"
+            }`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                  <span className="font-mono text-sm">{r.asPrinted ?? r.bds.number}</span>
+                  {r.attached && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
+                      <Check className="h-3 w-3" strokeWidth={2.5} />
+                      attached
+                    </span>
+                  )}
+                  {r.bds.status === "superseded" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3" strokeWidth={2.5} />
+                      superseded
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{r.bds.titleEn}</p>
+                {r.attached && (
+                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                    {r.attached.purchaseNumber}
+                  </p>
+                )}
+              </div>
+
+              {r.attached
+                ? editable && (
+                    <button
+                      type="button"
+                      onClick={() => detach(r.attached!.id)}
+                      disabled={busy !== null}
+                      className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-destructive hover:text-destructive disabled:opacity-60"
+                    >
+                      {busy === r.attached.id ? "Releasing…" : "Detach"}
+                    </button>
+                  )
+                : editable &&
+                  r.options.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => attach(r.options[0].id)}
+                      disabled={busy !== null}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                    >
+                      {busy === r.options[0].id && (
+                        <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
                       )}
-                    </p>
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                      Attach
+                    </button>
+                  )}
+            </div>
+
+            {/* More than one unconsumed copy — name them, rather than silently
+                picking one on the applicant's behalf. */}
+            {!r.attached && editable && r.options.length > 1 && (
+              <ul className="mt-3 space-y-1.5">
+                {r.options.slice(1).map((o) => (
+                  <li key={o.id} className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-[11px] text-muted-foreground">
                       {o.purchaseNumber}
-                    </p>
-                  </div>
-                  {editable && !isAttached && (
+                    </span>
                     <button
                       type="button"
                       onClick={() => attach(o.id)}
                       disabled={busy !== null}
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+                      className="rounded-lg border border-border px-2.5 py-1 text-[11px] font-semibold text-foreground transition hover:border-primary hover:text-primary disabled:opacity-60"
                     >
-                      {busy === o.id && <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />}
-                      Attach
+                      Attach this one
                     </button>
-                  )}
-                </div>
-                {o.warning && (
-                  <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {r.options[0]?.warning && !r.attached && (
+              <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={2} />
+                {r.options[0].warning}
+              </p>
+            )}
+
+            {r.blocked.length > 0 && !r.attached && (
+              <ul className="mt-2 space-y-1">
+                {r.blocked.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground"
+                  >
                     <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={2} />
-                    {o.warning}
+                    <span>
+                      <span className="font-mono">{b.purchaseNumber}</span> — {b.reason}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Owns none that can be used — buy it here rather than being sent
+                away to lose the draft (§3.4). */}
+            {!r.attached && editable && r.options.length === 0 && (
+              <div className="mt-3 rounded-lg border border-dashed border-border p-4">
+                <p className="text-sm text-foreground">
+                  {r.blocked.length > 0
+                    ? `You own ${r.bds.number}, but every copy is already used on another application.`
+                    : `You have not bought ${r.bds.number} yet.`}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Buy it here and it attaches itself to this application — your draft is saved.
+                </p>
+                {r.price.isProvisional && (
+                  <p className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                    <FlaskConical className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={2} />
+                    <span>
+                      <strong className="font-semibold">Provisional price.</strong> {r.price.note}
+                    </span>
                   </p>
                 )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {blocked.length > 0 && (
-        <ul className="mt-3 space-y-2">
-          {blocked.map((o) => (
-            <li key={o.id} className="rounded-xl border border-border bg-muted/40 p-4 opacity-75">
-              <p className="font-medium text-foreground">{o.bds.number}</p>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">{o.purchaseNumber}</p>
-              {o.reason && (
-                <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" strokeWidth={2} />
-                  {o.reason}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {/* Owns none that can be used — buy it here rather than being sent away. */}
-      {editable && usable.length === 0 && (
-        <div className="mt-5 rounded-xl border border-dashed border-border p-6">
-          <FileText className="h-7 w-7 text-primary" strokeWidth={1.6} />
-          <p className="mt-3 text-sm font-medium text-foreground">
-            {blocked.length > 0
-              ? `You own ${chosenBds.number}, but every copy is already used on another application.`
-              : `You have not bought ${chosenBds.number} yet.`}
-          </p>
-          <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-muted-foreground">
-            {chosenBds.titleEn}. Buy it here and you will come straight back to this application —
-            your draft is saved.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={buy}
-              disabled={buying}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-            >
-              {buying ? (
-                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
-              ) : (
-                <ShoppingCart className="h-4 w-4" strokeWidth={2} />
-              )}
-              {buying ? "Opening the gateway…" : `Buy for ${formatPoisha(price.totalPoisha)}`}
-            </button>
-            <span className="text-xs text-muted-foreground">
-              {formatPoisha(price.incomePoisha)} + {formatPoisha(price.vatPoisha)} VAT
-            </span>
-          </div>
-          <Link
-            href={`/store/bds`}
-            className="mt-3 inline-block text-xs font-medium text-primary hover:underline"
-          >
-            Or view it in the store
-          </Link>
-        </div>
-      )}
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <PriceButton
+                    priceBdt={r.price.priceBdt}
+                    busy={buying === r.bds.id}
+                    disabled={buying !== null}
+                    onClick={() => buy(r.bds.id)}
+                  />
+                  <Link
+                    href="/store/bds"
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Or view it in the store
+                  </Link>
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
 
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
     </section>
+  );
+}
+
+function PriceButton({
+  priceBdt,
+  busy,
+  disabled,
+  onClick,
+}: {
+  priceBdt: number;
+  busy: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const price = splitFee(takaToPoisha(priceBdt));
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
+      >
+        {busy ? (
+          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+        ) : (
+          <ShoppingCart className="h-4 w-4" strokeWidth={2} />
+        )}
+        {busy ? "Opening the gateway…" : `Buy for ${formatPoisha(price.totalPoisha)}`}
+      </button>
+      <span className="text-xs text-muted-foreground">
+        {formatPoisha(price.incomePoisha)} + {formatPoisha(price.vatPoisha)} VAT
+      </span>
+    </>
   );
 }

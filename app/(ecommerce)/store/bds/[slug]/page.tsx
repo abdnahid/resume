@@ -12,6 +12,7 @@ import Navbar, { STORE_NAV } from "../../Navbar";
 import BuyButton from "../_components/BuyButton";
 import { activeProvider } from "@/lib/payments/registry";
 import { getBdsBySlug, getRelatedBds, formatTaka } from "@/lib/store/bds";
+import { salePricePolicy } from "@/lib/store/bds-catalog";
 
 type Props = { params: { slug: string } };
 
@@ -29,6 +30,12 @@ export default async function BdsDetailPage({ params }: Props) {
   if (!bds) notFound();
 
   const related = await getRelatedBds(bds.divisionId, bds.id);
+
+  // What it sells for, and whether that is BSTI's figure or the stand-in (D49).
+  // Resolved once so the price on the page and the price the gateway charges
+  // cannot drift — the same reason `computeSheet()` serves both the payroll
+  // preview and the save route.
+  const price = salePricePolicy(bds);
 
   return (
     <>
@@ -145,7 +152,7 @@ export default async function BdsDetailPage({ params }: Props) {
                           </p>
                         </div>
                         <span className="flex shrink-0 items-center gap-2 text-[14px] font-semibold text-title">
-                          {formatTaka(item.priceBdt)}
+                          {formatTaka(salePricePolicy(item).priceBdt)}
                           <ArrowRight
                             className="h-3.5 w-3.5 text-primary transition-transform group-hover:translate-x-0.5"
                             strokeWidth={2}
@@ -166,16 +173,25 @@ export default async function BdsDetailPage({ params }: Props) {
                 Price
               </p>
               <p className="mt-1 font-display text-[38px] font-semibold leading-none text-title">
-                {formatTaka(bds.priceBdt)}
+                {formatTaka(price.priceBdt)}
               </p>
               <p className="mt-2 text-[13px] text-muted-foreground">
                 Digital copy (PDF).
               </p>
 
+              {/* A stand-in price is labelled wherever it is shown (D49). The
+                  figure is real enough to charge on the sandbox gateway and not
+                  real enough to quote as BSTI's. */}
+              {price.isProvisional && (
+                <p className="mt-3 rounded-xl bg-amber-500/10 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-800 dark:text-amber-300">
+                  <strong className="font-semibold">Provisional price.</strong> {price.note}
+                </p>
+              )}
+
               <div className="mt-5">
                 <BuyButton
                   bdsId={bds.id}
-                  priceBdt={bds.priceBdt}
+                  priceBdt={price.priceBdt}
                   isSandbox={activeProvider().isSandbox}
                 />
               </div>
