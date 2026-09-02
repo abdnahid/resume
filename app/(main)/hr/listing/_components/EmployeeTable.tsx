@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, ChevronDown, UserCheck } from "lucide-react";
+import { X, ChevronDown, UserCheck, Network } from "lucide-react";
 import { FilterSearch, FilterSelect, FilterSelectOption } from "@/app/(main)/_components/filters";
 import type { Employee, EmployeeStatus } from "@/lib/types";
 import type { OrgPostFlat, OrgRoot } from "@/lib/org";
@@ -727,6 +727,7 @@ export default function EmployeeTable({
 }) {
   const [search, setSearch]   = useState("");
   const [office, setOffice]   = useState("");
+  const [wing, setWing]       = useState("");
   const [stat, setStat]       = useState("");
 
   const [releaseTarget,    setReleaseTarget]    = useState<Employee | null>(null);
@@ -740,6 +741,29 @@ export default function EmployeeTable({
   const OFFICE_OPTIONS: FilterSelectOption[] = OFFICES.map((o) => ({
     label: o, value: o, className: "font-bn-serif",
   }));
+
+  /**
+   * Wings, built from the roster rather than from `OrgUnit`.
+   *
+   * `Employee.wing` is free text out of the HR export and holds 31 distinct
+   * values against the organogram's 8 wings — some are wings, some are the
+   * departments inside one, and a few are the same wing written two ways
+   * ("মেট্রোলজি" and "মেট্রোলজি উইং"). Offering the organogram's eight would
+   * therefore filter almost nobody, so the options are the values actually on
+   * the roster, exactly as recorded.
+   *
+   * The count sits in the label so those duplicates are visible rather than
+   * hidden — they are a data problem to fix in HR, and a filter that quietly
+   * split one wing in two would conceal it.
+   */
+  const WING_COUNTS = employees.reduce<Record<string, number>>((acc, e) => {
+    const w = (e.wing ?? "").trim();
+    if (w) acc[w] = (acc[w] ?? 0) + 1;
+    return acc;
+  }, {});
+  const WING_OPTIONS: FilterSelectOption[] = Object.keys(WING_COUNTS)
+    .sort((a, b) => a.localeCompare(b, "bn"))
+    .map((w) => ({ label: `${w} (${WING_COUNTS[w]})`, value: w, className: "font-bn-serif" }));
   const STATUS_OPTIONS: FilterSelectOption[] = (Object.keys(STATUS_CONFIG) as EmployeeStatus[]).map(
     (key) => ({ label: STATUS_CONFIG[key].label, value: key }),
   );
@@ -748,8 +772,9 @@ export default function EmployeeTable({
     const q = search.toLowerCase();
     const matchSearch = !q || e.id.includes(q) || e.name.bn.includes(q) || e.name.en.toLowerCase().includes(q);
     const matchOffice = !office || e.current_job.office_bn === office;
+    const matchWing   = !wing   || (e.wing ?? "").trim() === wing;
     const matchStat   = !stat   || e.status === stat;
-    return matchSearch && matchOffice && matchStat;
+    return matchSearch && matchOffice && matchWing && matchStat;
   });
 
   return (
@@ -817,6 +842,15 @@ export default function EmployeeTable({
               width="min-w-56"
             />
           )}
+          <FilterSelect
+            value={wing}
+            onChange={setWing}
+            options={WING_OPTIONS}
+            placeholder="সকল উইং"
+            icon={<Network size={15} />}
+            optionClassName="font-bn-serif"
+            width="min-w-56"
+          />
           <FilterSelect
             value={stat}
             onChange={setStat}
