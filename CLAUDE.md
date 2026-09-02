@@ -55,6 +55,8 @@ Two rules from the spec that carry real weight:
   username is the employee ID; `phone-number` plugin for clients, mapped onto
   `User.mobile`)
 - shadcn/ui + `@base-ui/react`, lucide-react
+- zod + react-hook-form (`@hookform/resolvers`) for CM form validation (D56).
+  HR's forms are still plain `useState` and are being left that way.
 
 ## Layout
 
@@ -726,7 +728,7 @@ npm run dev            # dev server (:3000, or :3001 if taken)
 npm run build          # prisma generate && next build
 npx tsc --noEmit       # typecheck — fast, run it before declaring done
 npx prisma db push     # apply schema.prisma to the database
-npx prisma generate    # regenerate the client (also runs on npm install)
+npx prisma generate    # regenerate the client — always pair it with db push
 
 npm run seed:bds       # BDS store catalogue — 6 divisions, 55 standards
 npm run seed:size-types # SKU size types and their units — 12 types, 43 units
@@ -738,6 +740,12 @@ npm run seed:salary    # pay scale, house rent slabs, office zones, daily wage r
 npm run import:report    # dry run over utils/employee_bio.json — writes a report, no DB writes
 npm run import:employees # import/refresh employees from the HR export (upsert, never deletes)
 npm run import:retire    # remove employees the export does not contain (dry run without --yes)
+npm run import:products  # the 315 mandatory products (--dry to report without writing)
+
+# The 315 list is parsed from the PDF first; the JSON it writes is committed,
+# so this is only needed if the source PDF changes.
+pdftotext -layout "utils/mandatory list.pdf" /tmp/mand.txt
+python3 prisma/import/parse-mandatory-315.py /tmp/mand.txt
 ```
 
 Seeds are idempotent — they upsert on natural keys and are safe to re-run.
@@ -769,9 +777,35 @@ the code needs care.
 **Starting a session:**
 
 ```bash
-git pull            # always, before anything else
-npm install         # runs prisma generate automatically
+git pull                # always, before anything else
+npm install             # deps, and regenerates the Prisma client
+npx prisma generate     # cheap; guarantees the client matches schema.prisma
+npx tsc --noEmit        # confirms the client matches the code
 ```
+
+`npm install` does regenerate the client — the project's own `postinstall` is
+`prisma generate`. Ignore the `npm warn allow-scripts` lines it prints: those
+are about *dependency* lifecycle scripts (esbuild, puppeteer, msw, and Prisma's
+own preinstall), not the project's postinstall, which runs. Running
+`npx prisma generate` again after a pull is harmless and takes under a second,
+so the step above is belt and braces rather than a fix for a known break.
+
+**Where the client actually goes stale is your own schema edits.**
+`npx prisma db push` applies `schema.prisma` to the database but does **not**
+regenerate the client. Change the schema, push it, and `npx tsc --noEmit`
+reports a pile of "Property 'x' does not exist on type" errors that read as
+broken code when only the client is behind. Always pair them:
+
+```bash
+npx prisma db push && npx prisma generate
+```
+
+`npm run build` regenerates first (`prisma generate && next build`), so a full
+build hides this; `tsc` does not.
+
+**You do not need `prisma db push` after a pull.** The database is remote and
+shared, so whichever machine made the schema change already applied it. Push
+only when *you* have edited `schema.prisma`.
 
 **Ending a session — leave nothing behind:**
 
@@ -794,7 +828,19 @@ once; `.env.example` lists the keys it needs. Both machines point at the same
 remote database, so the same `DATABASE_URL` works on both.
 
 **Regenerated artefacts are ignored** — `generated/prisma`, `.next`,
-`tsconfig.tsbuildinfo`. Never commit them; they conflict on every pull.
+`tsconfig.tsbuildinfo`. Never commit them; they conflict on every pull. The
+generated client is not in git, which is why `npm install` regenerates it.
+
+**Scripts that touch the database need `dotenv`.** A one-off `npx tsx foo.ts`
+importing `lib/prisma` will fail with `ECONNREFUSED` unless the file starts
+with `import "dotenv/config";` — Next loads `.env` itself, a bare tsx script
+does not. The seeds all do this already.
+
+**Batch writes against the remote database.** Round trips to `db.prisma.io`
+cost roughly half a second each, so a loop of per-row `upsert`s is minutes
+where `createMany` is seconds — the 315-product import took ~100 minutes as a
+loop and under one batched. Prisma's interactive `$transaction` also times out
+at 5s, so do not wrap hundreds of updates in one.
 
 ## Scope note
 
