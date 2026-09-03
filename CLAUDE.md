@@ -157,6 +157,51 @@ else is INTERNAL only.
 - **OTP is not enabled.** `sendOTP` throws by design. The schema already carries
   `mobileVerifiedAt`, so SMS drops in without a migration.
 
+## Who is in the roster, and who is not
+
+554 of the 773 records in `utils/employee_bio.json` were imported; 218 were
+rejected. Investigated 2026-09-02 — the analysis is here because it is not
+recoverable from the code, only from the export.
+
+**The rejections are two different problems, and they need different fixes.**
+
+| Reason | Count | What is actually missing | Fixable in our schema? |
+|---|---|---|---|
+| identity incomplete | **115** | date of birth, gender, marital status, father's and mother's name — nearly all of them lack **all five** | Yes |
+| no bio | **72** | the HR system's detail API returned 500, so `bio` is null. `name_bn` is absent in **all 73** such records | Yes, differently |
+| bad id | 19 | a mobile number or an email in the id field | No |
+| no office | 12 | no office named | Partly |
+
+**The `no bio` group is the valuable one.** Those records still carry
+`name_en`, `designation`, `wing` and `office`, and the office resolves for 72
+of 73. Their designations are the workflow chain itself — 16 Assistant
+Directors, 15 Examiners, 11 Field Officers, 8 Deputy Directors, 5 Inspectors —
+and **18 of them are CM Wing**, which is exactly the section whose chain is one
+desk deep. Example: `20103010067`, Afsana Hossain, Assistant Director (চলতি) in
+সিএম বিভাগ, is absent for this reason and not for the identity one.
+
+**The bare minimum a person needs, per function.** Worth knowing before
+relaxing anything, because the schema demands far more than any of these use:
+
+| Function | Genuinely needs |
+|---|---|
+| HR roster | `id`, `nameEn`/`nameBn`, `officeId`, `status`, `category` |
+| Payroll — regular | + `category` and `grade` (→ PayScale grade×step), plus an active `Posting.officeId` for scoping, rent zone and advice |
+| Payroll — daily basis | + office (→ zone → `DailyWageRate`) and a `DailyAttendance` row. No grade, no fixation |
+| Workflow desk | + `grade` (seniority) and `orgPostId` (→ unit → section) |
+
+**`dateOfBirth`, `gender`, `maritalStatus`, `fatherName*` and `motherName*`
+appear nowhere in `lib/salary/` or `lib/workflow/`.** They are used by the HR
+profile and edit forms and for display, nothing else. They are required by
+`app/api/employees/route.ts` and by NOT NULL columns, and that requirement is
+the only thing keeping those 115 people out. Date of birth is the one with a
+real future use (retirement), and it is *not* computed today —
+`postRetirementLeave` and `fullRetirement` are stored columns.
+
+**Neither fix addresses the desk problem.** Anyone imported this way still
+arrives without `orgPostId`, so they would be payroll-capable but have no
+workflow section. See the organogram note in the Workflow section.
+
 ## Salary
 
 Fixation is **versioned**, and that is the whole design. An employee has many

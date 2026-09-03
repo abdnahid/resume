@@ -574,10 +574,29 @@ this is the HR module, which was already in use and has been made real. As of
    into a staff post would stay `daily_basis` for ever and could never be
    fixated. Needs to be editable — superadmin only, since it moves someone
    between two pay regimes.
-3. **218 records were not imported** — 115 with no identity block, 72 whose
-   scrape failed with a 500, 14 that are not people (OSS desks, an API account),
-   12 with no office, 5 whose id field holds a mobile number. Re-running the
-   import picks them up once the HR system has them.
+3. **218 records were not imported**, and re-running the import will not fix
+   most of them — the blockers are ours, not the HR system's. Investigated
+   2026-09-02; the field-level detail is in `CLAUDE.md` under "Who is in the
+   roster, and who is not".
+
+   - **115 "identity incomplete"** — held out by five biographical fields
+     (date of birth, gender, marital status, father's and mother's name) that
+     appear **nowhere** in `lib/salary/` or `lib/workflow/`. Nearly all of the
+     115 lack all five. Making those columns nullable admits them, and they
+     would be payroll-capable on arrival.
+   - **72 "no bio"** — the HR detail API returned 500, so `bio` is null and the
+     record is rejected before the identity check is even reached. These still
+     carry name, designation, wing and office, and the office resolves for 72
+     of 73. **This is the valuable group**: 16 Assistant Directors, 15
+     Examiners, 11 Field Officers, 8 Deputy Directors, and **18 of them are CM
+     Wing** — the section whose workflow chain is currently one desk deep.
+     `name_bn` is absent in all of them, so `nameBn` has to be relaxed or
+     derived as well.
+   - **19 bad id / 12 no office** — genuinely unusable: mobile numbers and
+     email addresses in the id field, or no office named.
+
+   Neither fix gives anyone an `orgPostId`, so they would still have no
+   workflow desk.
 4. **22 of 23 offices carry improvised bank branch details**, flagged
    `isPlaceholder`; only Head Office's is real. Bogura's address is improvised
    too. All correctable in Office Setup.
