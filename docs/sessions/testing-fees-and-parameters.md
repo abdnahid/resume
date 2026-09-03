@@ -238,7 +238,161 @@ appended to. For something you'll add to over several days from two machines, a
 markdown file in `docs/` is the right shape: appendable, diffable, and a future
 session can just read it.
 
-*(This file was created at this point. The fee discussion follows below.)*
+*(This file was created at this point. The discussion continues below.)*
+
+### User
+
+> Okay I want to stop here from this computer. We will resume this from another
+> computer in a different session.
+
+### Assistant
+
+*(Wrapped up: appended this exchange to the log, committed and pushed. The
+resume point is recorded at the end of this file.)*
+
+---
+
+## Session 1 (continued) — product, sub-product, and where the limit lives
+
+### User
+
+> Looks good now lets talk about fee. But before fee lets calrify product and sub
+> product. I think Main product should be bds specified name. For the serial 1 I
+> have cut the main file and prepare a dedicated file. I will update it from time
+> to time according to my need. For now I have edited the main product name to be
+> identified by BDS name. based on that the sub products will be identified. Now
+> each sub product has their parameters. Now you might think parameters are
+> shared between sub products. In this file it might look like it. But although
+> the parameter name matches between two sub product or even product, the
+> standard limit might be differnt. what do you suggest how can we model it?
+
+The file referred to is `utils/textile-parameter-list-serial-1.xlsx` — S/L 1 cut
+out of the main list, with `Main Product` rewritten from "Textile Colour Fastness
+Rating (Innerwear Fabrics)" to **"Colour Fastness Ratings of Textiles"**, which is
+the mandatory-315 name for #252, BDS 1758:2022. Same twelve columns, 58 data rows,
+three sub-products. Column P's stray notes are gone.
+
+### Assistant
+
+Your instinct is right, and the data backs it harder than the file first suggests.
+
+#### First — your rename is the right call, and it fixes a problem I flagged
+
+Making Main Product the BDS-specified name means **Main Product = our `Product`
+row from the 315**. The 50 mains collapse to 17, matching #237, #241, #246, #250,
+#252 and so on exactly. The mapping problem from last session disappears:
+sub-product becomes the variant beneath a product we already have.
+
+But it makes the limit problem *worse*, which is exactly why you're right to
+raise it now. Before the collapse, only 5 of 50 mains had a parameter whose limit
+varied between its own variants. After it:
+
+| Product | Variants | Parameter-lines | Lines whose limit depends on the variant |
+|---|---|---|---|
+| BDS 1758:2022 Colour Fastness Ratings | 29 | 83 | **35** |
+| BDS 1467 Silk Fabrics | 10 | 8 | 5 |
+| BDS 2006 Disposable Diapers | 8 | 6 | 5 |
+| BDS 1974 Light Weight Jute Sacking | 2 | 10 | 5 |
+| BDS 1989 / 1767 Jute bags | 2 | 10 | 3 each |
+
+Across the whole file: **94 of 181** distinct (parameter, sub-parameter) keys
+carry more than one limit. Only 87 are single-valued. Concretely — *Colour
+fastness to Rubbing/Crocking » b) Wet rub-* is `3-4` in nine places, `3` in
+sixteen, `4` in three, and `4 or better` in fifteen. Same parameter, same method,
+same fee, four different limits.
+
+So: **the limit is not an attribute of the parameter. It is an attribute of the
+intersection of a variant and a parameter.** Anything that hangs the limit off the
+parameter is wrong, and anything that dedupes parameters *by* their limit will
+silently merge rows that are not the same.
+
+#### The model I'd suggest — three layers
+
+**Layer 1 — vocabulary. Shared, reusable, carries no limits.**
+
+```
+TestParameter      nameEn/nameBn, discipline, slug          71 rows
+TestParameterLine  parentId, label, ordinal                181 rows
+                   "iv) Acidic-Staining Nylon" — the result-bearing row
+TestMethod         designation, bdsId?, slug                54 rows
+```
+
+These are global on purpose. Facility capability (A1.3) keys on parameter +
+method — "which lab can run colour fastness to perspiration by BDS ISO 105 E 04"
+is *the* query the whole routing feature stands on. Duplicate parameters per
+product and that question can only be answered by fuzzy name matching.
+
+**Layer 2 — the specification. Per variant, and this is where limits live.**
+
+```
+ProductVariant   productId → Product(315), bdsId, nameEn/nameBn,
+                 turnaroundNormalDays, turnaroundUrgentDays, ordinal    104 rows
+VariantTest      productVariantId, testParameterId, testMethodId,
+                 feePoisha, ordinal                                     713 rows
+VariantTestLimit variantTestId, testParameterLineId?, limitText,
+                 limitKind, ordinal                                    1929 rows
+```
+
+`VariantTestLimit` is one row per spreadsheet row — and I checked: **(product,
+variant, parameter, sub-parameter) is unique across all 1,929 rows, zero
+duplicates.** The spreadsheet row *is* the limit row, one to one. That's a good
+sign the shape is right, and it gives you an import that cannot silently merge
+anything.
+
+`testParameterLineId` is nullable for the 289 rows that have no sub-parameter —
+one limit row, line null.
+
+**Layer 3 — `limitKind`, because the text alone can't carry it.** The file has
+four kinds:
+
+| Kind | Rows | Example |
+|---|---|---|
+| `rule` | 1,685 | `Maximum 17%`, `4 or better`, `94cm (+4/ -0)cm` |
+| `declared` | 224 | `*-text field-*`, `As declared` |
+| `cross_reference` | 10 | `As per BDS 1149`, `As per BDS 1147` |
+| `unspecified` | 10 | blank — all *Silk Fabrics » Material (Purity of silk fibers)* |
+
+`declared` is A1.1's "some parameters are declared, not pass/fail", and it has a
+real consequence: **the applicant must be asked for the value at application
+time.** Total length of yarn in a package, polyester percentage, single-end
+breaking force — the manufacturer states it and the test confirms the stated
+figure. That's a form field, not a constant. `cross_reference` should carry a
+nullable `refBdsId` so the delegation is a link, not prose. The 10 blanks look
+like a gap in the source worth asking about.
+
+**One thing I'd deliberately *not* do yet:** parse `limitText` into
+operator/value/unit. Automatic pass/fail is a later phase, and a parser guessing
+at `94cm (+4/ -0)cm`, `from 40 to 48` and `(-6.0% to +8.0%)` will be wrong in ways
+nobody notices. Keep the text as the authority; add structured columns beside it
+when we build result entry.
+
+#### Two consequences worth deciding now
+
+**1. `ProductVariant` is reference data, not free text — and that changes the CM
+form.** The variant selects the parameter set *and* the price (innerwear
+cotton-woven ৳2,322 vs woolen/silk/knitted ৳2,116). A free-typed variant yields no
+test plan and no fee. So step 2 of the application would become: pick product →
+pick variant from a controlled list → then brand/size/packaging hang off that.
+Today the applicant free-types all of it into `ApplicationSku`. That's a form
+change, not just a schema one.
+
+**2. Sub-product is currently two different axes in one column.** For diapers the
+variant is the *size* (XS→XXL — identical parameters, different limits), which is
+also an SKU dimension. For innerwear it's the *fibre construction* (cotton-woven
+vs woolen/silk/knitted), which isn't a size at all and changes which parameters
+apply. If a manufacturer makes cotton-woven innerwear in three sizes, is that one
+variant or three?
+
+I'd keep the list flat for now — it's the shape the file has, and inventing a
+second axis before we've seen more wings is exactly the over-modelling D8 warns
+against. But it's worth knowing you'll hit it, and diapers are the case that will
+force it.
+
+---
+
+Before I write any of this down: does "sub-product" mean the same thing to the
+Textile wing in both those cases, or are diaper sizes an accident of how this
+sheet was built? And shall I now do the fee side on top of this model?
 
 ---
 
@@ -333,3 +487,79 @@ in the source PDF — it is not a textile).
 `xlsx` package (`node_modules/xlsx`, v0.18.5) reads the workbook fine. A script
 run from the scratchpad must `require()` it by absolute path, since Node resolves
 from the script's own directory.
+
+### Added after the product/sub-product discussion
+
+**Main Product is now the BDS-specified product name**, per the user's edit to
+`utils/textile-parameter-list-serial-1.xlsx`. That makes **Main Product = our
+`Product` row from the mandatory 315**, and the 50 mains in the original file
+collapse to 17. Sub-product becomes the variant beneath a product we already
+hold. `textile-parameter-list-serial-1.xlsx` is the user's working cut — S/L 1
+only, three sub-products, 58 data rows — and will be extended over time. The full
+`textile-parameter-list.xlsx` stays as the unedited source.
+
+**Limits vary by variant, and this is the central modelling constraint.**
+94 of 181 distinct (parameter, sub-parameter) keys carry more than one limit
+across the file; only 87 are single-valued. After collapsing mains onto the BDS
+product, 56 parameter-lines have a limit that depends on which variant is being
+tested — 35 of them inside BDS 1758 alone. *Colour fastness to Rubbing/Crocking »
+b) Wet rub-* is the clearest case: `3-4` ×9, `3` ×16, `4` ×3, `4 or better` ×15,
+at one method and one fee.
+
+**Verified key.** `(main product, sub-product, parameter, sub-parameter)` is
+unique across all 1,929 rows — zero duplicates. Also unique when the main is
+replaced by its standard. So one spreadsheet row maps to exactly one limit row,
+and an importer keyed this way cannot silently merge two specifications.
+
+**Four kinds of limit**, which a single text column cannot distinguish:
+
+| Kind | Rows | Example |
+|---|---|---|
+| `rule` | 1,685 | `Maximum 17%`, `4 or better`, `94cm (+4/ -0)cm` |
+| `declared` | 224 | `*-text field-*`, `As declared` — the manufacturer states it |
+| `cross_reference` | 10 | `As per BDS 1149`, `As per BDS 1147` |
+| `unspecified` | 10 | blank — all *Silk Fabrics » Material (Purity of silk fibers)* |
+
+**Proposed model, three layers** (not yet built, not yet a D-number):
+
+| Table | Rows this file would produce | Holds |
+|---|---|---|
+| `TestParameter` | 71 | the name only — no limit, no fee |
+| `TestParameterLine` | 181 | the sub-parameter; the result-bearing row |
+| `TestMethod` | 54 | the method designation, optional `bdsId` |
+| `ProductVariant` | 104 | `productId` → the 315, `bdsId`, turnaround normal/urgent |
+| `VariantTest` | 713 | variant × parameter × method, **fee** |
+| `VariantTestLimit` | 1,929 | **the limit** — one per spreadsheet row |
+
+The rule the model exists to enforce: **the limit belongs to the intersection of
+a variant and a parameter, never to the parameter.** Layer 1 is global so that
+facility capability (A1.3) can key on parameter + method, which is the query
+test-plan routing depends on.
+
+Deliberately deferred: parsing `limitText` into operator/value/unit. Pass/fail
+evaluation is a later phase and a parser guessing at `from 40 to 48` or
+`(-6.0% to +8.0%)` fails invisibly. Text stays the authority; structured columns
+arrive with result entry.
+
+---
+
+## Resume here
+
+**State at the end of session 1 (2026-09-03).** No schema written, no code
+changed. The parameter model above is proposed and agreed in outline; the fee
+model has not been discussed at all.
+
+**Two questions were put to the user and are unanswered:**
+
+1. Does "sub-product" mean the same thing to the Textile wing in both its uses —
+   diaper *sizes* (XS→XXL, same parameters, different limits) and innerwear
+   *fibre construction* (cotton-woven vs woolen/silk/knitted, which changes which
+   parameters apply)? Those are two axes in one column. The recommendation was to
+   keep the list flat for now and expect diapers to force the question later.
+2. Whether to move on to the fee model on top of this structure.
+
+**The next session should start by:** reading this file, then asking the user
+which of the two to take up. The six questions for the Textile wing listed above
+are also still open — the fee-per-method question in particular decides whether
+`feePoisha` belongs on `VariantTest` (per product-variant, as the sheet is laid
+out) or on `TestMethod` (shared, as the data mostly behaves).
