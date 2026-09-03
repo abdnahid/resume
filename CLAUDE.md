@@ -37,6 +37,16 @@ Supporting specs in the same folder:
 | `docs/bsti-eservices-lab-routing-addendum.md` | Phase 5+ — test plan resolution, lab pipeline. `A§` references point here. |
 | `docs/reference-store-sample.html` | The BSTI store page the catalogue facets and card layout came from. |
 
+`docs/sessions/` holds verbatim working logs for pieces of work that span several
+sessions and both machines. **Read the relevant one before resuming that work** —
+it carries the reasoning and the client's own words, neither of which is
+recoverable from the code. Append a new `## Session N` section; never rewrite an
+earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
+
+| Log | Covers |
+|---|---|
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G) and the fee model over it. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
+
 Two rules from the spec that carry real weight:
 
 - **Read §10 (open decisions) before implementing a phase.** Where a decision is
