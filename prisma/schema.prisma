@@ -235,6 +235,7 @@ model OrgUnit {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
+  lab      Lab?
   parent   OrgUnit?  @relation("OrgUnitTree", fields: [parentId], references: [id])
   children OrgUnit[] @relation("OrgUnitTree")
   posts    OrgPost[]
@@ -388,6 +389,8 @@ model Office {
   bankAccount OfficeBankAccount?
   factories   Factory[]
 
+  labs         Lab[]
+  labRoutings  LabRouting[]
   applications Application[]
 }
 
@@ -1628,7 +1631,10 @@ model Bds {
   /// Which of the 315 products this standard certifies. The join is the answer
   /// to spec §3.3 check 3 — "the BDS matches the product applied for" — now
   /// that an application names a Product rather than a standard (D44).
-  standardFor ProductStandard[]
+  testMethods       TestMethod[]
+  subProducts       SubProduct[]
+  refBySubParameter TestSubParameter[] @relation("SubParameterRefBds")
+  standardFor       ProductStandard[]
 
   purchases BdsPurchase[]
 
@@ -2036,6 +2042,7 @@ model Product {
   /// that are not — the flag is what keeps CM's closed list closed.
   isMandatory Boolean @default(true)
 
+  subProducts  SubProduct[]
   standards    ProductStandard[]
   applications Application[]
 
@@ -2325,4 +2332,311 @@ model ApplicationMovement {
 
   @@index([applicationId])
   @@index([toEmployeeId])
+}
+
+// ─── Test parameter catalogue (Phase G) ───────────────────────────────────────
+//
+// The reference data behind test-plan resolution. Built from the wings' own
+// parameter files — one per lab, all in the same format, the first being
+// `utils/textile-parameter-list-sanitized.xlsx`.
+//
+// The shape is the client's, and it exists to make one class of mistake
+// impossible. The same parameter name recurs across sub-products carrying a
+// *different* standard limit, a different fee, or both — 94 of 181 distinct
+// (parameter, sub-parameter) keys in the textile file have more than one limit.
+// So a parameter is **owned by its sub-product**, never shared: two sub-products
+// naming the same test are two rows, with no cell for them to collide in.
+//
+//   Product (one of the mandatory 315)
+//     └── SubProduct           the variant the test plan resolves against
+//           └── TestParameter  fee + method live here
+//                 └── TestSubParameter   the result-bearing line
+//
+// The limit sits at the leaf: on the parameter when it has no sub-parameters,
+// on the sub-parameter when it has them.
+
+/// Which testing wing owns a test. A branch office folds its sections into one
+/// lab per discipline; head office splits them (Textile, Organic Chemistry,
+/// Food & Bacteriology…). The discipline is what survives that difference, and
+/// it is what decides which wing supervises work sent to a third-party lab.
+enum LabDiscipline {
+  physical
+  chemical
+}
+
+/// What kind of thing a standard limit is. A single text column cannot tell
+/// these apart, and they behave differently: `declared` values are supplied by
+/// the manufacturer and confirmed by the test, so they become a form field
+/// rather than a pass/fail constant.
+enum LimitKind {
+  /// "Maximum 17%", "4 or better", "94cm (+4/ -0)cm" — an actual requirement.
+  rule
+  /// "As declared", "*-text field-*" — the manufacturer states the value.
+  declared
+  /// "As per BDS 1149" — the specification delegates to another standard.
+  cross_reference
+  /// Blank in the source. A gap, not a decision.
+  unspecified
+}
+
+/// Where a sample is physically tested. The accountable BSTI unit is always
+/// `LabRouting.labId`; this says whether the work happens there. A sample sent
+/// outside stays the responsibility of the examiner who sent it, which is why
+/// third-party work is a mode and not a different destination.
+enum LabRoutingMode {
+  in_house
+  third_party
+}
+
+/// A published test procedure. Shared across parameters on purpose — a method
+/// is a document, and the same one is cited by many tests. Unlike the
+/// parameter, nothing about it varies by sub-product.
+model TestMethod {
+  id   Int    @id @default(autoincrement())
+  slug String @unique
+
+  /// The designation as the wing's file prints it, e.g. "BDS ISO 105 E 04:2016".
+  designation String @unique
+
+  /// Resolved against the catalogue where the designation names a BDS we hold.
+  /// Null is ordinary — many methods cite ISO or ASTM directly.
+  bdsId Int?
+  bds   Bds? @relation(fields: [bdsId], references: [id])
+
+  parameters TestParameter[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([bdsId])
+}
+
+/// A sub-product — the variant beneath a mandatory product that a test plan is
+/// actually resolved against, and the level at which limits and fees differ.
+///
+/// The source files name a main product and a sub-product; the main product has
+/// been rewritten to the mandatory-315 name, so `productId` is that row and this
+/// is what hangs beneath it. 50 textile "main products" collapsed onto 17
+/// products without a single collision, because the sub-product name already
+/// carried what distinguished them.
+model SubProduct {
+  id   Int    @id @default(autoincrement())
+  slug String @unique
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  nameEn String
+  nameBn String?
+
+  /// The standard designation exactly as the wing's file prints it. Kept as
+  /// text because it does not always agree with the mandatory list: every
+  /// textile sewing-thread package is tested against "BDS 1221 : 2011" while
+  /// the published list names BDS 1221:2021 (4th Revision). Which is correct is
+  /// an open question for the wing, and overwriting either answer would hide it.
+  standardAsPrinted String?
+
+  /// The catalogue row for the product's standard, when it resolves.
+  bdsId Int?
+  bds   Bds? @relation(fields: [bdsId], references: [id])
+
+  /// Working days quoted for the whole package. Note these are per package and
+  /// not per parameter, so a partial selection has no computable date yet.
+  turnaroundNormalDays Int?
+  turnaroundUrgentDays Int?
+
+  ordinal Int @default(0)
+
+  parameters TestParameter[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, nameEn])
+  @@index([bdsId])
+}
+
+/// One test on one sub-product. The fee and the method live here, because both
+/// vary by sub-product: 8 of 71 textile parameter names run under more than one
+/// method, and 3 of 88 (parameter, method) pairs carry two different fees.
+model TestParameter {
+  id Int @id @default(autoincrement())
+
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
+
+  /// The parameter name as the wing's file prints it.
+  nameEn String
+  nameBn String?
+
+  /// Lower-cased, whitespace-collapsed `nameEn`. **Not a foreign key** — the
+  /// parameter is deliberately owned by its sub-product. This column exists so
+  /// that "is this the same test as that one" stays answerable across
+  /// sub-products and wings without a rename or a fuzzy match, which is what
+  /// cross-wing reporting will need. Note it is not unique and must never be
+  /// treated as an identity: `(labSection, slug)` is the closest thing to one,
+  /// because "Moisture" in the textile file and in the food file are different
+  /// tests.
+  slug String
+
+  methodId Int?
+  method   TestMethod? @relation(fields: [methodId], references: [id])
+
+  /// Integer poisha, never taka floats.
+  feePoisha Int
+
+  /// Null means the default rule applies: urgent costs twice the normal fee.
+  /// A column rather than a constant because the wing says it is 2× "99.99% of
+  /// the time", and the exceptions have to be recordable.
+  urgentFeePoisha Int?
+
+  /// Which wing owns this test. Comes from the file it was imported from —
+  /// one file per lab — not from anything in the row itself.
+  discipline LabDiscipline
+
+  /// The lab section whose file this came from, e.g. "textile". Provenance, and
+  /// the thing that makes `slug` collisions across wings readable.
+  sourceSection String
+
+  /// The standard limit, **used only when this parameter has no
+  /// sub-parameters**. Where sub-parameters exist the limit belongs to each of
+  /// them and this is null. Enforced by the importer.
+  limitText String?
+  limitKind LimitKind @default(rule)
+
+  ordinal Int @default(0)
+
+  subParameters TestSubParameter[]
+  capabilities  LabCapability[]
+  routings      LabRouting[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subProductId, nameEn])
+  @@index([slug])
+  @@index([methodId])
+}
+
+/// A sub-parameter — the result-bearing line beneath a parameter. Colour
+/// fastness to perspiration is one ৳700 test that produces 14 separately rated
+/// readings, so the fee is charged above and the result is recorded here.
+///
+/// Which lines apply is decided per sub-product, never globally on the
+/// parameter name: colour fastness to washing (B2) stains Acetate and Wool for
+/// 14 of its 15 sub-products, and Tri-Acetate and Viscose for the fifteenth.
+model TestSubParameter {
+  id Int @id @default(autoincrement())
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  /// The sub-parameter as printed, e.g. "iv)  Acidic-Staining Nylon".
+  label String
+
+  limitText String?
+  limitKind LimitKind @default(rule)
+
+  /// Set when `limitKind` is `cross_reference` and the named standard resolves,
+  /// so the delegation is a link rather than prose.
+  refBdsId Int?
+  refBds   Bds? @relation("SubParameterRefBds", fields: [refBdsId], references: [id])
+
+  ordinal Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([parameterId, label])
+  @@index([refBdsId])
+}
+
+/// A testing laboratory. Points at the organogram unit that *is* the lab: a
+/// section at head office ("Textile" under the Physical Testing Wing), or the
+/// whole flat unit at a branch ("Physical Lab, Chittagong"). Both are OrgUnit
+/// rows, which is what lets one model cover the two shapes.
+model Lab {
+  id   Int    @id @default(autoincrement())
+  slug String @unique
+
+  nameEn String
+  nameBn String?
+
+  discipline LabDiscipline
+
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id])
+
+  /// The organogram unit this lab is. Nullable so a lab can be recorded before
+  /// the organogram catches up.
+  orgUnitId Int?     @unique
+  orgUnit   OrgUnit? @relation(fields: [orgUnitId], references: [id])
+
+  isActive Boolean @default(true)
+
+  capabilities LabCapability[]
+  routings     LabRouting[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([officeId])
+  @@index([discipline])
+}
+
+/// What a lab can actually run. Sparse — only the true rows, each lab
+/// maintaining its own. This is the ground truth that keeps `LabRouting` from
+/// nominating a destination that cannot do the test.
+model LabCapability {
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([labId, parameterId])
+  @@index([parameterId])
+}
+
+/// The 2D map: for a sample received at this office, which lab runs this
+/// parameter.
+///
+/// Referral is an administrative fact, not a distance calculation — Barisal may
+/// send what it cannot test to Cumilla rather than to a capable Khulna — so it
+/// is stored, not derived. Each office and wing maintains its own rows.
+///
+/// `labId` is always the **accountable BSTI unit**. When `mode` is
+/// `third_party` the sample is physically tested outside, and that lab's
+/// examiner selects the accredited laboratory, writes to it, and enters the
+/// result. Custody never leaves BSTI even when the sample does.
+model LabRouting {
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id])
+
+  mode LabRoutingMode @default(in_house)
+
+  /// True while the row is the seeded stand-in rather than something an office
+  /// has confirmed. Every row starts this way and the mapping module clears it,
+  /// so nobody mistakes a placeholder for a decision.
+  isPlaceholder Boolean @default(true)
+
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([officeId, parameterId])
+  @@index([parameterId])
+  @@index([labId])
 }

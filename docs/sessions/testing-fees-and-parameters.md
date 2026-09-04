@@ -543,7 +543,7 @@ arrive with result entry.
 
 ---
 
-## Resume here
+## Resume point at end of session 1
 
 **State at the end of session 1 (2026-09-03).** No schema written, no code
 changed. The parameter model above is proposed and agreed in outline; the fee
@@ -563,3 +563,627 @@ which of the two to take up. The six questions for the Textile wing listed above
 are also still open — the fee-per-method question in particular decides whether
 `feePoisha` belongs on `VariantTest` (per product-variant, as the sheet is laid
 out) or on `TestMethod` (shared, as the data mostly behaves).
+
+---
+
+## Session 2 — 2026-09-03 / 04 (Linux machine)
+
+Resumed from the log. The product/sub-product/parameter model was agreed, the
+lab-routing model was worked out from scratch, and the first file edit landed:
+`utils/textile-parameter-list-sanitized.xlsx`.
+
+### User
+
+> hello are you here?
+> lets resume the work we were doing about setting testing fees and parameters. I
+> think the setup at the database should be like this-> product a-> links to
+> sub-product a1,a2,a3-> each sub product links to own parameters (a1->a11,a12,
+> a13,a14; a2-> a21, a22, a23; a3-> a31, a32)-> each parameter can have
+> sub-parameter optionally (a11->a111,a112,a113,a114,a115;a14->a141,a142;a31->
+> a311,a312,a313). Each parameter should have a certain fee,method. standard
+> limit is assigned to parameter directly if no sub-parameter exists for that
+> parameter. If Sub-parameter exist then standard limit is assigned to the
+> sub-parameter. What do you think of this design? I want to do it like this
+> because there are lots of possiblity of same parameter name in multiple
+> sub-product or even product with different standard limit or fee or both.
+
+### Assistant
+
+Agreed with the design and the data backs it harder than the sheet suggests.
+Confirmed from the source: 94 of 181 distinct (parameter, sub-parameter) keys
+carry more than one limit; only 87 are single-valued. `Mass of Fabric (GSM)`
+carries 9 different limits, `Ends and Picks per cm » b) Picks per cm` 9,
+`Corrected mass/bag. g` 6, `Rewet under load in g (max)` 6.
+
+Fee on the parameter rather than the sub-parameter is right — the fee is merged
+across a parameter's sub-parameters in the sheet, and all 104 package totals
+equal the sum of the per-parameter fees counted once. Method belongs there too:
+**8 of 71 parameter names run under more than one method** depending on the
+sub-product, and 3 of 88 (parameter, method) pairs carry two different fees, so
+the fee cannot live on the method either.
+
+The one change proposed: make the parameter *name* a pointer rather than a
+string re-typed on all 713 rows. Two arguments were given —
+
+1. The names have already drifted in the source. `Width of fabric` appears with
+   three sub-parameter labels — `Width in cm (Tolerance: ±1 cm )` ×8,
+   `(Tolerance: ±2% )` ×2, `(Tolerance: +1% )` ×4 — one measurement, three
+   spellings, differing only because **the limit was typed into the label**.
+   Same with `GSM (Weight per unit area or length)` (2 spellings). If the label
+   is owned per sub-product nothing can ever tell you those are the same thing.
+2. Facility capability (A§1.3) keys on parameter + method, which is the query
+   lab routing depends on.
+
+The honest counter-argument was also given: a shared catalogue only works if
+data entry can find the existing name instead of creating a near-duplicate —
+a screen problem, not a schema one.
+
+**A wrinkle the model must survive:** the sub-parameter *set* itself varies by
+sub-product. `Colour fastness to Washing (B2)` stains six fibres, but for 1 of
+its 15 sub-products the list is Tri-Acetate/Viscose where the other 14 have
+Acetate/Wool. So which lines apply is decided per sub-product, never globally on
+the parameter.
+
+### User
+
+> Just tell me plainly. Does my idea solves the issues of mismatch?
+> product->sub-Product->parameter->sub-parameter setup
+
+### Assistant
+
+Yes, completely. Because the limit hangs off a leaf beneath a specific
+sub-product, the same parameter name in two sub-products is simply two rows with
+their own limit, fee and method. There is no shared cell for them to collide in,
+so a mismatch is not representable — not prevented by a rule someone has to
+remember. Verified: `(product, sub-product, parameter, sub-parameter)` is unique
+across all 1,929 rows.
+
+The only thing it does not solve is the opposite problem — recognising that two
+of those rows *are* the same parameter, which is what lab routing needs later.
+
+### User
+
+> I will route lab based on product+sub-product+parameter. For now we have CM
+> module live. […] we have some cases where a party comes to our onestop center
+> and ask for testing a certain product based on some selected parameters or all
+> parameters. In that case the application is directly processed by Testing wing
+> and then a test report is produced and given to client. This process doesnt
+> produce any certificate like CM wing. […] the system should find which lab the
+> sample will go to. The system should match the lab combining
+> product+sub-product+parameter.
+
+*(Second application track: direct testing. Applicant picks product →
+sub-product → some or all parameters; sample is routed; a test report is
+produced and no certificate.)*
+
+### Assistant
+
+Noted that the user's routing key removes the strongest argument for the shared
+parameter catalogue — capability becomes a row per (sub-product, parameter),
+a concrete list a lab manager can tick off and a plain FK to the row already
+holding fee and method. Said plainly that the earlier suggestion should not be
+treated as settled because of that.
+
+Three things raised as schema-changing:
+
+1. **A `Lab` is not an office.** It points at an `OrgUnit`, because head office
+   has sections under two testing wings while a branch has one flat lab per
+   discipline.
+2. **A selected-parameter request can split across labs**, so **the lab belongs
+   on each selected parameter line, not on the request** — correct whether or
+   not a split happens, and wrong the first time one does if stored on the
+   request. This also surfaces the missing A§1.2 sample-requirement data.
+3. **Does a CM application always take the whole package**, or can an officer
+   trim it? If it can be trimmed, both tracks are the same table.
+
+### User
+
+> 1. The file I provided is entirely for physical testing parameters. I have
+> similar files for all of the labs. […] 2. Fallback is not always head office.
+> Also not nearby. It depends on office. A office at barisal might test its
+> sample that are not testable at barisal office at the comilla office instead of
+> capable khulna office. THats why I was asking to prepare a 2D map. Dont worry
+> about the data entry. We will build a module and each office and wing will
+> enter there own data. 3. We will have a list of accredited lab from which we
+> can select. It is the responsibility of examiner to select a specific 3rd party
+> lab and generate official letter addressed to that lab. 4. depends on FDO. He
+> can seal one sample per related lab or more than one if needed. so I think at
+> the sampling report he can enter the number of sample he collected for specific
+> labs.
+
+*(This followed a full statement of the CM flow — apply on a BDS → wing director
+or office head desk by factory jurisdiction → FDO → factory inspection, sample
+sealed, sub-product recorded, sampling report → up the chain → head approves →
+test fee generated and labs resolved → letters issued per destination. The
+worked example: a Chittagong application whose sub-product has 10 parameters —
+3 at Chittagong Chemistry, 2 at Chittagong Physical, 3 not testable in
+Chittagong at all, 2 at a third-party lab supervised by the Chittagong examiner
+of the matching discipline.)*
+
+### Assistant
+
+**The correction that matters most: that file is one lab's share, not the test
+fee.** If every lab produces its own file in the same format, column J is a
+per-lab subtotal. Session 1 recorded ৳494–৳9,464 per package and ৳421,571 for
+the lot — those are the textile portion only. Disposable Diapers has 6
+parameter-lines in this file and a diaper standard plainly needs chemistry too.
+
+Consequences: the importer must **merge** a second file's parameters into
+sub-products the first file already created, never insert a second copy; and
+`(product, sub-product)` is the key that makes that safe, owned by neither file.
+
+**It also settles discipline.** Discipline is fixed per parameter because it is
+fixed per file — the file names the owning lab section (Textile, Organic
+Chemistry, Food & Bacteriology…), which is stronger than a physical/chemical
+flag since the wing falls out of the section. And **the same parameter name will
+appear in two labs' files** — "Moisture" in textile and in food are different
+tests — so any shared name catalogue is keyed on `(lab section, name)`, never
+name alone.
+
+**On the 2D map:** the requirement was accepted. The argument made was no longer
+about data entry but about correctness — a map storing a destination directly
+can name a lab that cannot do the test, and nothing checks it. Proposed two
+tables that render as the same screen: **capability** (`Lab × (sub-product,
+parameter)`, each lab maintains its own) and **referral** (per office, an
+*ordered* preference of where to send what it cannot do, with per-parameter
+overrides). The resolver walks the preference and picks the first entry that
+actually holds the capability, so a cell can never point somewhere impossible.
+
+**Third-party labs:** a `ThirdPartyLab` table, examiner selects one, letter to
+that lab is a second artifact class. Suggested carrying **accreditation scope
+and expiry** so the picker can grey out a lab not currently accredited for the
+parameter in hand.
+
+**A sequencing catch was found in the flow as described.** Routing was described
+as happening after the head approves the sampling report, but the FDO needs to
+know which labs to seal samples for *at inspection*. These are two moments:
+routing resolves the instant the FDO enters the sub-product (the parameter list
+is fixed then), and the fee and letters issue at approval. Routing is then
+**snapshotted at approval**, so a referral map edited next month cannot redirect
+a sample already sealed and in transit.
+
+### From the organogram (verified this session)
+
+Head office has **Physical Testing Wing** → Textile, Electrical & Electronics,
+Civil Physical …, and **Chemical Testing Wing** → Organic Chemistry, Inorganic
+Chemistry, Food & Bacteriology, Chemical Lab (PMO). Branch offices are flat:
+one `Physical Lab, <city>`, one `Chemistry Lab, <city>`, no sections. Both are
+`OrgUnit` rows, so `Lab.orgUnitId → OrgUnit` covers head office and branch
+without special-casing.
+
+**The fallback is not hypothetical.** 21 offices have a chemistry lab; only
+**17** have a physical lab. **Cox's Bazar, Cumilla, Faridpur and Mymensingh have
+no physical lab at all** — so for an application filed there, every physical
+parameter falls through to another office on day one.
+
+### User
+
+> The fees are on parameter basis. The fees at the file is sub-total. Some
+> products are entirely physical or entirely chemical. In that case that total is
+> grand total of testing fee. So maybe you can do like this-> consider those
+> subtotal-> lets say physical lab fee 2000 and no chemical parameter from a
+> chemical wing data, then chemical lab fee is 0-> grand total 2000. Also in most
+> cases like 99.99% time the urgent fee is double. Now another thing we need to
+> do to sanitize textile-parameter-list.xlsx. We need to rename the main product
+> column to match the BDS name exactly. I have provided you mandatory list.pdf
+> file. You should follow those names.
+
+### Assistant
+
+The fee model needs nothing stored: the grand total is the sum of the selected
+parameters' fees, and the per-lab subtotal is a grouping of that same sum — a
+lab with no parameters contributes 0 by having no rows, not by needing a zero
+row. Urgent is `2 ×` as the default with a per-parameter override for the 0.01%.
+
+Then did the sanitisation. See the section below.
+
+### The sanitisation — what was done and how it was verified
+
+**Output: `utils/textile-parameter-list-sanitized.xlsx`.** The source
+`textile-parameter-list.xlsx` was left untouched, per the session-1 decision that
+it stays as the unedited original.
+
+**Only column B changed.** Every `Main Product` value was replaced with the exact
+product name from `prisma/data/mandatory-315.json` (which was parsed from
+`utils/mandatory list.pdf`), resolved via the row's own `Standard` column.
+
+**The mapping was deterministic.** All 50 distinct main products map to exactly
+one standard each, and each of the 17 standards matches exactly one product in
+the 315. **50 main products → 17 BDS names.**
+
+| Collapsed into | From | Standard |
+|---|---|---|
+| #252 Colour Fastness Ratings of Textiles | 16 mains | BDS 1758:2022 |
+| #246 Industrial Sewing Threads Made Wholly or Partly from Synthetic Fibres | 15 mains | BDS 1221 : 2011 |
+| #241 Umbrella Cloth | 2 (Coloured, White) | BDS 1125:2020 |
+| #242 Woven Shirtings Made of Polyester or Polyester Blends | 2 (Coloured, White) | BDS 1148:2021 |
+| #243 Woven Suitings Made of Polyester or Polyester Blends | 2 (Coloured, White) | BDS 1175:2021 |
+| #261 Disposable Diapers | 2 (Adult, Baby) | BDS 2006:2022 |
+| the other 11 | 1 each | — |
+
+**Bengali parentheticals were stripped**, following the user's own precedent in
+`textile-parameter-list-serial-1.xlsx`. Only #252 needed it — `pdftotext` mangles
+Bengali conjuncts, so `mandatory-315.json` holds it as
+`Colour Fastness Ratings of Textiles ( ট টাইল পে র রং এর ািয়ে র মা া িনিদ করণ)`.
+The user had already written just `Colour Fastness Ratings of Textiles`.
+**This means `mandatory-315.json` itself carries mangled Bengali** — but it is
+contained: **#252 is the only one of the 315** whose name has any Bengali in it,
+and no `genericNames` entry does. So it is a one-row fix at the source, not a
+re-parse.
+
+**Verification, all passing:**
+
+| Check | Result |
+|---|---|
+| Data rows | 1,929 before and after |
+| Packages `(main, sub-product)` | **104 before, 104 after** — no collapse |
+| Distinct main products | 50 → 17 |
+| `(main, sub, parameter, sub-parameter)` unique | **1,929 / 1,929** |
+| Rows where the rename merged a different limit or fee | **0** |
+| Cells changed outside column B | **0** |
+| Cells in column B changed incorrectly | **0** |
+| Merge ranges | 1,476 before and after, identical |
+| Per-package fee reconciliation | 104 / 104 still sum to their total |
+| Zip integrity / `xl/styles.xml` retained | pass / yes |
+
+**The rename is lossless because the sub-product column already carries what the
+main-product name held.** For #252 the sub-products are `Bed-Linen Fabrics
+(Cotton-Woven)`, `Buckram cloth`, `Yarn (Cotton)` …; for #246 they are `Air-Jet
+Textured Polyester Threads-Coloured` and so on. Nothing was distinguished only by
+the main-product name.
+
+**How it was written.** No `openpyxl` and no `pip` on this machine, and SheetJS's
+free build drops cell styles on write. So the workbook XML was patched directly:
+new shared strings appended to `xl/sharedStrings.xml`, the 52 column-B cell `<v>`
+indices repointed, everything else copied byte-for-byte. That is why merges,
+styles and column widths survive exactly.
+
+**Tooling note for the next session.** The obvious cell regex is wrong. Matching
+`<c r="..."([^>]*)>(.*?)</c>` swallows following cells, because `[^>]*` happily
+eats the `/` of a self-closing `<c r="B5" s="1"/>`. The first analysis this
+session reported 5 phantom package collisions on blank sub-products because of
+it. The correct form is
+`<c r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)`. A working reader is kept at
+`scratchpad/lib.py` during the session but is not committed — rewrite it from
+that regex.
+
+### Settled this session, not yet given D-numbers
+
+1. **The catalogue hierarchy.** Product → sub-product → parameter → optional
+   sub-parameter. Fee and method on the parameter. Limit on the parameter when it
+   has no sub-parameters, on the sub-parameter when it does.
+2. **The fee is per parameter.** A file's `Total Test Fee` is that lab's subtotal;
+   the grand total is the sum over all labs, and a lab with no parameters
+   contributes nothing rather than a zero row.
+3. **Urgent is 2× the normal fee** by default (~99.99% of cases), overridable per
+   parameter.
+4. **Discipline / owning lab section comes from the source file**, one file per
+   lab, all in the same format.
+5. **Lab routing keys on (product, sub-product, parameter)** and is expressed as
+   an office × parameter map, to be maintained by each office and wing through a
+   module of its own.
+6. **Third-party testing keeps custody inside BSTI** — the accountable unit and
+   the physical testing location are two different fields, and the examiner of
+   the matching discipline selects the accredited lab and writes to it.
+
+### Still open
+
+- Does a CM application always take the whole parameter package, or may an
+  officer trim it? Decides whether direct testing and CM share one table.
+- Turnaround for a partial selection. Duration is recorded per package, not per
+  parameter, so a 2-of-13 selection has no computable promised date.
+- Who assembles the report when results land from several labs at different
+  times, and does one failed parameter fail the licence?
+- The six questions to the Textile wing from session 1 remain unanswered, though
+  #1 (fee per method or per product) is now settled as **per parameter**, and #5
+  (is urgent priced) is settled as **2×**.
+
+## Resume point mid-session 2 (superseded — see the end of this file)
+
+**State at the end of session 2.** Still no schema written and no application
+code changed. One file produced: `utils/textile-parameter-list-sanitized.xlsx`.
+
+**The next session should:** take the six settled items above to
+`docs/BUILD-PLAN.md` as D-numbers (the highest in use is **D59**, so these would
+be D60–D65), then write the Prisma models. The parameter/limit model and the lab
+routing model are both worked out in enough detail to build.
+
+---
+
+## Session 2 (continued) — the schema, the import and the 2D map
+
+### User
+
+> FYI we dont need to show bengali in bds name. Now can you model the database
+> and seed it as needed based on this document? Also the 2D map. For now keep all
+> the mapped point to head office lab. this is textile file so all of those
+> parameter maps to physical wing. Later we will develop a system to easily enter
+> lab mapping by individual office.
+
+### Assistant
+
+Built it. Seven decisions went to `docs/BUILD-PLAN.md` as **D60–D66**.
+
+**Schema** (appended to `prisma/schema.prisma`, `db push`ed):
+
+| Model | Rows seeded | Holds |
+|---|---|---|
+| `SubProduct` | 104 | the variant beneath a mandatory product; standard as printed, turnaround |
+| `TestParameter` | 713 | **fee + method + discipline**; limit only when childless |
+| `TestSubParameter` | 1,640 | the result-bearing line, and **its** limit |
+| `TestMethod` | 53 | shared — a method is a document, and nothing about it varies by sub-product |
+| `Lab` | 46 | points at the OrgUnit that *is* the lab |
+| `LabCapability` | 713 | sparse ground truth: what a lab can actually run |
+| `LabRouting` | 16,399 | the 2D map, 23 offices × 713 parameters |
+
+Enums added: `LabDiscipline`, `LimitKind`, `LabRoutingMode`.
+
+**`utils/textile-parameter-list-sanitized.xlsx` is now the import source**, read by
+`prisma/import/xlsx-grid.ts` (merge resolution) and
+`prisma/import/test-parameters.ts`. `npm run import:test-parameters [-- --dry]`
+and `npm run seed:labs [-- --dry]`; both idempotent, verified by running twice
+and getting identical counts with 0 rows rewritten.
+
+**Everything reconciles with the session-1 analysis**, which is the point of
+having done that analysis first:
+
+| | Session 1 (from the sheet) | Imported |
+|---|---|---|
+| Data rows | 1,929 | 1,929 |
+| Packages / sub-products | 104 | 104 |
+| Parameters | — | 713 |
+| Sub-parameters | 1,640 | 1,640 |
+| Limit kinds | rule 1,685 · declared 224 · cross_ref 10 · unspecified 10 | identical |
+| Textile subtotal range | ৳494 – ৳9,464 | identical |
+
+Verified after seeding: no parameter holds both its own limit and
+sub-parameters; every childless parameter holds a limit unless the source left
+it blank (exactly the 10 known *Silk Fabrics » Material (Purity of silk fibers)*
+rows); **every routing row points at a lab that holds the capability**; all
+16,399 routing rows carry `isPlaceholder`.
+
+**Two data problems found in the source and handled, not silently smoothed:**
+
+1. **`BDS 949` and `BDS 949:` are the same method typed two ways.** Left alone
+   they became two `TestMethod` rows, which would have split one procedure's
+   capability in half — a lab able to run it would appear able to run only some
+   of it. The importer strips trailing punctuation from a designation, and a
+   slug shared by two designations is now a **parse-time report** rather than a
+   crash halfway through writing. 54 designations → 53 methods.
+2. **`SubProduct.slug` built as `productName--subName` collided.** #246's name is
+   69 characters, so truncating at 120 cut off the half that distinguishes one
+   sub-product from the next. The slug is now `p{serial}-{subName}` — 104 keys,
+   zero collisions, asserted before any write.
+
+**`prisma/data/mandatory-315.json` #252 fixed.** It held
+`Colour Fastness Ratings of Textiles ( ট টাইল পে র রং এর ািয়ে র মা া িনিদ করণ)` —
+`pdftotext` mangling Bengali conjuncts. Now the English name alone, per the
+user. It was the only one of the 315 affected. `npm run import:products`
+reported `products refreshed: 1`.
+
+**Labs came from the organogram, none invented.** 46 = 8 head-office sections
+(the two `*-exec` units are wing offices, not laboratories, and are excluded)
++ 38 branch labs matched to offices by city. The only alias needed was
+**Barisal → Barishal**: the organogram spells it one way and the office register
+the other. Zero unmatched.
+
+**What the seeded map does and does not claim.** Every office routes every
+textile parameter to the head-office Textile section, `isPlaceholder: true`,
+with a note saying so — the same discipline as the seeded bank branch details.
+`SECTION_FOR_SOURCE` in `prisma/seed-labs.ts` is the one place a new wing's file
+is bound to its head-office section, and the seed **refuses to write** if a
+parameter arrives from a section not listed there.
+
+### Resume point after the schema and seed
+
+**State at the end of session 2.** The catalogue and the routing map are built,
+seeded and verified. `npx tsc --noEmit` clean. Nothing committed yet.
+
+**Next, in rough order:**
+
+1. **The lab-mapping module** — the office × parameter grid each office edits.
+   The resolver must require that a nominated destination holds the capability
+   (D64); that is the whole reason capability and routing are separate tables.
+2. **The other wings' files** as they arrive. Add a `SOURCE` block and a
+   `SECTION_FOR_SOURCE` entry; the importer merges into existing sub-products
+   rather than duplicating them (D62). Worth re-checking the fee subtotals then,
+   because that is when a grand total first spans two labs.
+3. **The direct-testing track** — the user has said this is still to be
+   discussed, and it turns on whether a CM application can have its parameter
+   list trimmed (still open).
+
+**Still unanswered:** whether a CM application always takes the whole package;
+turnaround for a partial selection (recorded per package, not per parameter);
+who assembles a report when results land from several labs; and whether one
+failed parameter fails the licence. From session 1, the BDS 1221 edition
+question (2011 in the file, 2021 in the published list) is still open and is now
+visible in the data as `SubProduct.standardAsPrinted`.
+
+---
+
+## Session 2 (continued) — blinding the sample between CM and the labs
+
+### User
+
+> So now the textile applications are processible at the lab. we need to add some
+> more features in this application flow. The idea is to put a layer in between
+> CM wing and chemical testing wing so that a FDO doesnt know which officers are
+> handling the sample to test. And officers in the lab should not know which FDO
+> has processed this file. The sample is collected through onestop service. So we
+> can make something here. I have an idea but cannot map it properly. Lets head
+> yours. What can we do?
+
+### Assistant — the proposal, not yet agreed
+
+**Where it fits.** The CM spec §5.2 stops at step 21 `SAMPLE_RECEIVED` → "Phase
+5, TBD". This fills that gap, and the counter is already the right place: the
+spec's own design note says the One Stop Officer's only write action is
+*received / not received*.
+
+**The idea in one line: the sample changes identity at the counter.** Upstream
+of the one-stop it is an *application*; downstream it is a *test order* with a
+code and nothing else. The two are linked in exactly one table, **which no
+person reads in the normal flow** — the temptation is to make the one-stop
+officer the human who knows both sides, but that only moves the leak to a desk
+and creates a person worth bribing. It also keeps the spec's principle that the
+officer gains no discretion: the code is assigned by the system, not chosen.
+
+| The lab sees | The lab never sees |
+|---|---|
+| the lab code | application number, applicant, company, factory |
+| sub-product, and the parameters to test | brand, SKU, packaging artwork |
+| sample count, seal numbers, condition on receipt | the FDO, the sampling report, inspection notes |
+| normal or urgent, and the due date | the receiving office (open question) |
+
+| The CM side sees | The CM side never sees |
+|---|---|
+| which lab holds it, and since when | which examiner holds it |
+| stage, due date, overdue flag | the lab's internal hand-offs |
+| the signed result when it lands | the bench officer's name (open question) |
+
+**The leak in the code we already have.** `Application.holderEmployeeId` +
+`ApplicationMovement` are generic on purpose (D58/D59) — so if the sample
+travels as the *same* work item, the lab officers become holders of the
+application and the FDO can read their names straight off the stage tracker.
+D58's design becomes the leak. The lab leg therefore needs its **own** work item
+and its own movement chain:
+
+```
+Application  ──holder: CM officers──►  ApplicationMovement      (CM side)
+      │
+      ├─ Sample (sealed by FDO, per destination lab)
+      │
+   ═══╪═══ the cut: SampleRegistration ═══════════════════════
+      │
+LabTestOrder ──holder: lab officers──►  LabTestOrderMovement    (lab side)
+```
+
+`LabTestOrder` carries **no `applicationId` column at all** — not hidden in the
+UI, absent from the table. That is what makes the barrier structural rather than
+a permission check somebody forgets on one screen.
+
+**Sketch:**
+
+| Model | Holds |
+|---|---|
+| `Sample` | sealed by the FDO — seal no., count, destination lab, condition |
+| `SampleRegistration` | **the cut.** applicationId ↔ labCode. Written at the counter, read by the system only |
+| `LabTestOrder` | labCode, subProductId, urgency, dueDate, labId, holderEmployeeId |
+| `LabTestOrderItem` | one per `TestParameter` to test |
+| `TestResult` | per item: observed value, verdict, examiner |
+| `CustodyEvent` | every hand-off, both sides of the cut |
+| `Reidentification` | audit: who deliberately linked the two, when, why |
+
+- **A different code per lab, not per sample.** The Chittagong example split four
+  ways; one shared code would let two labs compare notes and reconstruct the
+  full parameter set, which with the sub-product narrows the applicant fast. The
+  FDO already seals per destination, so per-lab codes cost nothing.
+- **The code carries no meaning** — no office, no date, no sequence. Random
+  Crockford base32 so it survives being written on a jar (`7Q4M-2R8K`), with a
+  check character. A sequential code tells the lab how many samples that office
+  sent this month, most of the way to identifying a small office's only
+  applicant.
+- **The normal path never requires a human to see both sides.** Results come
+  back keyed to the code and the system re-links. Manual re-identification is
+  for disputes only, and is audited.
+
+**What this can and cannot buy** — stated so the controls match the real threat:
+
+- *Achievable*: the examiner cannot look up the applicant, the FDO cannot look
+  up the examiner, neither by accident, and a deliberate attempt is logged.
+- *Partial*: a sample tested at its own office's lab is in the same building as
+  the FDO. Software cannot blind a corridor.
+- *Not achievable*: if one company in Bangladesh makes a product, the
+  sub-product identifies them. Same if a lab handles four samples a month.
+- *Temporary by design*: the report is a legal document, the certificate names
+  the applicant, and a dispute needs the link. This is **pseudonymisation during
+  testing**, not anonymity — the link must never be destroyed, only guarded.
+
+**The physical half matters as much as the software.** The applicant carries the
+sealed sample to the counter themselves (§5.2 phase 4), so branded packaging
+walks in with it. The one-stop must over-label with the code before dispatch,
+and the system should require that as an explicit confirmation rather than
+assume it. A perfect schema is undone by a brand name on a jar.
+
+**Five questions put to the user, all unanswered:**
+
+1. Does the blinding survive the result? A signed report needs a responsible
+   signatory — blind the *bench examiner* and let the report carry the lab's
+   authorising officer, or must even that be hidden (report signed by the lab as
+   an office)?
+2. Does the lab need to know the receiving office? They need somewhere to return
+   results, but "return to One Stop" works and the office name is the single
+   biggest re-identification hint.
+3. Who may deliberately break the link — one-stop in-charge, wing director,
+   superadmin only?
+4. What is the actual threat — collusion between applicant and lab, or an
+   impartiality requirement (ISO/IEC 17025)? The first needs hard controls; the
+   second mostly needs a documented, auditable procedure.
+5. Direct testing has no FDO — the customer hands the sample straight to the
+   counter. Same blinding, or is that track open?
+
+### Also this session — the organogram sat under the sidebar
+
+Unrelated to testing fees, recorded because it changed a layout rule now in
+CLAUDE.md. `/hr/organogram` and `/hr/organogram/manage` are full-bleed screens,
+and at `min-[1920px]` — where the sidebar is docked rather than a drawer — their
+left 240px rendered underneath it. Every `PageContainer` screen clears the
+sidebar *by accident*, because its 1440px box leaves a gutter exactly the
+sidebar's width; a full-bleed screen has no gutter.
+
+The clearance cannot go on `<main>`: padding it would shift `PageContainer`'s
+centred box right by half the sidebar's width and break the navbar alignment the
+out-of-flow sidebar exists to preserve. So it lives once in
+`components/FullBleedContainer.tsx`. The organogram's `loading.tsx` was also
+using `PageContainer` while its page was full-bleed, so the chart jumped
+sideways on load — it now uses the same container as its page.
+
+Not verified in a browser at ≥1920px. Other full-bleed screens (`hr/page.tsx`,
+`hr/profile`, `hr/approvals`, `listing/new`, `listing/[id]/*`) very likely have
+the same bug and were left alone as out of scope.
+
+## Resume here — next session, other machine
+
+**State.** Catalogue and routing map built, seeded and verified; the blinding
+layer is proposed but **nothing about it is built or agreed**. `npx tsc
+--noEmit` clean. Committed and pushed.
+
+**The three pieces named for the next session:**
+
+1. **Parameter setup** — the screens to view and edit the catalogue, and the
+   next wings' files as they arrive (a `SOURCE` block + a `SECTION_FOR_SOURCE`
+   entry). Re-check the fee subtotals then: that is when a grand total first
+   spans two labs, and D62 gets its first real test.
+2. **Lab mapping** — the office × parameter grid each office edits. The resolver
+   must require that a nominated destination holds the capability (D64); that is
+   the entire reason capability and routing are separate tables. All 16,399
+   seeded rows are `isPlaceholder` and the module is what clears them.
+3. **Sample encoding between CM and Testing** — the proposal above. **Start by
+   answering the five questions**, because #1 and #4 change how much of it is
+   worth building. Then D-numbers, then the models.
+
+**`utils/lab-format-setup.xlsx` — placed by the user at the end of this
+session, not discussed.** Three sheets: `Chemical` and `Physical` in the same
+12-column format as the textile file, and `labCodes` (Lab type · Lab name ·
+Code, codes blank) listing the eight head-office sections.
+
+Worth reading closely before building anything, because the two parameter sheets
+are a **worked example of the D62 merge case**: the same main product "A" and
+sub-product "A1" appear in both, with different parameters (x1–x5 vs its own set)
+and different fees (10–14 physical, 20–24 chemical). That is the shape the
+importer already handles — `(productId, nameEn)` on `SubProduct` merges rather
+than duplicating — so this file is the first chance to prove it rather than
+assert it, and the first case where a grand total spans two labs.
+
+The `labCodes` sheet is unexplained. It could be a short code per lab section
+for the file format, or it could be for the sample-encoding work — the two are
+very different things and it should not be guessed at. **Ask.**
+
+**Older open questions, still unanswered:** whether a CM application always
+takes the whole parameter package or an officer may trim it (this decides
+whether direct testing and CM share one table); turnaround for a partial
+selection (recorded per package, not per parameter); who assembles a report when
+results land from several labs at different times; whether one failed parameter
+fails the licence; and the BDS 1221 edition question from session 1 — 2011 in
+the file, 2021 in the published list, now visible in the data as
+`SubProduct.standardAsPrinted`.

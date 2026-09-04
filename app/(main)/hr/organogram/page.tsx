@@ -1,3 +1,4 @@
+import FullBleedContainer from "@/components/FullBleedContainer";
 import OrgChart from "./_components/OrgChart";
 import { WINGS, DIVISIONAL_OFFICES, REGIONAL_OFFICES } from "./_components/data";
 
@@ -5,7 +6,7 @@ export const metadata = { title: "Organogram — BSTI" };
 
 export default function OrganogramPage() {
   return (
-    <div className="flex h-full flex-col">
+    <FullBleedContainer>
       {/* ── Page header ── */}
       <div className="shrink-0 border-b border-border bg-card px-8 py-5">
         <h1 className="text-lg font-bold text-foreground">
@@ -39,6 +40,6 @@ export default function OrganogramPage() {
       <div className="flex-1 overflow-auto bg-background">
         <OrgChart />
       </div>
-    </div>
+    </FullBleedContainer>
   );
 }

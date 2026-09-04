@@ -18,7 +18,9 @@
     "import:employees": "tsx prisma/import/run.ts",
     "import:retire": "tsx prisma/import/retire.ts",
     "migrate:postings": "tsx prisma/migrate-postings.ts",
-    "import:products": "tsx prisma/import/mandatory-315.ts"
+    "import:products": "tsx prisma/import/mandatory-315.ts",
+    "import:test-parameters": "tsx prisma/import/test-parameters.ts",
+    "seed:labs": "tsx prisma/seed-labs.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

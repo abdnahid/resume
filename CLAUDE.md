@@ -45,7 +45,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G) and the fee model over it. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
 
 Two rules from the spec that carry real weight:
 
@@ -88,8 +88,10 @@ app/
 components/      shared UI; layout/ holds Navbar, Sidebar, Footer, ModuleNavbar
 lib/             modules, services, auth, prisma, types; lib/store/ is the BDS store
 prisma/          schema.prisma, the seed scripts, and import/ for the HR export
+                 import/xlsx-grid.ts resolves the wings' merged-cell files
 docs/            the plan and the specs
-utils/           source data — the HR export, the pay scale, the rent table
+utils/           source data — the HR export, the pay scale, the rent table,
+                 and the wings' test-parameter files
 ```
 
 The HR screens, all under `/hr/listing` unless noted:
@@ -125,6 +127,18 @@ and a theme class in `app/globals.css`.
   window so `PageContainer` can centre on the same 1440px box as the navbar. Put
   the sidebar back in the row and the alignment breaks — no width can fix it.
 - **`PageContainer` owns width and padding.** Screens must not set their own.
+- **A full-bleed screen needs `FullBleedContainer`, not a bare div.** A
+  `PageContainer` screen clears the sidebar by accident: its 1440px box leaves a
+  gutter of at least 240px, exactly the sidebar's width. A screen that spans the
+  window has no gutter, so at `min-[1920px]` — where the sidebar is docked
+  rather than a drawer — its left 240px renders *underneath* it. That is what
+  hid the organogram. The clearance cannot go on `<main>`: padding it would
+  shift `PageContainer`'s centred box right by half the sidebar's width and
+  break the navbar alignment the out-of-flow sidebar exists to preserve. So it
+  lives in `components/FullBleedContainer.tsx`, once. **And the `loading.tsx`
+  must use the same container as its page** — the organogram's skeleton sat in
+  `PageContainer` while the page was full-bleed, so the chart jumped sideways
+  on load, which is the one thing a skeleton is meant to prevent.
 - **`loading.tsx` is what makes a click feel responsive.** Every slow route needs
   one; `app/(main)/hr/loading.tsx` is the fallback for everything under /hr.
 
@@ -579,6 +593,126 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   calls that single feature most of the perceived value of the system, because
   it replaces a phone call.
 
+## Test parameters, fees and lab routing
+
+Decisions D60–D66, spec addendum A§1. This is Phase G reference data — the
+foundation test-plan resolution stands on, and the largest data-entry effort in
+the project. The Textile lab's file is the first to arrive.
+
+**The hierarchy is the client's, and it exists to make one mistake
+impossible.**
+
+```
+Product (one of the mandatory 315)
+  └── SubProduct          the variant a test plan resolves against
+        └── TestParameter       fee + method + discipline live here
+              └── TestSubParameter    the result-bearing line
+```
+
+- **A parameter is owned by its sub-product, never shared** (D60). The same
+  parameter name recurs across sub-products carrying a different limit, a
+  different fee, or both — **94 of 181** distinct (parameter, sub-parameter)
+  keys in the textile file have more than one limit; `Ends and Picks per cm`
+  has 10. Owning it downward means two sub-products naming the same test are two
+  rows with no cell to collide in, so a mismatch is *not representable* rather
+  than merely forbidden. `TestParameter.slug` is carried so "is this the same
+  test" stays answerable for cross-wing reporting, and it is **not an
+  identity** — "Moisture" in the textile file and in the food file are
+  different tests. The closest thing to one is `(sourceSection, slug)`.
+
+- **The limit sits at the leaf** (D61) — on the parameter when it has no
+  sub-parameters, on the sub-parameter when it has them. Colour fastness to
+  perspiration is one ৳700 test producing 14 separately rated readings, so the
+  charge is above and the result below. The importer *asserts* this rather than
+  assuming it. `LimitKind` splits four kinds a single text column cannot: `rule`
+  (1,685), `declared` (224 — the manufacturer states the value and the test
+  confirms it, so it becomes a form field, not a pass/fail), `cross_reference`
+  (10, "As per BDS 1149"), `unspecified` (10 blanks, all *Silk Fabrics »
+  Material (Purity of silk fibers)* — a gap in the source, kept visible).
+
+- **The fee is per parameter, and a file's total is that lab's subtotal**
+  (D62). Every lab produces its own file in the same format, so the same
+  (product, sub-product) arrives again from the chemistry file with *its*
+  parameters. The fee an applicant pays is the sum over every lab; **no total is
+  stored**, because a stored one would be a per-lab figure masquerading as the
+  price. A wholly physical product gets subtotal = grand total for free, with no
+  zero rows. Urgent is **2× the normal fee** unless `urgentFeePoisha` overrides
+  it — a nullable column and not a constant, because the wing says 2× holds
+  "99.99% of the time". Money is integer poisha, as everywhere else.
+
+- **Discipline comes from the file, not the row** (D63). Each lab's file is one
+  discipline, so `TestParameter.discipline` and `sourceSection` are set at
+  import. Nothing in a parameter's own data says whether it is physical or
+  chemical, and it is what decides which wing supervises work sent outside.
+
+- **`prisma/import/xlsx-grid.ts` resolves the merged cells.** The wings' files
+  carry their hierarchy in merges — a product, sub-product, standard, fee and
+  duration are each written once and span the rows beneath. Read without filling
+  them, every column but the sub-parameter and the limit looks 90% empty.
+
+- **Import merges, never duplicates.** `(productId, nameEn)` on `SubProduct` is
+  what lets the chemistry file add its parameters to a sub-product the textile
+  file created. Adding a wing means a `SOURCE` block plus a
+  `SECTION_FOR_SOURCE` entry in `prisma/seed-labs.ts`; the seed **refuses to
+  write** if a parameter arrives from a section not listed there.
+
+- **The source is `utils/textile-parameter-list-sanitized.xlsx`**, with `Main
+  Product` rewritten to the mandatory-315 name — 50 "main products" collapse to
+  17 with no collision, because the sub-product name already carried what
+  distinguished them. `utils/textile-parameter-list.xlsx` stays as the unedited
+  original. **The standard does not always agree with the published list**:
+  every sewing-thread package is tested against BDS 1221 : 2011 while the list
+  names BDS 1221:2021. `SubProduct.standardAsPrinted` keeps both visible rather
+  than picking a winner; the question is open with the wing.
+
+### Labs and the 2D map
+
+- **A lab is an organogram unit** (D63). `Lab.orgUnitId → OrgUnit` covers both
+  shapes: head office splits its two testing wings into sections (Textile,
+  Organic Chemistry, Food & Bacteriology), a branch has one flat `Physical Lab,
+  <city>` and/or `Chemistry Lab, <city>`. 46 labs seeded from the organogram
+  with none invented — 8 head-office sections (the two `*-exec` units are wing
+  offices, not laboratories) and 38 branch labs matched by city. The only alias
+  needed is **Barisal → Barishal**: the organogram spells it one way and the
+  office register the other.
+
+- **Capability and routing are two tables, not one map** (D64). Referral is an
+  administrative fact and must be stored, not derived — Barisal may send what it
+  cannot test to Cumilla rather than a nearer, capable Khulna. But a map holding
+  a destination directly can name a lab that cannot run the test and nothing
+  checks it. So `LabCapability` is sparse ground truth each lab maintains, and
+  `LabRouting` is the office × parameter map; **the resolver must require that a
+  nominated destination holds the capability**. The mapping module still renders
+  the 2D grid the client asked for.
+
+- **The fallback is not hypothetical.** 21 offices have a chemistry lab and only
+  **17** a physical one — Cox's Bazar, Cumilla, Faridpur and Mymensingh have no
+  physical lab at all, so every physical parameter filed there falls through on
+  day one.
+
+- **Third-party testing is a mode, not a destination** (D65).
+  `LabRouting.labId` is always the accountable BSTI unit; `mode: third_party`
+  means the sample is physically tested outside. Custody never leaves BSTI —
+  the examiner of the matching discipline selects the accredited lab, writes to
+  it, and enters the result. Collapse the two and the destination letters cannot
+  be grouped and the examiner has no row to record against.
+
+- **Every seeded routing row is `isPlaceholder`** (D66). All 16,399 point at the
+  owning head-office section until offices enter their own, and the flag travels
+  with the row — the same discipline as the seeded bank branch details. Do not
+  read a stand-in as a decision.
+
+### Sequencing, when the workflow is built
+
+The sub-product is a **finding, not a claim**: the applicant applies against a
+BDS, and the FDO records which sub-product he found at the factory. So the test
+fee cannot be quoted at application time, and there are **two payments** — the
+application fee at submission and the test fee after the sampling report is
+approved. Routing resolves the moment the FDO enters the sub-product, because he
+needs to know which labs to seal samples for; the fee and the letters issue at
+approval, and the routing is **snapshotted** then, so a referral map edited next
+month cannot redirect a sample already sealed and in transit.
+
 ## Workflow — files moving inside BSTI
 
 Decisions D57–D59, spec §4.2. `lib/workflow/chain.ts` is Prisma-free (D9),
@@ -796,6 +930,9 @@ npm run import:report    # dry run over utils/employee_bio.json — writes a rep
 npm run import:employees # import/refresh employees from the HR export (upsert, never deletes)
 npm run import:retire    # remove employees the export does not contain (dry run without --yes)
 npm run import:products  # the 315 mandatory products (--dry to report without writing)
+
+npm run import:test-parameters # a wing's test-parameter file → the Phase G catalogue (--dry)
+npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)
 
 # The 315 list is parsed from the PDF first; the JSON it writes is committed,
 # so this is only needed if the source PDF changes.
