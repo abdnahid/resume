@@ -25,7 +25,7 @@ import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import path from "node:path";
-import { readGrid } from "./xlsx-grid";
+import { readGrid, resolveColumns, type ColumnSpec } from "./xlsx-grid";
 import type { LabDiscipline, LimitKind } from "../../generated/prisma/client";
 
 const prisma = new PrismaClient({
@@ -33,6 +33,18 @@ const prisma = new PrismaClient({
 });
 
 const DRY = process.argv.includes("--dry");
+
+const arg = (name: string) =>
+  process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+/**
+ * `--file=` and `--sheet=` check a wing's new file before it is trusted:
+ * the column report and the consistency checks run against it without touching
+ * the database. Writes are refused for anything but the configured source,
+ * because the section and discipline below belong to that file alone.
+ */
+const FILE_OVERRIDE = arg("file");
+const SHEET_OVERRIDE = arg("sheet");
 
 /** Which lab's file this is. One per lab; the wing follows from the section. */
 const SOURCE = {
@@ -42,12 +54,34 @@ const SOURCE = {
   discipline: "physical" as LabDiscipline,
 };
 
-// Column indices, 0-based, in the wings' shared format.
-const C = {
-  sl: 0, product: 1, subProduct: 2, standard: 3, parameter: 4,
-  subParameter: 5, limit: 6, method: 7, fee: 8, total: 9,
-  normalDays: 10, urgentDays: 11,
-} as const;
+/**
+ * Columns are found by their header, never by position.
+ *
+ * **The wings' files do not agree on order.** The textile list runs
+ * `Standard Limit | Method | Test Fee`; `lab-format-setup.xlsx` runs
+ * `Standard Limit | Test Fee | Method`. Read by position, one file's methods
+ * import as the other's fees — silently, because both columns are populated and
+ * nothing downstream looks wrong until someone is billed for a method name.
+ *
+ * Only the columns actually read are declared, and all of them are required:
+ * a file missing one is not the format we think it is, and `resolveColumns`
+ * throws rather than guessing.
+ */
+const COLUMNS = {
+  product: { exact: ["Main Product"] },
+  // Spelled "Varient" in both files so far, so only the opening is dependable.
+  subProduct: { prefix: ["Sub-Product", "Sub Product"] },
+  standard: { exact: ["Standard"] },
+  parameter: { exact: ["Parameter"] },
+  subParameter: { exact: ["Sub Parameter", "Sub-Parameter"] },
+  limit: { exact: ["Standard Limit"] },
+  method: { exact: ["Method", "Test Method"] },
+  fee: { exact: ["Test Fee"] },
+  normalDays: { exact: ["Duration of Test (Normal)"] },
+  urgentDays: { exact: ["Duration of Test (Urgent)"] },
+} satisfies Record<string, ColumnSpec>;
+
+type ColKey = keyof typeof COLUMNS;
 
 const slugify = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
@@ -107,8 +141,22 @@ type SubProductRow = {
   ordinal: number; params: ParamRow[];
 };
 
-function parse(): { subProducts: SubProductRow[]; dataRows: number; problems: string[] } {
-  const grid = readGrid(path.join(process.cwd(), SOURCE.file), SOURCE.sheetMatch);
+function parse(): {
+  subProducts: SubProductRow[];
+  dataRows: number;
+  problems: string[];
+  columns: Record<ColKey, number>;
+  sheetName: string;
+} {
+  const grid = readGrid(
+    path.join(process.cwd(), FILE_OVERRIDE ?? SOURCE.file),
+    SHEET_OVERRIDE
+      ? (n) => n.toLowerCase() === SHEET_OVERRIDE.toLowerCase()
+      : FILE_OVERRIDE
+        ? undefined
+        : SOURCE.sheetMatch,
+  );
+  const C = resolveColumns(grid, COLUMNS);
   const problems: string[] = [];
   const byKey = new Map<string, SubProductRow>();
   let dataRows = 0;
@@ -197,15 +245,20 @@ function parse(): { subProducts: SubProductRow[]; dataRows: number; problems: st
       if (p.subParams.length && p.limit)
         problems.push(`${sp.name} » ${p.name}: has sub-parameters AND its own limit`);
 
-  return { subProducts: [...byKey.values()], dataRows, problems };
+  return { subProducts: [...byKey.values()], dataRows, problems, columns: C, sheetName: grid.sheetName };
 }
 
 async function main() {
-  const { subProducts, dataRows, problems } = parse();
+  const { subProducts, dataRows, problems, columns, sheetName } = parse();
   const params = subProducts.flatMap((s) => s.params);
   const subParams = params.flatMap((p) => p.subParams);
 
-  console.log(`Source     ${SOURCE.file}`);
+  console.log(`Source     ${FILE_OVERRIDE ?? SOURCE.file}  [${sheetName}]`);
+  console.log(
+    `Columns    ${(Object.keys(columns) as ColKey[])
+      .map((k) => `${k}=${String.fromCharCode(65 + columns[k])}`)
+      .join("  ")}`,
+  );
   console.log(`Section    ${SOURCE.section} (${SOURCE.discipline})`);
   console.log(`Data rows  ${dataRows}`);
   console.log(`Products   ${new Set(subProducts.map((s) => s.productName)).size}`);
@@ -239,6 +292,12 @@ async function main() {
   }
 
   if (DRY) { console.log("\n--dry: no writes."); return; }
+  if (FILE_OVERRIDE || SHEET_OVERRIDE) {
+    console.log("\n--file/--sheet is for checking a file, not importing one.");
+    console.log("The section and discipline are configured for the source above; add a SOURCE block to import a new wing.");
+    process.exitCode = 1;
+    return;
+  }
 
   const bdsRows = await prisma.bds.findMany({ select: { id: true, number: true } });
   const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();

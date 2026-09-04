@@ -645,6 +645,15 @@ Product (one of the mandatory 315)
   import. Nothing in a parameter's own data says whether it is physical or
   chemical, and it is what decides which wing supervises work sent outside.
 
+- **Columns are found by their header, never by position.** The wings' files do
+  not agree on order: the textile list runs `Standard Limit | Method | Test
+  Fee`, and `lab-format-setup.xlsx` runs `Standard Limit | Test Fee | Method`.
+  Read by position, one file's methods import as the other's *fees* — silently,
+  because both columns are populated and nothing looks wrong until someone is
+  billed for a method name. `resolveColumns()` throws rather than guessing, and
+  `npm run import:test-parameters -- --dry --file=… --sheet=…` prints the
+  resolved mapping so a new wing's file can be checked before it is trusted.
+
 - **`prisma/import/xlsx-grid.ts` resolves the merged cells.** The wings' files
   carry their hierarchy in merges — a product, sub-product, standard, fee and
   duration are each written once and span the rows beneath. Read without filling
