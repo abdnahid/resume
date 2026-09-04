@@ -76,8 +76,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const input = readSku(body);
   if (!input) return NextResponse.json({ error: "Choose a size type and unit." }, { status: 400 });
 
+  // An article belongs to a sub-product, not to the application (D67), so the
+  // caller has to say which. The service re-checks it is on this file.
+  const subProductId = Number((body as Record<string, unknown>).applicationSubProductId);
+  if (!Number.isInteger(subProductId))
+    return NextResponse.json({ error: "Choose which sub-product this variant belongs to." }, { status: 400 });
+
   try {
-    const sku = await addSku(id, input, g.userId);
+    const sku = await addSku(id, subProductId, input, g.userId);
     return NextResponse.json({ sku: { id: sku.id } });
   } catch (e) {
     // The validation messages are what the applicant needs to read, so they are

@@ -15,6 +15,9 @@ export const INTERNAL_PREFIXES = [
   "/inventory",
   "/admin",
   "/print",
+  /// Where a specimen QR lands. Internal only — a client must never resolve a
+  /// token printed on a sample jar.
+  "/s",
 ] as const;
 
 /** Where a signed-in employee lands, and where internal redirects point. */

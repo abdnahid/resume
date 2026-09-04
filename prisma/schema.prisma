@@ -323,6 +323,11 @@ model User {
   applicationEvents    ApplicationEvent[]
   applicationConsents  Application[]         @relation("ApplicationConsent")
   applicationMovements ApplicationMovement[]
+
+  // ─ Samples and lab testing ─
+  consignmentsReceived Consignment[]      @relation("ConsignmentReceivedBy")
+  custodyEvents        CustodyEvent[]     @relation("CustodyActor")
+  reidentifications    Reidentification[] @relation("ReidentificationActor")
 }
 
 model Session {
@@ -523,6 +528,15 @@ model Employee {
   heldApplications    Application[]         @relation("ApplicationHolder")
   movementsSent       ApplicationMovement[] @relation("MovementFrom")
   movementsReceived   ApplicationMovement[] @relation("MovementTo")
+
+  // ─ Samples and lab testing ─
+  subProductsDeclared   ApplicationSubProduct[] @relation("SubProductDeclaredBy")
+  sampleRequirementsSet LabSampleRequirement[]  @relation("SampleRequirementAgreedBy")
+  consignmentsPacked    Consignment[]           @relation("ConsignmentPackedBy")
+  consignmentsOpened    Consignment[]           @relation("ConsignmentOpenedBy")
+  samplesSealed         SampleRegistration[]    @relation("SampleSealedBy")
+  labTestOrdersHeld     LabTestOrder[]          @relation("LabTestOrderHolder")
+  testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
 }
 
 // ─── Pay scale (versioned) ───────────────────────────────────────────────────
@@ -1543,6 +1557,10 @@ enum ApplicationState {
   inspection_report_submitted
   test_fee_demanded
   test_fee_paid
+  /// The applicant visits every destination office, so a box arriving is not
+  /// the whole sample arriving. This is the state while some boxes are in and
+  /// others are not; `sample_received` means the last one landed.
+  sample_partially_received
   sample_received
   // Terminal and side states.
   rejected
@@ -1924,7 +1942,12 @@ model Application {
   holderEmployeeId String?
   holder           Employee? @relation("ApplicationHolder", fields: [holderEmployeeId], references: [id])
 
-  skus       ApplicationSku[]
+  /// The sub-products this licence is applied for, each carrying its own
+  /// variants. Replaced the flat `skus` list: the applicant now picks
+  /// sub-products first, which is what makes a test plan and a fee resolvable.
+  subProducts  ApplicationSubProduct[]
+  consignments Consignment[]
+
   production ApplicationProduction?
   answers    ApplicationAnswer[]
   movements  ApplicationMovement[]
@@ -2161,8 +2184,15 @@ model SizeUnit {
 model ApplicationSku {
   id Int @id @default(autoincrement())
 
-  applicationId Int
-  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// **The sub-product this article belongs to**, not the application.
+  /// An applicant picks A1 and A3 and then names the variants under each, so a
+  /// variant only means something beside the sub-product it varies.
+  applicationSubProductId Int
+  applicationSubProduct   ApplicationSubProduct @relation(fields: [applicationSubProductId], references: [id], onDelete: Cascade)
+
+  /// Who put this article on the file — the applicant, or the FDO who found it
+  /// at inspection.
+  declaredBy DeclaredBy @default(applicant)
 
   /// The brand this article is sold under. Required: an unbranded SKU cannot be
   /// identified on a shelf or on a certificate. Most applications repeat one
@@ -2215,7 +2245,9 @@ model ApplicationSku {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@index([applicationId])
+  registry SampleRegistration[]
+
+  @@index([applicationSubProductId])
   @@index([sizeTypeId])
   @@index([sizeUnitId])
 }
@@ -2447,7 +2479,10 @@ model SubProduct {
 
   ordinal Int @default(0)
 
-  parameters TestParameter[]
+  parameters         TestParameter[]
+  applicationEntries ApplicationSubProduct[]
+  labRequirements    LabSampleRequirement[]
+  testOrders         LabTestOrder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2509,6 +2544,7 @@ model TestParameter {
   subParameters TestSubParameter[]
   capabilities  LabCapability[]
   routings      LabRouting[]
+  orderItems    LabTestOrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2544,6 +2580,8 @@ model TestSubParameter {
 
   ordinal Int @default(0)
 
+  results TestResult[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2574,8 +2612,12 @@ model Lab {
 
   isActive Boolean @default(true)
 
-  capabilities LabCapability[]
-  routings     LabRouting[]
+  capabilities       LabCapability[]
+  routings           LabRouting[]
+  consignments       Consignment[]
+  testOrders         LabTestOrder[]
+  sampleRequirements SampleRequirement[]
+  labRequirements    LabSampleRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2639,4 +2681,435 @@ model LabRouting {
   @@id([officeId, parameterId])
   @@index([parameterId])
   @@index([labId])
+}
+
+// ─── Samples, consignments and the CM/lab cut ─────────────────────────────────
+//
+// Decisions D67–D73. `lib/samples/` holds the service; `codes.ts` and `plan.ts`
+// are Prisma-free (D9).
+//
+// **The sample changes identity at the cut.** Upstream it belongs to an
+// application; downstream it is a specimen on a lab's bench. The two meet in
+// exactly one row — `SampleRegistration` — so that a lab-side query on `Sample`
+// or `LabTestOrder` has no path to the applicant even by accident. Neither of
+// those models carries an application column: that is deliberate, not an
+// oversight.
+//
+// **The barrier is not absolute and must not be described as if it were.** One
+// database means any link is a join away for anyone who writes the join. What
+// the shape buys is that the accident cannot happen and the deliberate act is
+// visible: lab-facing reads go through a fixed blinded projection, and every
+// re-identification is written to `Reidentification`.
+
+/// Who put a sub-product or an article on the file. The applicant declares;
+/// the FDO amends at inspection. Kept apart because "did they under-declare, or
+/// did we find more" is asked in disputes, and an overwrite cannot answer it.
+enum DeclaredBy {
+  applicant
+  fdo
+}
+
+/// Where one physical specimen is. `consumed` is ordinary, not a failure —
+/// most testing destroys the sample.
+enum SampleState {
+  sealed
+  submitted
+  received_at_lab
+  in_test
+  consumed
+  returned
+  rejected
+}
+
+/// A sealed box, one per destination lab. Only the lab may open it; the
+/// one-stop counts boxes and checks seals, never contents.
+enum ConsignmentState {
+  packed
+  awaiting_submission
+  submitted
+  received_at_lab
+  rejected
+}
+
+enum LabTestOrderState {
+  awaiting_sample
+  in_progress
+  reported
+  cancelled
+}
+
+enum TestVerdict {
+  pass
+  fail
+  inconclusive
+  not_tested
+}
+
+/// Whether a sampling-plan figure was typed by the FDO or carried forward from
+/// what a lab agreed last time.
+enum RequirementSource {
+  entered
+  learned
+}
+
+/// A sub-product on an application — what the applicant says they make, plus
+/// what the FDO found.
+///
+/// The applicant now picks the sub-product themselves, so the fee can be quoted
+/// before inspection instead of only after it. The FDO may add rows (he found
+/// A2 on the floor) and each row records who put it there.
+model ApplicationSubProduct {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id])
+
+  declaredBy DeclaredBy @default(applicant)
+
+  /// The FDO who added it, when `declaredBy` is `fdo`.
+  declaredByEmployeeId String?
+  declaredByEmployee   Employee? @relation("SubProductDeclaredBy", fields: [declaredByEmployeeId], references: [id])
+
+  sortOrder Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  skus         ApplicationSku[]
+  requirements SampleRequirement[]
+  registry     SampleRegistration[]
+
+  @@unique([applicationId, subProductId])
+  @@index([subProductId])
+}
+
+/// How many specimens of each variant a lab needs for this sub-product on this
+/// application (D69).
+///
+/// The **destinations are derived** from `LabRouting` — the routing map already
+/// answers "received at Barisal, which labs test A1's parameters" — so the FDO
+/// cannot forget one. The **count is his**, because it depends on sample
+/// quantity and whether a test is destructive, which is data BSTI has not
+/// collected (A§1.2). He phones the lab and types it.
+model SampleRequirement {
+  id Int @id @default(autoincrement())
+
+  applicationSubProductId Int
+  applicationSubProduct   ApplicationSubProduct @relation(fields: [applicationSubProductId], references: [id], onDelete: Cascade)
+
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id])
+
+  /// Per variant, not per application: the FDO multiplies by the number of
+  /// variants, and getting that arithmetic wrong is the other thing that goes
+  /// wrong at inspection.
+  samplesPerVariant Int
+
+  source RequirementSource @default(entered)
+
+  /// Who he spoke to, or why the learned default was overridden.
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([applicationSubProductId, labId])
+  @@index([labId])
+}
+
+/// What a lab said it needs, last time anyone asked (D69).
+///
+/// Written from the FDO's entry rather than by a data-entry project: the first
+/// application for a sub-product costs a phone call, and every one after it
+/// arrives pre-filled. The lab owns and may correct its own rows, exactly like
+/// `LabCapability`.
+model LabSampleRequirement {
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
+
+  samplesPerVariant Int
+
+  /// When this was last confirmed, and by whom. A stale figure should be
+  /// visible as stale rather than quietly authoritative.
+  agreedAt           DateTime  @default(now())
+  agreedByEmployeeId String?
+  agreedBy           Employee? @relation("SampleRequirementAgreedBy", fields: [agreedByEmployeeId], references: [id])
+
+  note String?
+
+  @@id([labId, subProductId])
+  @@index([subProductId])
+}
+
+/// The sealed box. One per (application, destination lab).
+///
+/// **CM-side.** The FDO packs and seals it at the factory; the applicant carries
+/// it to the destination office's own one-stop counter; only the lab opens it.
+/// The one-stop therefore verifies the seal and the box count, never the
+/// contents — which means a short consignment surfaces at the lab, days later,
+/// and the letter must list seal numbers so the counter has something real to
+/// check.
+model Consignment {
+  id Int @id @default(autoincrement())
+
+  /// Printed on the box. Carries the destination openly — a box has to be
+  /// couriered, so there is nothing to hide at this level.
+  code String @unique
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// The destination lab, and therefore the office whose counter receives it.
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id])
+
+  state ConsignmentState @default(packed)
+
+  sealNo             String
+  packedAt           DateTime  @default(now())
+  packedByEmployeeId String?
+  packedBy           Employee? @relation("ConsignmentPackedBy", fields: [packedByEmployeeId], references: [id])
+
+  /// Handed over at the destination office's one-stop. Per box, not per
+  /// application: the applicant visits every destination office, so
+  /// "sample received" is several events with several dates.
+  submittedAt      DateTime?
+  receivedByUserId String?
+  receivedBy       User?     @relation("ConsignmentReceivedBy", fields: [receivedByUserId], references: [id])
+
+  /// Recorded by the lab when it opens the box. A broken seal is a rejection,
+  /// not a note — the seal is the only thing standing between the factory and
+  /// the bench while the samples are in the applicant's own custody.
+  openedAt           DateTime?
+  openedByEmployeeId String?
+  openedBy           Employee? @relation("ConsignmentOpenedBy", fields: [openedByEmployeeId], references: [id])
+  sealIntact         Boolean?
+  rejectionReason    String?
+
+  registry SampleRegistration[]
+  custody  CustodyEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([applicationId, labId])
+  @@index([labId, state])
+}
+
+/// One physical specimen, **as the lab sees it**.
+///
+/// Deliberately carries no application, no consignment, no variant and no
+/// brand. A lab-side query cannot reach the applicant from here, however
+/// carelessly it is written. The link lives in `SampleRegistration`.
+model Sample {
+  id Int @id @default(autoincrement())
+
+  /// The token printed in the QR on the jar. Belongs to neither side and is
+  /// never displayed as a working identifier — a QR decodes without a session,
+  /// so anything printed is readable by whoever holds the jar. It exists only
+  /// to resolve at `/s/<ref>`, which answers according to who is asking.
+  ref String @unique
+
+  /// What testing-wing staff see and quote.
+  labCode String @unique
+
+  labTestOrderId Int
+  labTestOrder   LabTestOrder @relation(fields: [labTestOrderId], references: [id], onDelete: Cascade)
+
+  /// 1..N within the order — what goes on a bench sheet.
+  specimenNo Int
+
+  state SampleState @default(sealed)
+
+  /// Condition noted when the box was opened.
+  conditionNote String?
+
+  results  TestResult[]
+  registry SampleRegistration?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([labTestOrderId, specimenNo])
+  @@index([state])
+}
+
+/// **The cut.** The only row where a specimen and an applicant meet.
+///
+/// Nothing lab-facing reads this table. `lib/samples/lab-view.ts` is the
+/// projection the testing wing gets, and it never joins here; the CM side and
+/// the `/s/<ref>` resolver do. Keeping it separate is what makes an accidental
+/// `include` on `Sample` unable to leak an applicant.
+model SampleRegistration {
+  id Int @id @default(autoincrement())
+
+  sampleId Int    @unique
+  sample   Sample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  /// What CM-side staff see and quote. Different from `labCode` so neither side
+  /// holds an identifier the other recognises, and different from `ref` so
+  /// neither is printed on the jar.
+  cmCode String @unique
+
+  /// Which article this specimen is — brand, size, pack.
+  applicationSkuId Int
+  applicationSku   ApplicationSku @relation(fields: [applicationSkuId], references: [id], onDelete: Cascade)
+
+  applicationSubProductId Int
+  applicationSubProduct   ApplicationSubProduct @relation(fields: [applicationSubProductId], references: [id], onDelete: Cascade)
+
+  consignmentId Int
+  consignment   Consignment @relation(fields: [consignmentId], references: [id], onDelete: Cascade)
+
+  sealedAt           DateTime  @default(now())
+  sealedByEmployeeId String?
+  sealedBy           Employee? @relation("SampleSealedBy", fields: [sealedByEmployeeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationSkuId])
+  @@index([applicationSubProductId])
+  @@index([consignmentId])
+}
+
+/// A lab's work item: one sub-product, at one lab, with the parameters routed
+/// to it.
+///
+/// **Carries no application.** It names the catalogue `SubProduct`, which says
+/// what to test without saying who made it.
+model LabTestOrder {
+  id Int @id @default(autoincrement())
+
+  code String @unique
+
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id])
+
+  /// The catalogue row, not the application's selection of it.
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id])
+
+  state LabTestOrderState @default(awaiting_sample)
+
+  isUrgent Boolean   @default(false)
+  dueOn    DateTime?
+
+  /// Which examiner holds it. The CM side is never shown this — it sees the
+  /// lab, not the person.
+  holderEmployeeId String?
+  holder           Employee? @relation("LabTestOrderHolder", fields: [holderEmployeeId], references: [id])
+
+  reportedAt DateTime?
+
+  items     LabTestOrderItem[]
+  specimens Sample[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([labId, state])
+  @@index([subProductId])
+}
+
+/// One parameter this lab runs for this order. The set comes from `LabRouting`
+/// — a lab is given its own parameters and no others.
+model LabTestOrderItem {
+  id Int @id @default(autoincrement())
+
+  orderId Int
+  order   LabTestOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id])
+
+  sortOrder Int @default(0)
+
+  results TestResult[]
+
+  @@unique([orderId, parameterId])
+  @@index([parameterId])
+}
+
+/// A reading, per specimen, per result-bearing line.
+///
+/// `subParameterId` is set when the parameter has sub-parameters and null when
+/// it does not — the same leaf rule the catalogue enforces (D61). Postgres
+/// treats nulls as distinct, so the unique below does not constrain the
+/// null case; the service checks it instead.
+model TestResult {
+  id Int @id @default(autoincrement())
+
+  orderItemId Int
+  orderItem   LabTestOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  sampleId Int
+  sample   Sample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+
+  subParameterId Int?
+  subParameter   TestSubParameter? @relation(fields: [subParameterId], references: [id])
+
+  /// Kept as text beside the verdict. Limits are not parsed into
+  /// operator/value/unit yet, so the examiner judges and the system records —
+  /// a parser guessing at "from 40 to 48" fails invisibly.
+  observedValue String?
+
+  verdict TestVerdict @default(not_tested)
+
+  enteredByEmployeeId String?
+  enteredBy           Employee? @relation("TestResultEnteredBy", fields: [enteredByEmployeeId], references: [id])
+  enteredAt           DateTime  @default(now())
+
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([orderItemId, sampleId, subParameterId])
+  @@index([sampleId])
+  @@index([subParameterId])
+}
+
+/// Every hand-off of a box. Append-only.
+model CustodyEvent {
+  id Int @id @default(autoincrement())
+
+  consignmentId Int
+  consignment   Consignment @relation(fields: [consignmentId], references: [id], onDelete: Cascade)
+
+  state ConsignmentState
+
+  actorUserId String?
+  actor       User?   @relation("CustodyActor", fields: [actorUserId], references: [id])
+
+  note String?
+
+  createdAt DateTime @default(now())
+
+  @@index([consignmentId])
+}
+
+/// Every deliberate crossing of the cut.
+///
+/// The normal path never needs one: results come back keyed to the specimen and
+/// the system re-links them. A row here means a person asked to see both sides
+/// — a dispute, a retest, an investigation — and that is exactly what should
+/// leave a trace.
+model Reidentification {
+  id Int @id @default(autoincrement())
+
+  sampleId      Int?
+  consignmentId Int?
+
+  actorUserId String
+  actor       User   @relation("ReidentificationActor", fields: [actorUserId], references: [id])
+
+  reason String
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([createdAt])
 }

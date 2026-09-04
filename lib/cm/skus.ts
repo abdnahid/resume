@@ -22,12 +22,42 @@ const SKU_INCLUDE = {
   sizeUnit: { select: { id: true, code: true, nameEn: true } },
 };
 
+/**
+ * Every article on the file, across all its sub-products.
+ *
+ * A SKU now hangs off `ApplicationSubProduct` rather than the application (D67)
+ * — the applicant picks A1 and A3 and then names the variants under each, so a
+ * variant only means something beside the sub-product it varies.
+ */
 export async function skusFor(applicationId: number) {
   return prisma.applicationSku.findMany({
-    where: { applicationId },
+    where: { applicationSubProduct: { applicationId } },
+    include: SKU_INCLUDE,
+    orderBy: [{ applicationSubProductId: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+  });
+}
+
+/** The articles under one sub-product. */
+export async function skusForSubProduct(applicationSubProductId: number) {
+  return prisma.applicationSku.findMany({
+    where: { applicationSubProductId },
     include: SKU_INCLUDE,
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });
+}
+
+/**
+ * The sub-product must be on the application the caller named. Without this a
+ * request could hang an article off another company's file by guessing an id.
+ */
+async function subProductOf(applicationId: number, applicationSubProductId: number) {
+  const row = await prisma.applicationSubProduct.findUnique({
+    where: { id: applicationSubProductId },
+    select: { id: true, applicationId: true },
+  });
+  if (!row || row.applicationId !== applicationId)
+    throw new Error("That sub-product is not on this application.");
+  return row;
 }
 
 /**
@@ -105,19 +135,25 @@ const text = (v: string | null | undefined) => {
   return t === "" ? null : t;
 };
 
-export async function addSku(applicationId: number, input: SkuInput, userId: string) {
+export async function addSku(
+  applicationId: number,
+  applicationSubProductId: number,
+  input: SkuInput,
+  userId: string,
+) {
   await guard(applicationId, userId);
+  await subProductOf(applicationId, applicationSubProductId);
   const size = await resolveSize(input);
 
   const last = await prisma.applicationSku.findFirst({
-    where: { applicationId },
+    where: { applicationSubProductId },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
 
   const created = await prisma.applicationSku.create({
     data: {
-      applicationId,
+      applicationSubProductId,
       brandName: input.brandName.trim(),
       variant: text(input.variant),
       packaging: text(input.packaging),
@@ -149,8 +185,11 @@ export async function updateSku(
 ) {
   await guard(applicationId, userId);
 
-  const existing = await prisma.applicationSku.findUnique({ where: { id: skuId } });
-  if (!existing || existing.applicationId !== applicationId) {
+  const existing = await prisma.applicationSku.findUnique({
+    where: { id: skuId },
+    include: { applicationSubProduct: { select: { applicationId: true } } },
+  });
+  if (!existing || existing.applicationSubProduct.applicationId !== applicationId) {
     throw new Error("That variant is not on this application.");
   }
 
@@ -173,9 +212,22 @@ export async function updateSku(
 export async function removeSku(applicationId: number, skuId: number, userId: string) {
   await guard(applicationId, userId);
 
-  const existing = await prisma.applicationSku.findUnique({ where: { id: skuId } });
-  if (!existing || existing.applicationId !== applicationId) {
+  const existing = await prisma.applicationSku.findUnique({
+    where: { id: skuId },
+    include: { applicationSubProduct: { select: { applicationId: true } } },
+  });
+  if (!existing || existing.applicationSubProduct.applicationId !== applicationId) {
     throw new Error("That variant is not on this application.");
+  }
+
+  // Specimens are sealed against a variant, so removing one after sampling
+  // would leave jars in the applicant's custody that nothing can account for.
+  // The state guard above already stops an applicant reaching this, but the
+  // registration is the thing that must not be orphaned, so it is checked here
+  // too rather than trusted to the state machine.
+  const sealed = await prisma.sampleRegistration.count({ where: { applicationSkuId: skuId } });
+  if (sealed > 0) {
+    throw new Error("Samples have already been sealed for this variant.");
   }
 
   await prisma.applicationSku.delete({ where: { id: skuId } });

@@ -32,10 +32,20 @@ const APP_INCLUDE = {
   organization: { select: { id: true, nameEn: true, nameBn: true, type: true } },
   product: { include: PRODUCT_INCLUDE },
   attachedPurchases: { include: { bds: { include: { division: true } } } },
-  skus: {
+  // Articles hang off the sub-product now (D67), so the shape is nested: the
+  // applicant picks A1 and A3, then names the variants under each.
+  subProducts: {
     include: {
-      sizeType: { select: { id: true, slug: true, nameEn: true, nameBn: true, kind: true } },
-      sizeUnit: { select: { id: true, code: true, nameEn: true } },
+      subProduct: {
+        select: { id: true, nameEn: true, nameBn: true, standardAsPrinted: true, productId: true },
+      },
+      skus: {
+        include: {
+          sizeType: { select: { id: true, slug: true, nameEn: true, nameBn: true, kind: true } },
+          sizeUnit: { select: { id: true, code: true, nameEn: true } },
+        },
+        orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
+      },
     },
     orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
   },
@@ -459,7 +469,7 @@ export async function gapsFor(applicationId: number) {
       attachedPurchases: { select: { bdsId: true } },
       production: { select: { annualCapacityValue: true, currentYearLabel: true } },
       answers: { select: { questionKey: true, answerText: true, answerNumber: true } },
-      _count: { select: { skus: true } },
+      subProducts: { select: { _count: { select: { skus: true } } } },
     },
   });
   if (!app) return null;
@@ -475,7 +485,7 @@ export async function gapsFor(applicationId: number) {
       number: s.bds.number,
       attached: attached.has(s.bds.id),
     })),
-    skuCount: app._count.skus,
+    skuCount: app.subProducts.reduce((n, sp) => n + sp._count.skus, 0),
     factoryId: app.factoryId,
     documents: app.documents,
     organizationComplete: companyGaps(app.organization).length === 0,

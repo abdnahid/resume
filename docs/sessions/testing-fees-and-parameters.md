@@ -1142,7 +1142,7 @@ Not verified in a browser at ≥1920px. Other full-bleed screens (`hr/page.tsx`,
 `hr/profile`, `hr/approvals`, `listing/new`, `listing/[id]/*`) very likely have
 the same bug and were left alone as out of scope.
 
-## Resume here — next session, other machine
+## Resume point after session 2
 
 **State.** Catalogue and routing map built, seeded and verified; the blinding
 layer is proposed but **nothing about it is built or agreed**. `npx tsc
@@ -1187,3 +1187,179 @@ results land from several labs at different times; whether one failed parameter
 fails the licence; and the BDS 1221 edition question from session 1 — 2011 in
 the file, 2021 in the published list, now visible in the data as
 `SubProduct.standardAsPrinted`.
+
+---
+
+## Session 3 — 2026-09-04 (Linux machine)
+
+The sample-encoding design was settled and built. `lab-format-setup.xlsx` was
+read first; the flow, the blinding scheme and the application restructure were
+worked out with the client across several exchanges, then implemented.
+
+### What `lab-format-setup.xlsx` turned out to be
+
+Three sheets. `Chemical` and `Physical` are the same 12-column parameter format
+as the textile file for one product **A** with sub-products **A1/A2/A3** —
+placeholder data, real structure. **Columns M–R are the 2D map embedded in the
+parameter sheet**: one column per office, each cell a lab code decoded by the
+third sheet (office Dhaka 1 · Gazipur 2 · Narayanganj 3 · Barisal 4 · Khulna 5 ·
+Chittagong 6; lab Physical P · Chemical C). `4C` = Barisal Chemical.
+
+**It confirms D62 exactly.** All six subtotals reconcile and the grand total is
+the sum across labs: A1 = 161 + 91 = **252**, A2 = 244 + 189 = **433**,
+A3 = 266 + 236 = **502**. Durations agree between sheets per sub-product, so
+turnaround belongs to the sub-product and not to each lab.
+
+**It also settles that routing needs parameter-level granularity** — the thing
+that was least certain. Chemical A1: Barisal keeps x1–x4 (`4C`) and sends x5–x7
+to Dhaka (`1C`). An office-level referral default would be wrong.
+
+Derived from the map for an application received at Barisal, against the
+client's hand-worked list:
+
+| | derived | client said |
+|---|---|---|
+| A1-physical | 1P, 4P, 5P | 3 offices ✓ |
+| A2-physical | 1P, 4P | Barisal + Dhaka ✓ |
+| A3-physical | 1P | Dhaka ✓ |
+| A1-chemical | 1C, 4C | 2 offices ✓ |
+| A2-chemical | 1C, 4C | 2 offices ✓ |
+| A3-chemical | **4C — Barisal** | *Dhaka* — **disagrees** |
+
+And **5 boxes, not 6**: Khulna-chemical is never a destination, so the sixth
+would have been empty. Both slips are the kind that disappear once the box list
+is generated rather than typed — which is now what happens.
+
+**Three findings the file produced, all acted on:**
+
+1. **The columns are swapped.** The textile file is `H = Method, I = Test Fee`;
+   this one is `H = Test Fee, I = Method`. The importer has them hardcoded, so a
+   second file in this shape would import methods as fees. **Not yet fixed** —
+   see the resume note.
+2. **The lab code names an office + discipline, not a section.** `1P` is "Dhaka
+   Physical", but head office has four physical sections. Our `Lab` is one row
+   per organogram unit, so `LabRouting.labId` points at a section while the file
+   points at a wing. For textile data everything routes to `lab-pt-textile` so it
+   collapses and nothing is wrong today. Left open deliberately.
+3. **The same parameter name appears in both sheets for one sub-product** (x1…x7
+   in Chemical A1 and Physical A1), which `@@unique([subProductId, nameEn])`
+   would silently overwrite. Almost certainly lazy placeholder naming — the same
+   name routes to `1C` on one sheet and `1P` on the other, and one parameter
+   would have one destination — but unconfirmed, and it decides whether the key
+   must become `(subProductId, discipline, nameEn)`.
+
+### The design, as settled
+
+**The flow.** Applicant picks product → sub-products → variants under each.
+Submitted on factory location. FDO inspects, may add sub-products and variants,
+phones the labs for sample counts, seals jars, packs one box per destination
+lab. Report approved → letters generated → applicant pays the test fee → carries
+each sealed box to **that destination office's own one-stop counter** → counter
+checks payment and seal and marks received → lab opens and validates.
+
+**The client's salting idea, and why it was dropped.** The proposal was for the
+FDO to see an unsalted token and the examiner a salted one, under a daily
+rotating superadmin key. It cannot work: **the code is printed on a physical
+object the examiner is holding**, so whatever is on the label is what they read,
+and flipping which one is printed only moves the problem to the FDO. Two further
+problems if it were wanted anyway — a hash is one-way so the mapping is stored
+regardless, making the hash do no work; and daily rotation either changes the
+code mid-test or forces every old salt to be kept for ever, since a sample lives
+for weeks.
+
+**What replaced it keeps the client's structure** — two audiences, two
+identifiers — and adds a third that is the only one printed (D68). The QR became
+a URL requiring a session, as the client asked, with the correction that
+**a QR decodes without a session**: login gates the page, not the string. Hence
+the printed token belongs to neither side.
+
+**Where a rotating key does belong:** the link, not the code. Encrypting
+`SampleRegistration`'s application reference under a key held outside the
+application database gives the client the "highly secured rotatable secret" they
+wanted, pointed at the thing that needs it. **Not built** — noted for later.
+
+**The leak found in the client's own flow.** Letters go to the office head, the
+one-stop *and* the applicant, who prints them. That letter names the applicant
+and probably the FDO. So there must be **two documents**: a submission letter
+(applicant, application no., which bags to bring, QR for the counter) and a
+consignment note that travels with the box (consignment code, seal no., specimen
+codes, sub-product, parameters — no applicant, no FDO, no application number).
+Nothing else may travel in the box.
+
+**The leak the client had not hit: the variant is the brand.** The lab must tell
+specimen 1 from specimen 2 and needs test-relevant attributes — the diaper case
+has size carrying different limits — but the brand identifies the company. So
+the cut passes size and grade and withholds brand, flavour name, artwork and
+company.
+
+**Client decisions, taken and not revisited:** the applicant travels to every
+destination office (the burden was raised and reaffirmed); the one-stop may not
+open boxes, only labs may, and a failed validation goes lab → one-stop →
+applicant, which keeps the cut intact on the error path.
+
+### What was built
+
+Schema, `db push`ed: `ApplicationSubProduct`, `SampleRequirement`,
+`LabSampleRequirement`, `Consignment`, `Sample`, `SampleRegistration`,
+`LabTestOrder`, `LabTestOrderItem`, `TestResult`, `CustodyEvent`,
+`Reidentification`; enums `DeclaredBy`, `SampleState`, `ConsignmentState`,
+`LabTestOrderState`, `TestVerdict`, `RequirementSource`, plus
+`ApplicationState.sample_partially_received`.
+
+Code: `lib/samples/codes.ts` and `plan.ts` (Prisma-free), `service.ts`,
+`resolve.ts`, `lib/cm/sub-products.ts`, `app/s/[ref]/` with its layout, and the
+`ApplicationSku` refactor across six files.
+
+**Verified end to end on real catalogue data**, twice — once on a single-lab
+sub-product and once with routing deliberately split across two labs in two
+offices, then restored:
+
+- check characters catch a corrupted code; `O`/`L` normalise to `0`/`1`
+- the plan starts with every cell unknown and yields no total until all are
+  answered; `10 = Σ per-variant × variants`; one box per destination lab
+- lab defaults are remembered from the FDO's entry
+- `ref`, `cmCode` and `labCode` are all different
+- **`Sample` and `LabTestOrder` have no application column** — asserted against
+  the generated client's own keys, not by inspection
+- a box handed in at the wrong office is refused; a broken seal is refused
+- `sample_partially_received` after box 1 of 2, `sample_received` after the last
+- the lab view contains **no brand name and no application number**
+- an unrelated officer gets `not_found`, not a distinguishable 403
+- superadmin gets the CM view
+
+**A real hole found while verifying and fixed.** Deleting a variant cascaded the
+registration away but left the specimen behind — a sealed jar with nothing
+saying whose it is. `removeSubProduct` already guarded this; `removeSku` did
+not. Both now refuse once specimens exist.
+
+### Resume here
+
+**State.** Typecheck clean, database clean (catalogue and routing map unchanged:
+104 / 713 / 1,640 / 53 / 46 / 713 / 16,399, all routing still `isPlaceholder`).
+Committed and pushed.
+
+**Built: the data model and the services. Not built: the screens.** Three are
+needed before anyone can use this —
+
+1. **The FDO's sampling screen** — the derived grid, one number per cell, the
+   running total, and the seal/label step. `buildPlanFor()` and
+   `setRequirement()` are ready for it.
+2. **The one-stop counter** — scan the letter QR, check payment (read-only,
+   never writable — spec §5.2), check the seal, `submitConsignment()`.
+3. **The lab bench** — `openConsignment()`, then result entry against
+   `LabTestOrderItem` × specimen.
+
+**Also outstanding:**
+
+- **Resolve importer columns by header text, not position.** The two files
+  already disagree on H/I, and a second file would import methods as fees.
+- **Two documents, not one** — the submission letter and the consignment note.
+  Neither exists yet; the design says what each may carry.
+- **Encrypt the link at rest** under an externally-held key, as the client's
+  rotating-secret idea correctly wanted.
+- The three `lab-format-setup.xlsx` questions: A3-chemical Dhaka or Barisal;
+  whether routing should target office+discipline rather than a section; and
+  whether one parameter name may appear under two labs for one sub-product.
+- From earlier: whether a CM application may have its parameter list trimmed;
+  turnaround for a partial selection; who assembles a report across labs;
+  whether one failed parameter fails the licence; and BDS 1221's edition.

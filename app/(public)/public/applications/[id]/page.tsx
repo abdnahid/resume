@@ -186,8 +186,14 @@ export default async function ApplicationPage({
                 <SkuStep
                   applicationId={app.id}
                   productName={app.product?.nameEn ?? null}
-                  skus={app.skus.map((s) => ({
+                  subProducts={app.subProducts.map((sp) => ({
+                    id: sp.id,
+                    nameEn: sp.subProduct.nameEn,
+                    nameBn: sp.subProduct.nameBn,
+                  }))}
+                  skus={app.subProducts.flatMap((sp) => sp.skus).map((s) => ({
                     id: s.id,
+                    applicationSubProductId: s.applicationSubProductId,
                     brandName: s.brandName,
                     variant: s.variant,
                     sizeValue: s.sizeValue === null ? null : String(s.sizeValue),

@@ -214,7 +214,7 @@ const LIST_SELECT = {
   factory: { select: { nameEn: true, district: true } },
   product: { select: { serial: true, nameEn: true } },
   bstiOffice: { select: { id: true, nameEn: true, nameBn: true } },
-  _count: { select: { skus: true } },
+  _count: { select: { subProducts: true } },
 } satisfies Prisma.ApplicationSelect;
 
 /**

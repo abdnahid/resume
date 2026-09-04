@@ -163,7 +163,7 @@ type Row = {
   factory: { nameEn: string; district: string };
   product: { serial: number; nameEn: string } | null;
   bstiOffice: { nameEn: string; nameBn: string | null } | null;
-  _count: { skus: number };
+  _count: { subProducts: number };
 };
 
 function Row({ app, children }: { app: Row; children: React.ReactNode }) {
@@ -191,8 +191,8 @@ function Row({ app, children }: { app: Row; children: React.ReactNode }) {
           <p className="mt-1.5 text-sm text-foreground">
             {app.product.nameEn}
             <span className="ml-2 text-xs text-muted-foreground">
-              #{app.product.serial} · {app._count.skus} variant
-              {app._count.skus === 1 ? "" : "s"}
+              #{app.product.serial} · {app._count.subProducts} sub-product
+              {app._count.subProducts === 1 ? "" : "s"}
             </span>
           </p>
         )}

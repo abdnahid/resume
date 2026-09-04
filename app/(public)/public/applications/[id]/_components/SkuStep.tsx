@@ -30,9 +30,18 @@ export type Sku = {
   labelImageSizeBytes: number | null;
   sizeType: { id: number; nameEn: string; kind: string };
   sizeUnit: { id: number; code: string };
+  applicationSubProductId: number;
+};
+
+/** A sub-product chosen on this file — variants hang off one of these (D67). */
+export type SubProductOption = {
+  id: number;
+  nameEn: string;
+  nameBn: string | null;
 };
 
 type Draft = {
+  applicationSubProductId: string;
   brandName: string;
   variant: string;
   sizeTypeId: string;
@@ -47,6 +56,7 @@ type Draft = {
 };
 
 const EMPTY: Draft = {
+  applicationSubProductId: "",
   brandName: "",
   variant: "",
   sizeTypeId: "",
@@ -88,12 +98,14 @@ export default function SkuStep({
   applicationId,
   productName,
   skus,
+  subProducts,
   sizeTypes,
   editable,
 }: {
   applicationId: number;
   productName: string | null;
   skus: Sku[];
+  subProducts: SubProductOption[];
   sizeTypes: SizeTypeOption[];
   editable: boolean;
 }) {
@@ -114,13 +126,22 @@ export default function SkuStep({
   function startAdd() {
     setError(null);
     setEditingId(null);
-    setDraft({ ...EMPTY, brandName: skus.length > 0 ? skus[skus.length - 1].brandName : "" });
+    const last = skus.length > 0 ? skus[skus.length - 1] : null;
+    setDraft({
+      ...EMPTY,
+      brandName: last?.brandName ?? "",
+      // Carry the last row's sub-product forward, or pick the only one there is.
+      applicationSubProductId: String(
+        last?.applicationSubProductId ?? (subProducts.length === 1 ? subProducts[0].id : ""),
+      ),
+    });
   }
 
   function startEdit(s: Sku) {
     setError(null);
     setEditingId(s.id);
     setDraft({
+      applicationSubProductId: String(s.applicationSubProductId),
       brandName: s.brandName,
       variant: s.variant ?? "",
       sizeTypeId: String(s.sizeType.id),
@@ -156,11 +177,16 @@ export default function SkuStep({
 
   async function save() {
     if (!draft) return;
+    if (!editingId && !draft.applicationSubProductId) {
+      setError("Choose which sub-product this variant belongs to.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       const payload = {
         skuId: editingId ?? undefined,
+        applicationSubProductId: Number(draft.applicationSubProductId),
         brandName: draft.brandName,
         variant: draft.variant,
         sizeTypeId: Number(draft.sizeTypeId),
@@ -222,6 +248,11 @@ export default function SkuStep({
 
   const brands = new Set(skus.map((s) => s.brandName));
 
+  /** Grouped, because a variant only means something beside its sub-product. */
+  const grouped = subProducts
+    .map((sp) => ({ sp, rows: skus.filter((s) => s.applicationSubProductId === sp.id) }))
+    .filter((g) => g.rows.length > 0);
+
   return (
     <section className="rounded-2xl border border-border bg-card p-6 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -253,7 +284,16 @@ export default function SkuStep({
               </tr>
             </thead>
             <tbody>
-              {skus.map((s) => (
+              {grouped.flatMap((g) => [
+                <tr key={`h-${g.sp.id}`} className="border-b border-border/60">
+                  <td
+                    colSpan={editable ? 6 : 5}
+                    className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                  >
+                    {g.sp.nameEn}
+                  </td>
+                </tr>,
+                ...g.rows.map((s) => (
                 <tr key={s.id} className="border-b border-border/60 last:border-0">
                   <Td strong>{s.brandName}</Td>
                   <Td>{s.variant}</Td>
@@ -293,7 +333,8 @@ export default function SkuStep({
                     </td>
                   )}
                 </tr>
-              ))}
+                )),
+              ])}
             </tbody>
           </table>
         </div>
@@ -332,6 +373,35 @@ export default function SkuStep({
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/*
+              Which sub-product this article varies. Asked first because it
+              decides which standard the article is certified against, and
+              therefore which tests it faces and what they cost.
+            */}
+            <div className="sm:col-span-2">
+              <label className={label}>
+                Sub-product <span className="text-destructive">*</span>
+              </label>
+              <select
+                className={field}
+                value={draft.applicationSubProductId}
+                onChange={set("applicationSubProductId")}
+                disabled={editingId !== null}
+              >
+                <option value="">Choose the sub-product this variant belongs to…</option>
+                {subProducts.map((sp) => (
+                  <option key={sp.id} value={sp.id}>
+                    {sp.nameEn}
+                  </option>
+                ))}
+              </select>
+              {editingId !== null && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  A variant cannot be moved between sub-products — remove it and add it
+                  under the other one.
+                </p>
+              )}
+            </div>
             <div>
               <label className={label}>
                 Brand <span className="text-destructive">*</span>
