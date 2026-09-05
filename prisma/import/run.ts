@@ -192,6 +192,7 @@ async function main() {
           dateOfBirth: e.dateOfBirth,
           gender: e.gender,
           maritalStatus: e.maritalStatus,
+          identityIsProvisional: e.identityIsProvisional,
           bloodGroup: (e.bloodGroup ?? null) as never,
           nid: e.nid,
           nationality: e.nationality,

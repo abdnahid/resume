@@ -180,7 +180,7 @@ export default function PersonalForm({ employeeId, data, prevStep, nextStep }: P
           <div className="space-y-2">
             <label className={LABEL}>Gender <span className="text-red-500">*</span></label>
             <div className="flex gap-6">
-              {[["male","Male"],["female","Female"],["other","Other"]].map(([v,l]) => (
+              {[["male","Male"],["female","Female"],["other","Other"],["unspecified","Not recorded"]].map(([v,l]) => (
                 <label key={v} className={RADIO_ROW}>
                   <input type="radio" name="gender" value={v} checked={gender===v} onChange={() => setGender(v)} className="accent-slate-800" />
                   {l}
@@ -192,7 +192,7 @@ export default function PersonalForm({ employeeId, data, prevStep, nextStep }: P
           <div className="space-y-2">
             <label className={LABEL}>Marital Status <span className="text-red-500">*</span></label>
             <div className="flex gap-5 flex-wrap">
-              {[["single","Single"],["married","Married"],["divorced","Divorced"],["widowed","Widowed"]].map(([v,l]) => (
+              {[["single","Single"],["married","Married"],["divorced","Divorced"],["widowed","Widowed"],["unspecified","Not recorded"]].map(([v,l]) => (
                 <label key={v} className={RADIO_ROW}>
                   <input type="radio" name="maritalStatus" value={v} checked={maritalStatus===v} onChange={() => setMaritalStatus(v)} className="accent-slate-800" />
                   {l}

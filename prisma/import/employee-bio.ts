@@ -33,6 +33,28 @@ export const ENTRY_CODES: Record<string, string> = {
 /** The daily-basis series. The one category the id decides on its own. */
 export const DAILY_BASIS_CODE = "103";
 
+/** What a name column says when the export did not carry one. */
+export const UNKNOWN_EN = "Not recorded";
+export const UNKNOWN_BN = "তথ্য নেই";
+
+/**
+ * A stand-in date of birth, from the joining year in the employee id.
+ *
+ * BSTI's entrants are typically 25–30 at joining, so the year is the joining
+ * year less that. The offset is derived from the id rather than drawn at
+ * random, so a re-import produces the same date instead of quietly moving
+ * someone's birthday, and the day and month are fixed for the same reason.
+ *
+ * **This is not a retirement date.** `postRetirementLeave` and `fullRetirement`
+ * are stored columns and are not computed from date of birth, so nothing is
+ * calculated off this. It exists to satisfy a NOT NULL column, and
+ * `identityIsProvisional` marks every row that carries one.
+ */
+export function provisionalBirthDate(id: string, joiningYear: number): string {
+  const spread = 25 + (Number(id.slice(-4)) % 6); // 25…30, stable for an id
+  return `01-01-${joiningYear - spread}`;
+}
+
 export type ParsedId = { year: number; code: string; serial: string };
 
 export function parseEmployeeId(id: string): ParsedId | null {
@@ -211,8 +233,10 @@ export type NormalisedEmployee = {
   motherNameEn: string;
   motherNameBn: string;
   dateOfBirth: string;
-  gender: "male" | "female" | "other";
-  maritalStatus: "single" | "married" | "divorced" | "widowed";
+  gender: "male" | "female" | "other" | "unspecified";
+  maritalStatus: "single" | "married" | "divorced" | "widowed" | "unspecified";
+  /** True when any of the five biographical fields above is a stand-in. */
+  identityIsProvisional: boolean;
   bloodGroup: string | null;
   nid: string | null;
   nationality: string | null;
@@ -268,26 +292,32 @@ export function normaliseRecord(raw: any, table: PostGrade[]): NormaliseResult {
   const contact = bio.contact ?? {};
   const service = bio.service ?? {};
 
-  const dateOfBirth = toStoredDate(identity.date_of_birth);
-  const gender = GENDER[val(identity.gender)];
-  const maritalStatus = MARITAL[val(identity.marital_status)];
-  const fatherNameEn = val(identity.father_name_en);
-  const motherNameEn = val(identity.mother_name_en);
+  /**
+   * The five biographical columns are NOT NULL and used to hold people out of
+   * the roster entirely. Nothing in `lib/salary/` or `lib/workflow/` reads any
+   * of them — they are profile and display fields — so keeping someone out
+   * meant they had no desk and no file could reach them, which is a working
+   * problem traded for a cosmetic one.
+   *
+   * They are now filled with stand-ins, and `identityIsProvisional` says so, so
+   * a placeholder is never mistaken for what HR actually holds.
+   */
+  const provided = {
+    dateOfBirth: toStoredDate(identity.date_of_birth),
+    gender: GENDER[val(identity.gender)],
+    maritalStatus: MARITAL[val(identity.marital_status)],
+    fatherNameEn: val(identity.father_name_en),
+    motherNameEn: val(identity.mother_name_en),
+  };
+  const identityIsProvisional = Object.values(provided).some((v) => !v);
 
-  // Our Employee model requires all of these. A profile nobody ever filled in
-  // cannot be imported without inventing parents and a birthday.
-  const missing: string[] = [];
-  if (!dateOfBirth) missing.push("date of birth");
-  if (!gender) missing.push("gender");
-  if (!maritalStatus) missing.push("marital status");
-  if (!fatherNameEn) missing.push("father's name");
-  if (!motherNameEn) missing.push("mother's name");
-  if (missing.length) {
-    return {
-      ok: false,
-      rejection: { id, nameEn: nameTop, reason: "identity incomplete", detail: missing.join(", ") },
-    };
-  }
+  const dateOfBirth = provided.dateOfBirth ?? provisionalBirthDate(id, parsed.year);
+  // `unspecified` rather than a guess: inferring gender from a Bangladeshi name
+  // is unreliable, and a wrong one is shown to that person on their own profile.
+  const gender = provided.gender ?? "unspecified";
+  const maritalStatus = provided.maritalStatus ?? "unspecified";
+  const fatherNameEn = provided.fatherNameEn || UNKNOWN_EN;
+  const motherNameEn = provided.motherNameEn || UNKNOWN_EN;
 
   const officeId = resolveOffice(val(service.office_en), val(raw?.office) || val(service.office_bn));
   if (officeId === null) {
@@ -339,12 +369,17 @@ export function normaliseRecord(raw: any, table: PostGrade[]): NormaliseResult {
       nameEn: val(identity.name_en) || val(raw?.name_en),
       nameBn: val(identity.name_bn) || val(raw?.name_bn),
       fatherNameEn,
-      fatherNameBn: val(identity.father_name_bn) || fatherNameEn,
+      fatherNameBn:
+        val(identity.father_name_bn) ||
+        (provided.fatherNameEn ? fatherNameEn : UNKNOWN_BN),
       motherNameEn,
-      motherNameBn: val(identity.mother_name_bn) || motherNameEn,
+      motherNameBn:
+        val(identity.mother_name_bn) ||
+        (provided.motherNameEn ? motherNameEn : UNKNOWN_BN),
       dateOfBirth,
       gender,
       maritalStatus,
+      identityIsProvisional,
       bloodGroup: BLOOD[val(identity.blood_group)] ?? null,
       nid: opt(identity.nid),
       nationality: normaliseNationality(identity.nationality),

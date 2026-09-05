@@ -177,6 +177,10 @@ export default function EditEmployeeForm({
               <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
+              {/* Imported rows whose export carried no answer. Offered so the
+                  value shows as what it is instead of rendering blank and
+                  being replaced by whatever is saved next. */}
+              <option value="unspecified">Not recorded</option>
             </select>
           </Field>
 
@@ -186,6 +190,7 @@ export default function EditEmployeeForm({
               <option value="married">Married</option>
               <option value="divorced">Divorced</option>
               <option value="widowed">Widowed</option>
+              <option value="unspecified">Not recorded</option>
             </select>
           </Field>
           <Field label="Blood Group">

@@ -195,7 +195,13 @@ enum IdCardStatus {
 enum Gender {
   male
   female
+  /// A person who is neither — a real answer, not a missing one.
   other
+  /// The export did not say. Distinct from `other` on purpose: guessing from a
+  /// Bangladeshi name would misgender real people on their own profile, and
+  /// this fills the NOT NULL without stating anything false. Paired with
+  /// `Employee.identityIsProvisional`.
+  unspecified
 }
 
 enum MaritalStatus {
@@ -203,6 +209,8 @@ enum MaritalStatus {
   married
   divorced
   widowed
+  /// The export did not say. See `Gender.unspecified`.
+  unspecified
 }
 
 enum BloodGroup {
@@ -431,15 +439,32 @@ model Employee {
   category EmployeeCategory @default(staff)
 
   // Identity
-  nameEn         String
-  nameBn         String
-  fatherNameEn   String
-  fatherNameBn   String
-  motherNameEn   String
-  motherNameBn   String
-  dateOfBirth    String
-  gender         Gender
-  maritalStatus  MaritalStatus
+  nameEn        String
+  nameBn        String
+  fatherNameEn  String
+  fatherNameBn  String
+  motherNameEn  String
+  motherNameBn  String
+  dateOfBirth   String
+  gender        Gender
+  maritalStatus MaritalStatus
+
+  /// True when the biographical fields above are stand-ins rather than what the
+  /// HR export said.
+  ///
+  /// 118 people were held out of the roster by five NOT NULL columns that
+  /// nothing in `lib/salary/` or `lib/workflow/` reads — they are used by the
+  /// profile screens and for display, and nowhere else. Keeping them out meant
+  /// they had no desk, so no file could reach them, which is a working problem;
+  /// a placeholder birthday is a display one. So they are admitted with
+  /// stand-ins and **the stand-ins say so**, the same discipline as the seeded
+  /// bank branch details and the provisional standard prices.
+  ///
+  /// Date of birth is derived from the joining year in the employee id. It is
+  /// **not** a retirement date: `postRetirementLeave` and `fullRetirement` are
+  /// stored columns and are not computed from this.
+  identityIsProvisional Boolean @default(false)
+
   bloodGroup     BloodGroup?
   nid            String?
   passportNo     String?

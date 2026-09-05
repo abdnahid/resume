@@ -10,10 +10,10 @@ path prefixes. The HR module is built and in use; the BDS store catalogue and
 client accounts are new; the CM quality-certification module is the large piece
 ahead.
 
-**The roster is real.** 624 employees are imported from the HR system's export
-— 407 officers, 124 staff, 93 daily basis, across all 23 offices. First loaded
-2026-08-29 (554 people); the export was refreshed 2026-09-05 and brought 70
-more. Payroll runs on it: pay scale, house rent, salary
+**The roster is real.** 731 employees are imported from the HR system's export
+— 441 officers, 176 staff, 114 daily basis, across all 23 offices. First loaded
+2026-08-29 (554 people); the export was refreshed on 2026-09-05, and relaxing
+the identity requirement the same day brought the rest. Payroll runs on it: pay scale, house rent, salary
 heads, court verdicts, processed months and bank advice are all live features
 over live people. Treat mistakes here as mistakes about someone's salary.
 
@@ -184,9 +184,28 @@ else is INTERNAL only.
 
 ## Who is in the roster, and who is not
 
-**624 of the 815 records in `utils/employee_bio.json` are imported; 151 are
-rejected.** The export was refreshed on 2026-09-05. The analysis below is here
-because it is not recoverable from the code, only from the export.
+**731 of the 815 records in `utils/employee_bio.json` are imported; 44 are
+rejected** — 23 name no office, and 21 have an email address where the id
+should be, mostly shared One Stop Service accounts rather than people.
+
+**The five biographical NOT NULL columns no longer hold anyone out.** They used
+to reject 118 people, and none of them is read by `lib/salary/` or
+`lib/workflow/` — they are profile and display fields. Keeping someone out of
+the roster meant they had no desk and no file could reach them, which is a
+working problem traded for a cosmetic one. So the gaps are filled with
+stand-ins and **`Employee.identityIsProvisional` says so** (107 rows), the same
+discipline as the seeded bank details and the provisional standard prices.
+
+- **Date of birth is derived from the joining year in the id**, less 25–30
+  years. The offset comes from the id rather than a random draw, so a re-import
+  does not move someone's birthday. **Nothing computes off it** —
+  `postRetirementLeave` and `fullRetirement` are stored columns.
+- **Gender and marital status get `unspecified`, not a guess.** Inferring gender
+  from a Bangladeshi name is unreliable and a wrong answer is shown to that
+  person on their own profile. The value is offered in the profile and edit
+  forms as "Not recorded", so it renders as what it is instead of blank — a
+  blank select would be silently replaced by whatever was saved next.
+- Missing parents' names become `Not recorded` / `তথ্য নেই`.
 
 **The `no bio` group is gone.** 72 records used to carry a null `bio` because
 the HR system's detail API returned 500; the refreshed export has all of them,
@@ -225,7 +244,7 @@ real future use (retirement), and it is *not* computed today —
 
 ### Desks
 
-**439 of 624 now hold an `orgPostId`** — 303 from the original seeding, 136
+**479 of 731 now hold an `orgPostId`** — 303 from the original seeding, 176
 placed by `npm run import:desks` on 2026-09-05. The importer does *not* set it:
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
@@ -244,15 +263,16 @@ distance and anything inexact is reported separately for a human to read. The
 organogram also writes **Barisal** where the office register writes
 **Barishal** — the same alias the labs needed.
 
-**185 still have no desk, and every reason is an organogram gap rather than a
+**252 still have no desk, and every reason is an organogram gap rather than a
 matching failure:**
 
 | Reason | Count |
 |---|---|
-| daily basis — not on the sanctioned strength, so there is no post to hold | 93 |
-| no post at that grade in that unit | 49 |
-| every post at that grade is already full | 29 |
-| wing matches no unit in that office — branch offices have one flat lab where head office has sections | 14 |
+| daily basis — not on the sanctioned strength, so there is no post to hold | 114 |
+| every post at that grade is already full | 59 |
+| no post at that grade in that unit | 58 |
+| wing matches no unit in that office — branch offices have one flat lab where head office has sections | 18 |
+| no grade | 3 |
 
 **54 posts are over their sanctioned count**, all from the original seeding,
 which picked a post without checking capacity. `import:desks` never adds to
@@ -875,8 +895,8 @@ can reuse them.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.
-- **185 of 624 employees have no `orgPostId`**, so they have no section and
-  cannot be handed a file — 93 of them daily basis, who hold no sanctioned post
+- **252 of 731 employees have no `orgPostId`**, so they have no section and
+  cannot be handed a file — 114 of them daily basis, who hold no sanctioned post
   by definition. See "Desks" above: what remains is organogram gaps, not
   missing matching.
 
