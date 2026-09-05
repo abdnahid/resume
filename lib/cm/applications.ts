@@ -440,6 +440,13 @@ export async function setProduct(applicationId: number, productId: number, userI
       where: { consumedByApplicationId: applicationId },
       data: { consumedByApplicationId: null },
     });
+    // The sub-products belong to the product that was chosen, so changing it
+    // must clear them too (D67) — otherwise the file keeps variants of an
+    // article nobody applied for, and the test plan resolves against its
+    // parameters. Their SKUs go with them by cascade. Same reasoning as
+    // releasing the purchases above (D41): changing your mind in a draft must
+    // not cost anything, but it must not leave the old answer behind either.
+    await tx.applicationSubProduct.deleteMany({ where: { applicationId } });
     return tx.application.update({
       where: { id: applicationId },
       data: {

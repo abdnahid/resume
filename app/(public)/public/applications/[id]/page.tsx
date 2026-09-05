@@ -5,6 +5,7 @@ import { requireClient } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { getApplication, gapsFor, requirementsFor, membershipFor } from "@/lib/cm/applications";
 import { sizeVocabulary } from "@/lib/cm/skus";
+import { choicesFor } from "@/lib/cm/sub-products";
 import { prefillableAnswers } from "@/lib/cm/practice";
 import { CM_DOCUMENTS, FORM_STEPS, stepProgress, type FormStep } from "@/lib/cm/policy";
 import { missingForSubmission as companyGaps } from "@/lib/client/organization";
@@ -16,6 +17,7 @@ import CompanyStep from "./_components/CompanyStep";
 import BdsStep from "./_components/BdsStep";
 import SkuStep from "./_components/SkuStep";
 import ProductStep from "./_components/ProductStep";
+import SubProductStep from "./_components/SubProductStep";
 import ProductionStep from "./_components/ProductionStep";
 import PracticeStep from "./_components/PracticeStep";
 import DocumentsStep from "./_components/DocumentsStep";
@@ -52,16 +54,21 @@ export default async function ApplicationPage({
   const app = await getApplication(id);
   if (!app) notFound();
 
-  const [gaps, requirements, sizeTypes, prefill, organization] = await Promise.all([
-    gapsFor(id),
-    requirementsFor(id, viewer.id),
-    sizeVocabulary(),
-    prefillableAnswers(id),
-    prisma.organization.findUnique({
-      where: { id: app.organization.id },
-      include: { factories: { select: { id: true } } },
-    }),
-  ]);
+  const [gaps, requirements, sizeTypes, prefill, organization, subProductChoices] =
+    await Promise.all([
+      gapsFor(id),
+      requirementsFor(id, viewer.id),
+      sizeVocabulary(),
+      prefillableAnswers(id),
+      prisma.organization.findUnique({
+        where: { id: app.organization.id },
+        include: { factories: { select: { id: true } } },
+      }),
+      // Empty until a product is chosen, and empty for the products whose test
+      // parameters BSTI has not published yet — the step says so rather than
+      // showing a picker with nothing in it.
+      app.productId ? choicesFor(app.productId) : Promise.resolve([]),
+    ]);
 
   const editable = isEditable(app.state) && membership.role !== "viewer";
   const info = stageInfo(app.state);
@@ -180,6 +187,25 @@ export default async function ApplicationPage({
                         }
                       : null
                   }
+                  editable={editable}
+                />
+
+                {/*
+                  The sub-products follow from the product, and the variants
+                  follow from the sub-products — so the three sit in that order
+                  (D67). Choosing here is what makes the test fee quotable.
+                */}
+                <SubProductStep
+                  applicationId={app.id}
+                  productName={app.product?.nameEn ?? null}
+                  choices={subProductChoices}
+                  chosen={app.subProducts.map((sp) => ({
+                    id: sp.id,
+                    subProductId: sp.subProductId,
+                    nameEn: sp.subProduct.nameEn,
+                    variantCount: sp.skus.length,
+                    declaredByFdo: sp.declaredBy === "fdo",
+                  }))}
                   editable={editable}
                 />
 
