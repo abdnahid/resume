@@ -320,6 +320,41 @@ down to 10 Field Officers and up to the Director and 3 Deputy Directors; a Field
 Officer sends up to 6 ADs, 3 DDs and the Director; a DD passes down to ADs and
 FOs and up to the acting Director alone.
 
+### User
+
+> pass to can send to same level or junior
+
+### Assistant
+
+That reverses D58's peer refusal, which was my design assumption rather than the
+client's rule. Changed: **pass down reaches your own level or below, send up is
+strictly senior** (D79). Sideways is a `down`.
+
+**The original reasoning does not survive scrutiny.** D58 refused it because a
+sideways move would supposedly make "who holds it" a matter of who clicked, with
+no chain to read back. But `holderEmployeeId` is a single column and every move
+is appended to `ApplicationMovement`, so the history reads back whatever route
+the file took — nothing was actually at risk. And it was wrong about the office:
+a section holding six Assistant Directors expects the one covering that product
+line to take the file from whoever received it.
+
+The two directions stay **disjoint and covering** — a desk is either senior to
+you or it is not — which is worth stating because it is the property that keeps
+the picker honest. Verified over all 5,640 head-office section pairs: none in
+both lists, none in neither.
+
+```
+AFSANA HOSSAIN  (Assistant Director, g9)   down 17   up  4
+   down: 5 Assistant Directors, 10 Field Officers, 2 office staff
+SUMAYA AFROSE LIZA (Field Officer, g9)     down 11   up 10
+   up:   1 Director, 3 Deputy Directors, 6 Assistant Directors
+```
+
+With D78 and D79 together, **no desk in any of the 23 offices can reach nobody.**
+
+The route's refusal message changed with it — "a more junior desk" would have
+been a lie about the rule being enforced.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

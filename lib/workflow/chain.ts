@@ -72,8 +72,10 @@ export function rank(grade: number | null): number {
  * by. It already encodes the real order — that is what it was written for — and
  * using it here means the two can never disagree about who is senior to whom.
  *
- * Peers are still peers: two Assistant Directors on grade 9 tie on *both*
- * halves, and a file may not move between them.
+ * A tie on both halves means the two desks are the same level. That is a real
+ * and common arrangement — one section holds six Assistant Directors, and the
+ * one who handles a product line takes the file from whoever received it — so a
+ * hand-off between them is allowed, as a `down`. See `canPassTo`.
  */
 export function seniority(d: Desk): [number, number] {
   return [rank(d.grade), deskRank(d.designation).order];
@@ -89,10 +91,22 @@ function isJuniorTo(a: Desk, b: Desk): boolean {
 /**
  * May `sender` hand the file to `candidate` in this direction?
  *
- * Same section, and strictly the right side of the sender by seniority.
- * "Strictly" matters: two officers of the same rank are peers, and letting a
- * file move sideways would make "who holds it" a question of who clicked first,
- * with no way to read the chain back afterwards.
+ * Same section, and:
+ *
+ * - **down** — anyone of the same level or junior to the sender;
+ * - **up** — anyone strictly senior.
+ *
+ * **Sideways is a `down`, and it is deliberate.** An earlier reading of D58 made
+ * peers unreachable in either direction, on the theory that a sideways move
+ * would make "who holds it" a matter of who clicked. It does not: the holder is
+ * a single column and every move is appended to `ApplicationMovement`, so the
+ * chain reads back whatever route it took. Meanwhile the refusal was wrong about
+ * the office — a section holding six Assistant Directors expects the one who
+ * covers that product line to take the file from whoever received it, and
+ * forbidding it left whole sections unable to work (D79).
+ *
+ * The two directions stay disjoint and together cover the section: a desk is
+ * either senior to you, or it is not.
  */
 export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): boolean {
   if (candidate.employeeId === sender.employeeId) return false;
@@ -100,8 +114,9 @@ export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): 
   if (sender.sectionUnitId === null || candidate.sectionUnitId === null) return false;
   if (candidate.sectionUnitId !== sender.sectionUnitId) return false;
 
+  // "Not senior to me" rather than "junior to me" — that is what admits a peer.
   return direction === "down"
-    ? isJuniorTo(candidate, sender)
+    ? !isJuniorTo(sender, candidate)
     : isJuniorTo(sender, candidate);
 }
 

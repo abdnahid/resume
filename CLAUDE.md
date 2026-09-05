@@ -388,10 +388,11 @@ and by the jurisdiction default receives nothing anyway.
 Eleven offices have only grade 9 in their CM section. That used to make everyone
 there a peer, so a file could move head → FDO → back up and no further;
 **Cox's Bazar was deadlocked outright**, five desks and not one hand-off
-possible between them. The grade tie is now broken by designation rank (D78), so
-AD (CM) → FO (CM) works inside the band and every office has a chain.
-Patuakhali, with a single CM desk, still needs its office head to be someone
-outside that section.
+possible between them. Two changes fixed it: the grade tie is broken by
+designation rank (D78), so AD (CM) → FO (CM) works inside the band, and a
+hand-off to the same level is allowed (D79). **No desk in any office can now
+reach nobody.** Patuakhali, with a single CM desk, still needs its office head
+to be someone outside that section.
 
 ### The organogram is not full — it is the wrong shape
 
@@ -1110,9 +1111,16 @@ can reuse them.
   that tie on grade, so nothing that worked before can break. 3,423 possible
   hand-offs became 4,730, and the desks that could reach nobody at all went from
   5 to 0.
-- **Peers still cannot pass to each other.** Two Assistant Directors on grade 9
-  tie on *both* halves. Sideways movement would make "who holds it" a matter of
-  who clicked, with no chain to read back.
+- **Pass down reaches your own level or below; send up is strictly senior**
+  (D79). Sideways is a `down`. An earlier reading of D58 made same-level desks
+  unreachable in either direction, on the theory that a sideways move would make
+  "who holds it" a matter of who clicked — it does not, because the holder is a
+  single column and every move is appended to `ApplicationMovement`, so the
+  chain reads back whatever route it took. And it was wrong about the office: a
+  section holding six Assistant Directors expects the one covering that product
+  line to take the file from whoever received it. The two directions stay
+  disjoint and together cover the section — verified over all 5,640 head-office
+  pairs, none in both lists and none in neither.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.

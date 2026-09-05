@@ -416,7 +416,7 @@ export async function pass(
   if (!target) {
     throw new Error(
       direction === "down"
-        ? "You can only pass a file to a more junior desk in your own section."
+        ? "You can only pass a file to a desk at your own level or below, in your own section."
         : "You can only send a file up to a more senior desk in your own section.",
     );
   }
