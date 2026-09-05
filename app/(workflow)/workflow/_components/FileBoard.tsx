@@ -185,11 +185,14 @@ export default function FileBoard({
                   {a.submittedAt && <span>submitted {a.submittedAt}</span>}
                 </p>
                 {a.orderNo && (
-                  <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary">
+                  <Link
+                    href={`/workflow/${a.id}/order`}
+                    className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/20"
+                  >
                     <CalendarCheck className="h-3 w-3 shrink-0" strokeWidth={1.8} />
                     <span className="font-mono font-medium">{a.orderNo}</span>
                     <span className="text-primary/80">inspection {a.inspectionOn}</span>
-                  </p>
+                  </Link>
                 )}
               </div>
 

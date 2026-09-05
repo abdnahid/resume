@@ -1174,12 +1174,26 @@ can reuse them.
   reads the same. The proposer may never approve his own plan, and the approver
   must **hold** the file. The inspection and sampling reports will take the same
   rule.
-- **Approval issues the office order**, `<office>/INS/<year>/<serial>`, numbered
-  then and not at proposal — the same reason an application number waits for
-  submission: a number quoted to a factory should mean a visit that will happen.
-  It appears on the board row and in the desk flow, so every desk sees it.
-  **An approved plan cannot be edited or sent back** — changing the date means a
-  fresh order, not an edited one.
+- **Approval issues the office order**, and it is an official letter (D85).
+  `/workflow/[id]/order` renders it on the government letterhead — `GovHeader`
+  with `orgForOffice()`, so a Barishal order carries Barishal's address — naming
+  the company, the factory, the product, the date and the team, signed by the
+  approver. **The screen and the PDF are the same page**: the toolbar is
+  `print:hidden` and Puppeteer loads that URL, exactly as the salary slip does,
+  so there is no second layout to keep in step. `GET
+  /api/workflow/applications/[id]/order/pdf` is the download.
+- **The order number is a memo number**, `বিএসটিআই/<office>/পরিদর্শন/<serial>/<year>`
+  — the shape `generateMemoNo()` builds for the bank advice. Numbered at
+  approval and not at proposal, for the same reason an application number waits
+  for submission: a number quoted to a factory should mean a visit that will
+  happen. Stored with ASCII digits so the serial parses, printed through
+  `toBengaliDigits()`. It appears on the board row and in the desk flow, so
+  every desk sees it. **An approved plan cannot be edited or sent back** —
+  changing the date means a fresh order, not an edited one.
+- **[ASSUMPTION] The letter's Bengali wording is drafted, not supplied.** It
+  follows the bank advice's register, which is the only other official letter
+  the system issues. The facts in it are real; the sentences need a CM Wing
+  officer's eye.
 - **The proposer is on the team by default** — he is the one going, and making
   him tick his own name is a step that is wrong every time it is skipped. Only
   for a plan that does not exist yet: re-adding him to a saved plan would put

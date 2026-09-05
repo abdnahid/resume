@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  CalendarDays, CheckCircle2, Loader2, RotateCcw, Search, SendHorizontal, Users, X,
+  CalendarDays, CheckCircle2, FileText, Loader2, RotateCcw, Search, SendHorizontal, Users, X,
 } from "lucide-react";
 import { groupByRank, type Desk } from "@/lib/workflow/chain";
 
@@ -120,6 +120,17 @@ export default function InspectionPanel({
           {plan.proposedAt}.
         </p>
         {plan.note && <p className="mt-2 text-sm italic text-muted-foreground">“{plan.note}”</p>}
+
+        {/* The order is a letter, so it has a page of its own that prints and
+            downloads (D85) rather than being a panel. */}
+        <a
+          href={`/workflow/${applicationId}/order`}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
+        >
+          <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
+          Open the office order
+        </a>
+
         <div className="mt-3">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             Inspection team

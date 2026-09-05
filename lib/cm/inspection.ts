@@ -21,6 +21,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { ApplicationState } from "@/generated/prisma/client";
+import { memoOfficeLabel } from "@/lib/bengali";
 
 /** The states an inspection plan may be proposed from. */
 const PROPOSABLE: ApplicationState[] = ["review_passed", "inspection_revision_requested"];
@@ -310,21 +311,39 @@ export async function requestPlanRevision(args: {
 /**
  * The next office order number for an office.
  *
- * `<office>/INS/<year>/<serial>` — the office first, because each office issues
- * its own orders and a serial shared across 23 offices would make two orders
- * with the same number in different districts. Counted from the rows that exist
- * rather than a counter table, which cannot drift out of step with them.
+ * `বিএসটিআই/<office>/পরিদর্শন/<serial>/<year>` — the shape a BSTI memo actually
+ * takes, and the same one `generateMemoNo()` builds for the bank advice. The
+ * first version used the office's **database id** as the prefix, which put an
+ * internal number on a letter that goes to a factory.
+ *
+ * The office comes first because each office issues its own orders: a serial
+ * shared across 23 offices would put the same number on two letters in
+ * different districts.
+ *
+ * Stored with ASCII digits and rendered with `toBengaliDigits()`, so the serial
+ * stays parseable — counted from the rows that exist rather than a counter
+ * table, which cannot drift out of step with them.
  */
 async function nextOrderNo(officeId: number | null): Promise<string> {
   const year = new Date().getFullYear();
-  const prefix = `${officeId ?? 0}/INS/${year}/`;
-  const last = await prisma.inspectionPlan.findFirst({
-    where: { orderNo: { startsWith: prefix } },
-    orderBy: { orderNo: "desc" },
+  const office = officeId
+    ? await prisma.office.findUnique({ where: { id: officeId }, select: { nameBn: true } })
+    : null;
+  const label = office?.nameBn ? memoOfficeLabel(office.nameBn) : "ঢাকা";
+
+  // The serial is per office and per year, so the year is part of what is
+  // counted rather than only decoration.
+  const prefix = `বিএসটিআই/${label}/পরিদর্শন/`;
+  const suffix = `/${year}`;
+  const existing = await prisma.inspectionPlan.findMany({
+    where: { orderNo: { startsWith: prefix, endsWith: suffix } },
     select: { orderNo: true },
   });
-  const n = last?.orderNo ? Number(last.orderNo.slice(prefix.length)) : 0;
-  return `${prefix}${String((Number.isFinite(n) ? n : 0) + 1).padStart(4, "0")}`;
+  const highest = existing.reduce((max, r) => {
+    const n = Number(r.orderNo!.slice(prefix.length, r.orderNo!.length - suffix.length));
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  return `${prefix}${String(highest + 1).padStart(4, "0")}${suffix}`;
 }
 
 /** Plans for several files at once — one query for the whole board. */
