@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Search, X } from "lucide-react";
 
 /**
  * Which sub-products of the chosen product the applicant actually makes (D67).
@@ -34,6 +34,16 @@ export type ChosenSubProduct = {
   declaredByFdo: boolean;
 };
 
+const field =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+
+/**
+ * Above this many, the list is worth filtering. BDS 1758 has 29 sub-products
+ * and BDS 1221 has 30, so scrolling to find one is the common case, not the
+ * rare one.
+ */
+const SEARCH_FROM = 8;
+
 const taka = (poisha: number) =>
   `৳${(poisha / 100).toLocaleString("en-BD", { maximumFractionDigits: 2 })}`;
 
@@ -53,8 +63,28 @@ export default function SubProductStep({
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
 
   const picked = new Map(chosen.map((c) => [c.subProductId, c]));
+
+  // Matched against the English name, the Bangla name and the standard, since
+  // a manufacturer may know any of the three.
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return choices;
+    return choices.filter((c) =>
+      [c.nameEn, c.nameBn ?? "", c.standardAsPrinted ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [choices, q]);
+
+  // A selection the filter is hiding is worth saying out loud: the count in the
+  // header would otherwise disagree with the list underneath it.
+  const hiddenSelected = chosen.filter(
+    (c) => !matches.some((m) => m.id === c.subProductId),
+  ).length;
   const totalPoisha = chosen.reduce(
     (a, c) => a + (choices.find((x) => x.id === c.subProductId)?.testFeePoisha ?? 0),
     0,
@@ -136,8 +166,49 @@ export default function SubProductStep({
         </p>
       )}
 
+      {choices.length >= SEARCH_FROM && (
+        <div className="mt-5">
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              strokeWidth={2}
+            />
+            <input
+              className={`${field} pl-9 pr-9`}
+              placeholder={`Search ${choices.length} sub-products…`}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && setQ("")}
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" strokeWidth={2} />
+              </button>
+            )}
+          </div>
+          {q && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {matches.length} of {choices.length} shown
+              {hiddenSelected > 0 &&
+                ` · ${hiddenSelected} selected ${hiddenSelected === 1 ? "one is" : "are"} hidden by this search`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {q && matches.length === 0 && (
+        <p className="mt-4 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Nothing matches “{q}”. Clear the search to see all {choices.length}.
+        </p>
+      )}
+
       <ul className="mt-5 space-y-2">
-        {choices.map((c) => {
+        {matches.map((c) => {
           const on = picked.get(c.id);
           const working = busy === c.id;
           return (
