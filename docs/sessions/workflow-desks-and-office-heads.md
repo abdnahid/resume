@@ -777,6 +777,52 @@ movement        up  BORHAN UDDIN → MD. JAHIDUR RAHMAN  "For your approval."
 The client's plan was kept: only the approval and the hand-off this run made
 were undone.
 
+### User
+
+> The approver is the immediate person on the upper chain who sent down to FDO.
+> So choosing AD is redundant
+
+### Assistant
+
+Right, and simpler than what was there. `delegatorOf()` reads the most recent
+`down` movement addressed to the holder — the officer who delegated the work is
+the one the plan returns to, so there is nothing to choose. The picker asked a
+question the file's own history already answers, and let the wrong person be
+picked.
+
+Only `down` counts. A `receive` has no sender, an `up` came from somebody
+junior, and a `reassign` was an administrator moving a stranded file rather than
+a superior delegating work.
+
+Because the target is now derived rather than chosen, the hand-off is written
+directly instead of through `pass()`: the chain test exists to stop an arbitrary
+sideways move and there is no choice here to abuse. It is still recorded as an
+`up`, so the desk flow reads the same. `immediateSeniors()` was deleted with the
+picker — D83's organogram computation turned out to be the wrong tool for a
+question the movement log answers exactly.
+
+```
+history:  receive   —                    → Md. Golam Rabbani
+          reassign  Md. Golam Rabbani    → Md. Alauddin Hussain
+          down      Md. Alauddin Hussain → KAWSER AHMED KHAN
+          down      KAWSER AHMED KHAN    → AFSANA HOSSAIN
+          down      AFSANA HOSSAIN       → BORHAN UDDIN
+
+delegatorOf(BORHAN UDDIN) = AFSANA HOSSAIN
+send (no target)          → returned to her, state inspection_pending_approval
+FDO edit                  → refused
+she approves              → order 6/INS/2026/0001, as a plain employee
+```
+
+The client's plan was preserved and this run's movements removed — 5 before, 5
+after.
+
+**Twice now a CLAUDE.md edit has silently not applied** because a `.replace()`
+anchor no longer matched after an earlier edit, and the script aborted before
+writing. The commit went out with the plan updated and CLAUDE.md not. Worth
+checking `git diff --stat` names every file expected before committing a doc
+change.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

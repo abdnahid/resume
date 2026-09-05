@@ -1155,25 +1155,25 @@ can reuse them.
   accountable for has to send it back instead — a round trip for a typed date.
 - **Proposing and sending are two acts, and the sending is what moves the
   file.** Saving the plan leaves it on the proposer's desk so he can come back
-  to it; **Send for approval** hands the file to a chosen immediate senior
-  through `pass()` — so it travels the ordinary chain and lands in the movement
-  log — and sets `inspection_pending_approval`. Without that step the plan sat
-  saved on the proposer's desk: he could still edit it and his senior had
-  nothing to approve. The editability and the approval both key off *holding*
-  the file, so the hand-off is the only thing that has to be right.
-- **The approver is the proposer's immediate senior** (D83), not the office
-  head: "is this plan sound" is answered by whoever the officer reports to, and
-  sending it to a Director is asking him to read a date — the higher authority
-  follows it on the desk flow instead. `immediateSeniors()` in `chain.ts` names
-  that rung as the smallest step up the D78 seniority pair, which is what makes
-  it work at all: a Field Officer's approvers are the six Assistant Directors on
-  his own grade 9, not the Deputy Directors above them, and grade alone could
-  not tell those apart. Several people share the rung and **any may act** — an
-  approval only one named person can give waits for him to come back. A desk
-  further up may also approve, because refusing would strand a file passed
-  higher than it needed to go. The proposer may never approve his own plan, and
-  the approver must **hold** the file. The inspection and sampling reports will
-  take the same rule.
+  to it; **Send for approval** returns the file to whoever handed it down and
+  sets `inspection_pending_approval`. Without that step the plan sat saved on
+  the proposer's desk: he could still edit it and his senior had nothing to
+  approve. Editing and approving both key off *holding* the file, so the
+  hand-off is the only thing that has to be right for both to follow.
+- **The approver is whoever handed the file down** (D84) — not the office head,
+  and not a senior the sender picks. `delegatorOf()` reads the most recent
+  `down` movement addressed to this desk: he delegated the work, so the plan
+  returns to him. **There is nothing to choose**, and offering a list of seniors
+  both asked a question the file's own history already answers and let the wrong
+  person be chosen. Only `down` counts: a `receive` has no sender, an `up` came
+  from somebody junior, and a `reassign` was an administrator moving a stranded
+  file rather than a superior delegating work. Because the target is derived
+  rather than chosen, the hand-off is written directly instead of through
+  `pass()` — the chain test exists to stop an arbitrary sideways move, and there
+  is no choice here to abuse — and it is recorded as an `up` so the desk flow
+  reads the same. The proposer may never approve his own plan, and the approver
+  must **hold** the file. The inspection and sampling reports will take the same
+  rule.
 - **Approval issues the office order**, `<office>/INS/<year>/<serial>`, numbered
   then and not at proposal — the same reason an application number waits for
   submission: a number quoted to a factory should mean a visit that will happen.
