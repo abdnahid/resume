@@ -39,11 +39,14 @@ export default function BdsStep({
   applicationId,
   productName,
   requirements,
+  returnStep,
   editable,
 }: {
   applicationId: number;
   productName: string | null;
   requirements: Requirement[];
+  /** The form step to come back to after buying in flow (§3.4, D50). */
+  returnStep: number;
   editable: boolean;
 }) {
   const router = useRouter();
@@ -98,7 +101,11 @@ export default function BdsStep({
         body: JSON.stringify({
           bdsId,
           applicationId,
-          next: `/public/applications/${applicationId}`,
+          // Back to the step they left, not to the top of the form. §3.4 is
+          // explicit that an in-flow buyer must never lose their place, and
+          // dropping the step drops them on the company preview instead of the
+          // standards they were part-way through attaching.
+          next: `/public/applications/${applicationId}?step=${returnStep}`,
         }),
       });
       const data = await res.json();

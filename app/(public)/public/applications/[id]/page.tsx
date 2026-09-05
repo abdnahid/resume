@@ -19,9 +19,8 @@ import SkuStep from "./_components/SkuStep";
 import ProductStep from "./_components/ProductStep";
 import SubProductStep from "./_components/SubProductStep";
 import ProductionStep from "./_components/ProductionStep";
-import PracticeStep from "./_components/PracticeStep";
 import DocumentsStep from "./_components/DocumentsStep";
-import SubmitStep from "./_components/SubmitStep";
+import Step4 from "./_components/Step4";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = Number((await params).id);
@@ -31,6 +30,22 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     select: { applicationNo: true },
   });
   return { title: `${app?.applicationNo ?? "Draft application"} — BSTI e-Services` };
+}
+
+/**
+ * `Plot 4, Tejgaon I/A · Dhaka · 1208` — the parts that are set, in order, with
+ * the ones that are not silently dropped rather than leaving stray separators.
+ */
+function addressOf(x: {
+  addressLine?: string | null;
+  upazila?: string | null;
+  district?: string | null;
+  postCode?: string | null;
+}): string {
+  return [x.addressLine, x.upazila, x.district, x.postCode]
+    .map((p) => p?.trim())
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export default async function ApplicationPage({
@@ -106,15 +121,36 @@ export default async function ApplicationPage({
                 </span>
               </p>
             )}
-            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5">
-                <Building2 className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
-                {app.organization.nameEn}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <FactoryIcon className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
-                {app.factory.nameEn}
-              </span>
+            {/*
+              Name and address for both, because a group with several companies
+              and several plants cannot tell one file from another by name
+              alone — and the factory's address is what decided which BSTI
+              office receives it.
+            */}
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.8} />
+                <span>
+                  <span className="block text-foreground">{app.organization.nameEn}</span>
+                  {addressOf(app.organization) && (
+                    <span className="block text-xs">{addressOf(app.organization)}</span>
+                  )}
+                </span>
+              </div>
+              <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <FactoryIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.8} />
+                <span>
+                  <span className="block text-foreground">{app.factory.nameEn}</span>
+                  {addressOf(app.factory) && (
+                    <span className="block text-xs">{addressOf(app.factory)}</span>
+                  )}
+                  {app.factory.bstiOffice && (
+                    <span className="block text-xs">
+                      Received by {app.factory.bstiOffice.nameEn}
+                    </span>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -251,6 +287,7 @@ export default async function ApplicationPage({
                   applicationId={app.id}
                   productName={app.product?.nameEn ?? null}
                   requirements={requirements}
+                  returnStep={step}
                   editable={editable}
                 />
 
@@ -293,28 +330,20 @@ export default async function ApplicationPage({
             )}
 
             {step === 4 && (
-              <>
-                <PracticeStep
-                  applicationId={app.id}
-                  answers={app.answers.map((a) => ({
-                    questionKey: a.questionKey,
-                    answerText: a.answerText,
-                    answerNumber: a.answerNumber,
-                  }))}
-                  consentAcceptedAt={app.consentAcceptedAt?.toISOString() ?? null}
-                  prefill={prefill}
-                  editable={editable}
-                />
-
-                {editable && (
-                  <SubmitStep
-                    applicationId={app.id}
-                    gaps={gaps ?? []}
-                    feeStatus={app.applicationFeePayment?.status ?? null}
-                    feeReference={app.applicationFeePayment?.reference ?? null}
-                  />
-                )}
-              </>
+              <Step4
+                applicationId={app.id}
+                answers={app.answers.map((a) => ({
+                  questionKey: a.questionKey,
+                  answerText: a.answerText,
+                  answerNumber: a.answerNumber,
+                }))}
+                consentAcceptedAt={app.consentAcceptedAt?.toISOString() ?? null}
+                prefill={prefill}
+                gaps={gaps ?? []}
+                feeStatus={app.applicationFeePayment?.status ?? null}
+                feeReference={app.applicationFeePayment?.reference ?? null}
+                editable={editable}
+              />
             )}
 
             {editable && stepGaps.length > 0 && step !== 4 && <StepGaps gaps={stepGaps} />}

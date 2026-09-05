@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,12 +35,20 @@ export default function PracticeStep({
   answers,
   consentAcceptedAt,
   prefill,
+  onSatisfiedChange,
   editable,
 }: {
   applicationId: number;
   answers: Answer[];
   consentAcceptedAt: string | null;
   prefill: { fromApplicationId: number; fromProduct: string | null; answers: Answer[] } | null;
+  /**
+   * The gap fields this step currently satisfies, emitted as they are typed.
+   * The submission checklist below is built from the server's gap list, which
+   * is a page-load snapshot — without this it goes on naming a question that
+   * has just been answered until someone presses Save.
+   */
+  onSatisfiedChange?: (fields: string[]) => void;
   editable: boolean;
 }) {
   const router = useRouter();
@@ -93,6 +101,20 @@ export default function PracticeStep({
     const v = values[q.key];
     return q.type === "number" ? !String(v ?? "").trim() : !String(v ?? "").trim();
   }).length;
+
+  // The same field ids `missingForSubmission()` uses, so the checklist can drop
+  // them without knowing anything about this form.
+  const satisfied = [
+    ...required.filter((q) => String(values[q.key] ?? "").trim()).map((q) => `q:${q.key}`),
+    ...(consent ? ["consent"] : []),
+  ];
+  // `watch()` returns a fresh object each render, so the effect keys on the
+  // resolved list rather than on the values themselves.
+  const satisfiedKey = satisfied.join("|");
+  useEffect(() => {
+    onSatisfiedChange?.(satisfiedKey ? satisfiedKey.split("|") : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satisfiedKey]);
 
   function applyPrefill() {
     if (!prefill) return;

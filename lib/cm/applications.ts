@@ -29,7 +29,14 @@ const PRODUCT_INCLUDE = {
 };
 
 const APP_INCLUDE = {
-  organization: { select: { id: true, nameEn: true, nameBn: true, type: true } },
+  organization: {
+    select: {
+      id: true, nameEn: true, nameBn: true, type: true,
+      // The header names the company and the plant; an address is what tells
+      // an applicant with several of each that they are on the right file.
+      addressLine: true, district: true,
+    },
+  },
   product: { include: PRODUCT_INCLUDE },
   attachedPurchases: { include: { bds: { include: { division: true } } } },
   // Articles hang off the sub-product now (D67), so the shape is nested: the
