@@ -25,3 +25,4 @@ tsconfig.tsbuildinfo
 utils/import-report.txt
 # Same, for `npm run import:desks`.
 utils/desk-assignment-report.txt
+utils/office-head-desk-report.txt

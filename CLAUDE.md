@@ -244,8 +244,10 @@ real future use (retirement), and it is *not* computed today —
 
 ### Desks
 
-**470 of 731 now hold an `orgPostId`** — 288 from the original seeding, 182
-placed by `npm run import:desks` on 2026-09-05. The importer does *not* set it:
+**479 of 731 now hold an `orgPostId`** — 288 from the original seeding, 182
+placed by `npm run import:desks` on 2026-09-05, then 5 office heads seated by
+`npm run import:office-head-desks` and 4 head-office Directors by a second
+`import:desks` run once Directors were graded 4, both the same day. The importer does *not* set it:
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
 `utils/desk-assignment-report.txt` listing every assignment it makes.
@@ -269,10 +271,18 @@ matching failure:**
 | Reason | Count |
 |---|---|
 | daily basis — not on the sanctioned strength, so there is no post to hold | 114 |
-| every post at that grade is already full | 59 |
-| no post at that grade in that unit | 58 |
-| wing matches no unit in that office — branch offices have one flat lab where head office has sections | 18 |
+| every post at that grade is already full | 62 |
+| no post at that grade in that unit | 53 |
+| wing matches no unit in that office — branch offices have one flat lab where head office has sections | 20 |
 | no grade | 3 |
+
+**Two Directors are still among them** — Chemical Testing and CM at head office,
+both in "no post at that grade in that unit". Their wings' Director posts exist
+and are now graded 4, but they sit in the `Executive (<wing>)` child unit rather
+than the wing the employee's own wing name resolves to. A third, MOBIN UL ISLAM,
+is a grade-4 Director sitting on a Deputy Director (Textile) post from the
+original seeding; `import:desks` only ever fills a null `orgPostId`, so it does
+not move him.
 
 ### Can a CM application be worked in every office?
 
@@ -301,9 +311,25 @@ office-scoped.
 Faridpur, Cox's Bazar, Bogura, Dinajpur, Noakhali, DMI, Narsingdi, Rajshahi,
 Narayanganj.
 
-**Two heads hold no desk** — Narsingdi and Narayanganj — so they can receive a
-file but not pass it on: `candidates()` works from `desksOfOffice()`, and
-someone with no post is not in it.
+**Every office head now holds a desk**, seated 2026-09-05 by
+`npm run import:office-head-desks`. Five did not, and each could receive a file
+and then not pass it on — `candidates()` works from `desksOfOffice()`, and
+someone with no post has no section, so the picker came back empty and the file
+stopped dead in his hands.
+
+**`import:desks` cannot seat a head, and that is why this is its own step.** It
+matches office → wing → grade → title, which is right for the officers who do
+the work. But a branch head is whoever is seniormost *whatever wing he came
+from*, and the desk he holds is the single post in the office's **Executive**
+unit — so matching on his own wing looks for a Metrology desk inside Executive
+and finds nothing. Narsingdi, Narayanganj, Bogura, Rajshahi and Khulna all
+failed exactly there.
+
+**Two heads had no grade at all**, which is why `import:office-heads` picked
+them (a designated *Head of Office* outranks seniority) and why nothing could
+seat them. The grade is taken **from the post they are seated on** — Deputy
+Director (CM), grade 6 — not invented, and the report names every such fill.
+The same rule filled Rajshahi's missing English designation.
 
 ### The hand-off the routing needs, and does not yet allow
 
@@ -352,7 +378,7 @@ all. Grade 9 alone has **495 posts for 333 staff**.
 | Designation | Staff | Grade | Posts at that grade |
 |---|---|---|---|
 | Examiner | 40 | 10 | **none anywhere** |
-| Director | 9 | 4 | **none anywhere** (organogram puts Directors at 3 and 5) |
+| ~~Director~~ | ~~9~~ | ~~4~~ | **Fixed 2026-09-05** — the nine Director posts moved from grade 5 to 4, which is where all nine serving Directors are. |
 | Chief Assistant | 6 | 12 | **none anywhere** |
 
 *And one crowded at a grade that is otherwise half empty:*
@@ -1002,10 +1028,11 @@ can reuse them.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.
-- **261 of 731 employees have no `orgPostId`**, so they have no section and
+- **252 of 731 employees have no `orgPostId`**, so they have no section and
   cannot be handed a file — 114 of them daily basis, who hold no sanctioned post
   by definition. See "Desks" above: what remains is organogram gaps, not
-  missing matching.
+  missing matching. **No office head is among them any more**, so every office
+  can at least start a file moving.
 
 ## Payments
 
@@ -1196,6 +1223,7 @@ npm run import:employees # import/refresh employees from the HR export (upsert, 
 npm run import:retire    # remove employees the export does not contain (dry run without --yes)
 npm run import:products  # the 315 mandatory products (--dry to report without writing)
 npm run import:desks     # place employees on organogram posts (--dry to report without writing)
+npm run import:office-head-desks # seat each office head on their office's Executive desk (--dry)
 
 npm run import:test-parameters # a wing's test-parameter file → the Phase G catalogue (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)

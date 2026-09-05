@@ -538,10 +538,25 @@ log reading `receive, down, up` with its note and sender; and an acting head on
 grade 9 reaching 6 desks where grade alone gives none. The test application was
 deleted and its movements cascaded away.
 
-**Still open:** 251 of 554 employees have no `orgPostId`, so they have no
+**Still open:** 252 of 731 employees have no `orgPostId`, so they have no
 section and cannot be passed a file — the organogram placement is incomplete,
-not the code. Nobody holds `office_head` yet; a superadmin assigns it at
-`/hr/listing/roles`.
+not the code.
+
+**Resolved 2026-09-05.** All 23 offices hold `office_head`
+(`npm run import:office-heads`), and every one of those heads now holds a desk.
+Five did not, so `candidates()` returned an empty list and a file they received
+could never be passed on. Two causes, both data:
+
+- **`import:desks` cannot seat a head**, because it matches on the head's own
+  wing and a head's desk is the one post in the office's **Executive** unit,
+  whatever wing he came from. `npm run import:office-head-desks` is that step,
+  and it takes a missing grade or English designation from the post rather than
+  inventing one.
+- **The organogram graded Directors 5, and all nine serving Directors are on
+  grade 4** — so no Director could be seated anywhere, and the two whose offices
+  made them head (Rajshahi, Khulna) were unreachable. `seed:grades` now puts the
+  nine Director posts on grade 4; a second `import:desks` run then seated four
+  head-office Directors as well.
 
 ### ⬜ Step 8+ — Workflow engine (the rest)
 Routing path snapshot, descend/ascend/return/reassign, movement log, officer
@@ -650,7 +665,7 @@ Tracked from plan §10 and addendum A§10. Answering these unblocks the steps ab
 | ~~**The real mandatory-315 product list.**~~ **Answered 2026-09-01:** the gate is `Product.isMandatory` over the 315 real rows, not the seed's judgement on `Bds.isMandatory315`. The flag survives on `Bds` but no longer decides anything. | — | 2026-08-31 |
 | **BSTI's real questionnaire for step 4.** `CM_QUESTIONS` is five groups drafted from the client's own list — identification, isolation, process, manpower, quality control, records. Same `[ASSUMPTION]` standing as the document checklist. | Asking applicants the right questions | 2026-09-01 |
 | **`Employee.wing` is free text with synonyms.** 31 distinct values across the roster against the organogram's 8 wings — some are wings, some are departments inside one, and several are one wing written twice ("মেট্রোলজি" 112 and "মেট্রোলজি উইং" 13; "সিএম বিভাগ" 81 and "সিএম উইং" 5). The roster's wing filter offers the values as recorded, with counts, so the duplicates are visible rather than hidden. | A wing filter that returns everyone in that wing | 2026-09-02 |
-| **Organogram placement for 251 employees.** `Employee.orgPostId` is null for them, so they have no section and cannot be handed a file. `Posting.orgPostId` is null on every row, which is why the workflow reads the employee's post instead. | Files reaching every desk | 2026-09-02 |
+| **Organogram placement for 252 employees.** *(Was 251 of 554; the roster is now 731 and 479 hold a desk. No office head is among the gap any more — see step 8a.)* `Employee.orgPostId` is null for them, so they have no section and cannot be handed a file. `Posting.orgPostId` is null on every row, which is why the workflow reads the employee's post instead. | Files reaching every desk | 2026-09-02 |
 | **The CM document checklist.** `CM_DOCUMENTS` is nine items assembled from the spec and general practice, at the same `[ASSUMPTION]` standing as the §2.3 company field set. | Applicants bringing the right papers | 2026-08-31 |
 | **Shortfall policy (§10 #7)** — maximum rounds, response deadline, consequence of lapse. Not yet reached, but it gates the Phase 2 review loop. | Step 8+ | 2026-08-31 |
 | **Is the BDS catalogue price VAT-inclusive or VAT-exclusive?** Treated as exclusive — the price is the income fee and 15% is added on top (D34). The other reading gives a different total for the same standard, so it is a real question, not a rounding detail. Behind `splitFee()`. | What customers are actually charged | 2026-08-31 |

@@ -13,13 +13,19 @@ const GRADE: Record<string, string> = {
   // ── Grade 3 ──────────────────────────────────────────────────────────────
   "Director General":                              "3",
 
-  // ── Grade 5 ──────────────────────────────────────────────────────────────
-  "Director":                                      "5",
-  "Director (Admin)":                              "5",
-  "Director (Chemistry)":                          "5",
-  "Director (Metrology)":                          "5",
-  "Director (Physics)":                            "5",
-  "Director (Standards)":                          "5",
+  // ── Grade 4 ──────────────────────────────────────────────────────────────
+  // Every serving Director is on grade 4 — all nine of them, branch and wing
+  // alike. The organogram was seeded with Directors at 5, which matched nobody:
+  // desk matching is office → wing → grade → title, so a grade that no Director
+  // holds meant no Director could ever be seated, and the two whose offices made
+  // them office head (Rajshahi, Khulna) could not be handed a file at all.
+  // Confirmed with the client 2026-09-05.
+  "Director":                                      "4",
+  "Director (Admin)":                              "4",
+  "Director (Chemistry)":                          "4",
+  "Director (Metrology)":                          "4",
+  "Director (Physics)":                            "4",
+  "Director (Standards)":                          "4",
 
   // ── Grade 6 ──────────────────────────────────────────────────────────────
   "Deputy Director (Accounts & Audit)":            "6",
@@ -162,14 +168,22 @@ async function main() {
   let updated = 0;
   let unmatched: string[] = [];
 
+  // Grouped into one updateMany per grade rather than a write per post. A round
+  // trip to the remote database costs about half a second, so the per-row loop
+  // this replaces took some five minutes to change twelve distinct values.
+  const idsByGrade = new Map<string, number[]>();
   for (const post of posts) {
     const grade = GRADE[post.nameEn];
-    if (grade) {
-      await p.orgPost.update({ where: { id: post.id }, data: { grade } });
-      updated++;
-    } else {
+    if (!grade) {
       if (!unmatched.includes(post.nameEn)) unmatched.push(post.nameEn);
+      continue;
     }
+    if (!idsByGrade.has(grade)) idsByGrade.set(grade, []);
+    idsByGrade.get(grade)!.push(post.id);
+    updated++;
+  }
+  for (const [grade, ids] of idsByGrade) {
+    await p.orgPost.updateMany({ where: { id: { in: ids } }, data: { grade } });
   }
 
   console.log(`✓ Updated ${updated} / ${posts.length} posts`);
