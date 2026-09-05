@@ -244,7 +244,7 @@ real future use (retirement), and it is *not* computed today —
 
 ### Desks
 
-**479 of 731 now hold an `orgPostId`** — 303 from the original seeding, 176
+**470 of 731 now hold an `orgPostId`** — 288 from the original seeding, 182
 placed by `npm run import:desks` on 2026-09-05. The importer does *not* set it:
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
@@ -273,6 +273,23 @@ matching failure:**
 | no post at that grade in that unit | 58 |
 | wing matches no unit in that office — branch offices have one flat lab where head office has sections | 18 |
 | no grade | 3 |
+
+### Can a CM application be worked in every office?
+
+**Not yet, and the blocker is one thing: nobody holds `office_head`** — 0 of 23
+offices. The role exists (D57) and the inbox is built, but a submitted
+application is received by the office head, so until someone holds it in each
+office no file can start moving anywhere. Assigned at `/hr/listing/roles`.
+
+Everything else is in place. **22 of 23 offices have CM-desked staff** — from 23
+at Chittagong down to 1 at Patuakhali. The exception is **DMI, which has none**,
+and by the jurisdiction default receives nothing anyway.
+
+Eleven offices have only grade 9 in their CM section, so everyone there is a
+peer and cannot pass to each other (D58). That still works: an office head
+passing **down** is exempt from the grade test, so head → FDO → back up is one
+hop each way. Patuakhali, with a single CM desk, needs its office head to be
+someone outside that section.
 
 ### The organogram is not full — it is the wrong shape
 
@@ -308,8 +325,15 @@ Inspector posts at the same grade stand empty. That is where the over-allocation
 comes from, and no matching rule can fix it — either the sanctioned counts are
 out of date or the recorded designations are.
 
+**A desk in the wrong office is released and re-matched.** The original seeding
+put 15 people on posts in another office's subtree — a file routed to their own
+office would have arrived at a desk in someone else's. `import:desks` releases
+those before matching, so it is idempotent except for that one repair. 6 of the
+15 found a seat at home; the other 9 have none at their grade there, which is
+the honest answer.
+
 **Do not "rebalance" to clear the over-allocation.** Simulated: a clean
-capacity-respecting re-allocation of all 617 places only **359**, against 479
+capacity-respecting re-allocation of all 617 places only **359**, against 470
 desked today. Releasing the excess would leave 120 more people unreachable by a
 file than leaving it alone. The over-allocation is untidy; removing it is worse.
 
@@ -934,7 +958,7 @@ can reuse them.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.
-- **252 of 731 employees have no `orgPostId`**, so they have no section and
+- **261 of 731 employees have no `orgPostId`**, so they have no section and
   cannot be handed a file — 114 of them daily basis, who hold no sanctioned post
   by definition. See "Desks" above: what remains is organogram gaps, not
   missing matching.
