@@ -1196,6 +1196,31 @@ can reuse them.
   `toBengaliDigits()`. It appears on the board row and in the desk flow, so
   every desk sees it. **An approved plan cannot be edited or sent back** —
   changing the date means a fresh order, not an edited one.
+- **The FDO's sampling screen** (D87) sits on the process page once the plan is
+  approved — sealing samples for an unauthorised visit would be jars nobody sent
+  anyone to collect. `lib/samples/screen.ts` assembles it; the arithmetic stays
+  Prisma-free in `plan.ts`.
+- **Destinations are derived, counts are entered** (D69), and the screen says
+  which is which. Every row is resolved from `LabRouting` — the officer cannot
+  forget a lab or prepare a box nobody needs — and the one unknown is specimens
+  per variant, which turns on sample quantity and destructive testing, the
+  A§1.2 data nobody has collected.
+- **A remembered figure is a suggestion, never a default.** It was agreed for a
+  different consignment of the same sub-product, so filling it in silently would
+  make last month's quantity this month's decision. It renders as
+  *"2 last time — use it"*.
+- **A cell resting on seeded routing says so** (D66). All 16,399 rows still
+  point at the owning head-office section, and a destination nobody has chosen
+  is not the same fact as one an office decided.
+- **Only `ref` is printed on a label** (D68). `/workflow/[id]/labels` renders a
+  cut-up sheet with the QR to `/s/<ref>`, the sub-product, the size and the
+  specimen number. **The brand is deliberately absent** — the variant *is* the
+  applicant's identity (D71) — and `cmCode` and `labCode` are not even fetched.
+  The QR is generated to SVG **on the server** (`qrcode`), so nothing reaches
+  the client bundle and the same markup screens, prints and goes into a PDF.
+- **Sealing is one irreversible act and the button says so.**
+  `commitSampling()` refuses to run twice: the jars are about to leave in the
+  applicant's hands, so a second plan would be specimens nobody can account for.
 - **The inspection report is the wing's own form, improved where our data
   allows** (D86). `lib/cm/inspection-report.ts`; the catalogues
   (`INSPECTION_CONDITIONS` ×5, `INSPECTION_MARKINGS` ×9,

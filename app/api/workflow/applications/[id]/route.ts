@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireInternal } from "@/lib/auth-guard";
+import { prisma } from "@/lib/prisma";
 import { actorFor, receive, pass, canViewApplication } from "@/lib/workflow/inbox";
 import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
 import {
   proposeInspection, approveInspection, requestPlanRevision, sendPlanForApproval,
 } from "@/lib/cm/inspection";
 import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
+import { setRequirement, commitSampling } from "@/lib/samples/service";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -228,6 +230,49 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         role: actor.role,
       });
       return NextResponse.json({ report });
+    }
+
+    // ── Sampling (D87) ────────────────────────────────────────────────────
+    if (body.action === "sample-count" || body.action === "seal-samples") {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+      // Sampling is the visiting officer's work, so it is guarded on holding
+      // the file like every other act on it. The services check nothing about
+      // who is asking, so this is the only gate.
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { holderEmployeeId: true },
+      });
+      if (app?.holderEmployeeId !== actor.employeeId) {
+        return NextResponse.json(
+          { error: "Only whoever is holding this file can plan its sampling." },
+          { status: 403 },
+        );
+      }
+
+      if (body.action === "sample-count") {
+        const asp = Number(body.applicationSubProductId);
+        const labId = Number(body.labId);
+        const n = Number(body.samplesPerVariant);
+        if (!Number.isInteger(asp) || !Number.isInteger(labId)) {
+          return NextResponse.json({ error: "Which cell?" }, { status: 400 });
+        }
+        await setRequirement({
+          applicationSubProductId: asp,
+          labId,
+          samplesPerVariant: n,
+          employeeId: actor.employeeId,
+          note: typeof body.note === "string" ? body.note : undefined,
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      const result = await commitSampling(applicationId, actor.employeeId);
+      return NextResponse.json(result);
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

@@ -15,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import ReviewPanel from "../_components/ReviewPanel";
 import InspectionPanel from "../_components/InspectionPanel";
 import ReportPanel from "../_components/ReportPanel";
+import SamplingPanel from "../_components/SamplingPanel";
+import { samplingView } from "@/lib/samples/screen";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +67,13 @@ export default async function ProcessPage({
     reportFor(applicationId),
     prisma.sizeUnit.findMany({ select: { id: true, code: true, nameEn: true }, orderBy: { code: "asc" } }),
   ]);
+
+  /**
+   * Only once the visit is authorised: sealing samples for an unapproved
+   * inspection would be jars nobody sent anyone to collect (D87). Sequential
+   * rather than in the batch above, because it needs the plan's answer first.
+   */
+  const sampling = plan?.approvedAt ? await samplingView(applicationId) : null;
 
   const stage = stageInfo(app.state);
   const isHolder = !!actor.employeeId && app.holderEmployeeId === actor.employeeId;
@@ -235,6 +244,17 @@ export default async function ProcessPage({
               history, and reading them next to the inspection plan made them
               look like part of it. */}
           <div className="space-y-5">
+            {sampling && (
+              <SamplingPanel
+                applicationId={app.id}
+                cells={sampling.cells}
+                boxes={sampling.boxes}
+                problems={sampling.problems}
+                committed={sampling.committed}
+                canEdit={isHolder}
+              />
+            )}
+
             {/* The report follows the approved order: the visit has to have
                 been authorised before there is anything to report on (D86). */}
             {plan?.approvedAt && (
