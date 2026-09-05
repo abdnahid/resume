@@ -274,6 +274,45 @@ matching failure:**
 | wing matches no unit in that office — branch offices have one flat lab where head office has sections | 18 |
 | no grade | 3 |
 
+### The organogram is not full — it is the wrong shape
+
+Checked 2026-09-05, because 54 posts hold 170 people beyond their sanctioned
+count and that looks like overcrowding. It is not.
+
+**In aggregate there is plenty of room.** 842 sanctioned posts excluding the 12
+outsourcing ones, against **617 permanent staff** — 225 spare. No daily-basis
+employee holds an organogram post; they are not on the sanctioned strength at
+all. Grade 9 alone has **495 posts for 333 staff**.
+
+**The mismatch is by designation, and it is of two kinds.**
+
+*Designations the organogram has no post for:*
+
+| Designation | Staff | Grade | Posts at that grade |
+|---|---|---|---|
+| Examiner | 40 | 10 | **none anywhere** |
+| Director | 9 | 4 | **none anywhere** (organogram puts Directors at 3 and 5) |
+| Chief Assistant | 6 | 12 | **none anywhere** |
+
+*And one crowded at a grade that is otherwise half empty:*
+
+| Designation | Posts | Staff |
+|---|---|---|
+| Field Officer | 25 | **61** |
+| Senior Inspector | 22 | **0** |
+| Assistant Director | 89 | 87 |
+| Inspector | 66 | 70 |
+
+61 Field Officers are being squeezed into 25 sanctioned posts while 22 Senior
+Inspector posts at the same grade stand empty. That is where the over-allocation
+comes from, and no matching rule can fix it — either the sanctioned counts are
+out of date or the recorded designations are.
+
+**Do not "rebalance" to clear the over-allocation.** Simulated: a clean
+capacity-respecting re-allocation of all 617 places only **359**, against 479
+desked today. Releasing the excess would leave 120 more people unreachable by a
+file than leaving it alone. The over-allocation is untidy; removing it is worse.
+
 **54 posts are over their sanctioned count**, all from the original seeding,
 which picked a post without checking capacity. `import:desks` never adds to
 one: it only fills a seat that is free, and only ever fills a null `orgPostId`,
