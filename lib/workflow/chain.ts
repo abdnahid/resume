@@ -58,12 +58,41 @@ export function rank(grade: number | null): number {
 }
 
 /**
+ * Seniority as a pair: the pay grade first, then the rank of the designation
+ * *within* that grade. Lower is more senior in both.
+ *
+ * **The grade alone is not an order.** Assistant Director, Field Officer,
+ * Examiner, Inspector and Senior Examiner are all on grade 9, and at head
+ * office 16 of the CM wing's 22 desks sit in that one band — 6 Assistant
+ * Directors and 10 Field Officers. By grade they are all peers, so an AD could
+ * not hand work to a Field Officer at all, which is the first step of the
+ * processing chain the spec describes: office head → AD (CM) → FO (CM).
+ *
+ * So a tie on grade is broken by `deskRank()`, the same table the picker groups
+ * by. It already encodes the real order — that is what it was written for — and
+ * using it here means the two can never disagree about who is senior to whom.
+ *
+ * Peers are still peers: two Assistant Directors on grade 9 tie on *both*
+ * halves, and a file may not move between them.
+ */
+export function seniority(d: Desk): [number, number] {
+  return [rank(d.grade), deskRank(d.designation).order];
+}
+
+/** Is `a` strictly junior to `b`? */
+function isJuniorTo(a: Desk, b: Desk): boolean {
+  const [ag, ao] = seniority(a);
+  const [bg, bo] = seniority(b);
+  return ag !== bg ? ag > bg : ao > bo;
+}
+
+/**
  * May `sender` hand the file to `candidate` in this direction?
  *
- * Same section, and strictly the right side of the sender by grade. "Strictly"
- * matters: two officers on one grade are peers, and letting a file move
- * sideways would make "who holds it" a question of who clicked first, with no
- * way to read the chain back afterwards.
+ * Same section, and strictly the right side of the sender by seniority.
+ * "Strictly" matters: two officers of the same rank are peers, and letting a
+ * file move sideways would make "who holds it" a question of who clicked first,
+ * with no way to read the chain back afterwards.
  */
 export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): boolean {
   if (candidate.employeeId === sender.employeeId) return false;
@@ -72,15 +101,19 @@ export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): 
   if (candidate.sectionUnitId !== sender.sectionUnitId) return false;
 
   return direction === "down"
-    ? rank(candidate.grade) > rank(sender.grade)
-    : rank(candidate.grade) < rank(sender.grade);
+    ? isJuniorTo(candidate, sender)
+    : isJuniorTo(sender, candidate);
 }
 
 /** The desks a sender may choose from, most senior first. */
 export function eligibleDesks(sender: Desk, all: Desk[], direction: Direction): Desk[] {
   return all
     .filter((d) => canPassTo(sender, d, direction))
-    .sort((a, b) => rank(a.grade) - rank(b.grade) || a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const [ag, ao] = seniority(a);
+      const [bg, bo] = seniority(b);
+      return ag - bg || ao - bo || a.name.localeCompare(b.name);
+    });
 }
 
 /** How a movement reads in the file's history. */

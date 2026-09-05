@@ -276,6 +276,50 @@ Passed down to KAWSER AHMED KHAN, by Md. Alauddin Hussain
 Passed down to AFSANA HOSSAIN, by KAWSER AHMED KHAN — সহকারী পরিচালক
 ```
 
+### User
+
+> The application is at Afsana hossain's desk. Why cant she see any Field
+> officer to pass down?
+
+### Assistant
+
+Because **she is an Assistant Director on grade 9 and every Field Officer in the
+CM wing is also grade 9.** `canPassTo` demanded the candidate be *strictly* more
+junior by grade and refused peers by design (D58), so all 10 FOs and the 5 other
+ADs were invisible. She could pass down only to the Office Assistant (g20) and
+the Computer Operator (g16).
+
+**The grade alone is not an order, and that is the real finding.** Assistant
+Director, Field Officer, Examiner, Inspector and Senior Examiner all sit on
+grade 9 — 16 of head office's 22 CM desks are in that one band. The codebase
+already knew: `RANK_TABLE` was written for exactly this observation, and
+`CLAUDE.md` already stated the chain as *"AD (CM) → FO (CM) carries it on"*. The
+table was only being consulted to group the picker, never to decide seniority.
+
+So `seniority()` now returns a **pair** — grade first, then `deskRank().order`
+within it (D78, amending D58). Using the same table the picker groups by means
+the order shown and the order enforced cannot drift apart.
+
+**Purely additive.** It only decides pairs that tie on grade; where grades differ
+the answer is unchanged, so no hand-off that worked before can stop working.
+Peers remain peers: two ADs on grade 9 tie on both halves.
+
+**Verified across all 23 offices, not just this one:**
+
+```
+possible pass-down pairs        3,423 → 4,730
+desks that could reach nobody       5 → 0
+```
+
+Those five were **Cox's Bazar, deadlocked outright** — five desks all on grade 9
+and not one hand-off possible between them. Eleven offices have only grade 9 in
+their CM section and all of them were limited to head → FDO → back up.
+
+The chain at head office now reads properly in both directions: Afsana passes
+down to 10 Field Officers and up to the Director and 3 Deputy Directors; a Field
+Officer sends up to 6 ADs, 3 DDs and the Director; a DD passes down to ADs and
+FOs and up to the acting Director alone.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

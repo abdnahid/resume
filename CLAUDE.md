@@ -385,11 +385,13 @@ Everything else is in place. **22 of 23 offices have CM-desked staff** — from 
 at Chittagong down to 1 at Patuakhali. The exception is **DMI, which has none**,
 and by the jurisdiction default receives nothing anyway.
 
-Eleven offices have only grade 9 in their CM section, so everyone there is a
-peer and cannot pass to each other (D58). That still works: an office head
-passing **down** is exempt from the grade test, so head → FDO → back up is one
-hop each way. Patuakhali, with a single CM desk, needs its office head to be
-someone outside that section.
+Eleven offices have only grade 9 in their CM section. That used to make everyone
+there a peer, so a file could move head → FDO → back up and no further;
+**Cox's Bazar was deadlocked outright**, five desks and not one hand-off
+possible between them. The grade tie is now broken by designation rank (D78), so
+AD (CM) → FO (CM) works inside the band and every office has a chain.
+Patuakhali, with a single CM desk, still needs its office head to be someone
+outside that section.
 
 ### The organogram is not full — it is the wrong shape
 
@@ -1090,15 +1092,27 @@ can reuse them.
 - **A file is held by a person**, `Application.holderEmployeeId`, and every
   hand-off writes an `ApplicationMovement`. "Nobody holds it" *is* the
   definition of unclaimed — there is no parallel state to disagree with.
-- **Seniority is the pay grade, not the org tree.** The organogram puts a branch
-  Director in the Executive unit beside their stenographer while the officers
-  sit in sibling units, so depth is useless. It is the **employee's** grade, not
-  the post's: an officer on grade 9 may sit on a post graded 11.
+- **Seniority is the pay grade, then the designation within it** — `seniority()`
+  returns the pair (D78). The organogram puts a branch Director in the Executive
+  unit beside their stenographer while the officers sit in sibling units, so
+  depth is useless. It is the **employee's** grade, not the post's: an officer
+  on grade 9 may sit on a post graded 11.
   **`Posting.orgPostId` is null on every row** — the organogram link is
   `Employee.orgPostId`. Read the posting's org post and every desk gets a null
   section and no chain.
-- **Peers cannot pass to each other.** Sideways movement would make "who holds
-  it" a matter of who clicked, with no chain to read back.
+- **The grade alone is not an order, and that is not a detail.** Assistant
+  Director, Field Officer, Examiner, Inspector and Senior Examiner are *all*
+  grade 9 — 16 of head office's 22 CM desks sit in that one band. By grade they
+  were all peers, so an AD could not hand work to a Field Officer, which is the
+  processing chain the spec names: office head → AD (CM) → FO (CM). The tie is
+  broken by `deskRank()`, **the same table the picker groups by**, so the two
+  can never disagree about who is senior. Purely additive: it only changes pairs
+  that tie on grade, so nothing that worked before can break. 3,423 possible
+  hand-offs became 4,730, and the desks that could reach nobody at all went from
+  5 to 0.
+- **Peers still cannot pass to each other.** Two Assistant Directors on grade 9
+  tie on *both* halves. Sideways movement would make "who holds it" a matter of
+  who clicked, with no chain to read back.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.
