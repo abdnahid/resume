@@ -20,6 +20,7 @@
     "migrate:postings": "tsx prisma/migrate-postings.ts",
     "import:products": "tsx prisma/import/mandatory-315.ts",
     "import:test-parameters": "tsx prisma/import/test-parameters.ts",
+    "import:desks": "tsx prisma/import/desks.ts",
     "seed:labs": "tsx prisma/seed-labs.ts"
   },
   "dependencies": {

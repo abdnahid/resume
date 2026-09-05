@@ -109,8 +109,8 @@ const gradeOf = (g: string | null | undefined): number | null => {
  * Where a desk's unit and grade actually come from.
  *
  * **Not from the posting.** `Posting` carries the office and the grade but its
- * `orgPostId` is null on all 554 rows — the organogram link lives on
- * `Employee.orgPostId`, which is set for 303 of them. Reading the posting's
+ * `orgPostId` is null on every row — the organogram link lives on
+ * `Employee.orgPostId`, which is set for 439 of 624. Reading the posting's
  * org post therefore gave every desk a null section and no chain at all.
  *
  * **Grade is the person's, not the post's.** They differ in real data: an

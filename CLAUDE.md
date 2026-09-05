@@ -10,9 +10,10 @@ path prefixes. The HR module is built and in use; the BDS store catalogue and
 client accounts are new; the CM quality-certification module is the large piece
 ahead.
 
-**The roster is real.** 554 employees were imported from the HR system's export
-on 2026-08-29, replacing the demo data — 348 officers, 113 staff, 93 daily
-basis, across all 23 offices. Payroll runs on it: pay scale, house rent, salary
+**The roster is real.** 624 employees are imported from the HR system's export
+— 407 officers, 124 staff, 93 daily basis, across all 23 offices. First loaded
+2026-08-29 (554 people); the export was refreshed 2026-09-05 and brought 70
+more. Payroll runs on it: pay scale, house rent, salary
 heads, court verdicts, processed months and bank advice are all live features
 over live people. Treat mistakes here as mistakes about someone's salary.
 
@@ -183,26 +184,26 @@ else is INTERNAL only.
 
 ## Who is in the roster, and who is not
 
-554 of the 773 records in `utils/employee_bio.json` were imported; 218 were
-rejected. Investigated 2026-09-02 — the analysis is here because it is not
-recoverable from the code, only from the export.
+**624 of the 815 records in `utils/employee_bio.json` are imported; 151 are
+rejected.** The export was refreshed on 2026-09-05. The analysis below is here
+because it is not recoverable from the code, only from the export.
+
+**The `no bio` group is gone.** 72 records used to carry a null `bio` because
+the HR system's detail API returned 500; the refreshed export has all of them,
+which is where 70 of the new arrivals come from. That was the valuable group —
+18 of them CM Wing, the section whose workflow chain is one desk deep.
+
+| Reason | Count | Fixable in our schema? |
+|---|---|---|
+| identity incomplete | **118** | Yes — see below |
+| bad id | 21 | No |
+| no office | 12 | Partly |
+
+Many of the 118 are now missing only **one** field — gender alone, or date of
+birth alone — rather than all five, so the group is closer to admissible than
+it was.
 
 **The rejections are two different problems, and they need different fixes.**
-
-| Reason | Count | What is actually missing | Fixable in our schema? |
-|---|---|---|---|
-| identity incomplete | **115** | date of birth, gender, marital status, father's and mother's name — nearly all of them lack **all five** | Yes |
-| no bio | **72** | the HR system's detail API returned 500, so `bio` is null. `name_bn` is absent in **all 73** such records | Yes, differently |
-| bad id | 19 | a mobile number or an email in the id field | No |
-| no office | 12 | no office named | Partly |
-
-**The `no bio` group is the valuable one.** Those records still carry
-`name_en`, `designation`, `wing` and `office`, and the office resolves for 72
-of 73. Their designations are the workflow chain itself — 16 Assistant
-Directors, 15 Examiners, 11 Field Officers, 8 Deputy Directors, 5 Inspectors —
-and **18 of them are CM Wing**, which is exactly the section whose chain is one
-desk deep. Example: `20103010067`, Afsana Hossain, Assistant Director (চলতি) in
-সিএম বিভাগ, is absent for this reason and not for the identity one.
 
 **The bare minimum a person needs, per function.** Worth knowing before
 relaxing anything, because the schema demands far more than any of these use:
@@ -222,9 +223,41 @@ the only thing keeping those 115 people out. Date of birth is the one with a
 real future use (retirement), and it is *not* computed today —
 `postRetirementLeave` and `fullRetirement` are stored columns.
 
-**Neither fix addresses the desk problem.** Anyone imported this way still
-arrives without `orgPostId`, so they would be payroll-capable but have no
-workflow section. See the organogram note in the Workflow section.
+### Desks
+
+**439 of 624 now hold an `orgPostId`** — 303 from the original seeding, 136
+placed by `npm run import:desks` on 2026-09-05. The importer does *not* set it:
+the export names an office and a wing, never a sanctioned post, so joining the
+two is a separate, reviewable step that writes
+`utils/desk-assignment-report.txt` listing every assignment it makes.
+
+**Matching is office → wing → grade → title.** The last two both matter:
+সিএম ঢাকা has Field Officer (CM) and Assistant Director (CM) *both at grade 9*,
+so grade alone put an Assistant Director on a Field Officer's desk. Routing
+seniority reads the employee's grade, so nothing broke — but the desk a person
+is shown at should be the job they hold.
+
+**The two systems spell the same section differently**, with typos on both
+sides — the export writes টেক্সটাইল and the organogram ট্রেক্সটাইল, the export
+ব্যাকটেরিলিওজি and the organogram ব্যাকটেরিওলজি. So the wing is matched by edit
+distance and anything inexact is reported separately for a human to read. The
+organogram also writes **Barisal** where the office register writes
+**Barishal** — the same alias the labs needed.
+
+**185 still have no desk, and every reason is an organogram gap rather than a
+matching failure:**
+
+| Reason | Count |
+|---|---|
+| daily basis — not on the sanctioned strength, so there is no post to hold | 93 |
+| no post at that grade in that unit | 49 |
+| every post at that grade is already full | 29 |
+| wing matches no unit in that office — branch offices have one flat lab where head office has sections | 14 |
+
+**54 posts are over their sanctioned count**, all from the original seeding,
+which picked a post without checking capacity. `import:desks` never adds to
+one: it only fills a seat that is free, and only ever fills a null `orgPostId`,
+so a re-run cannot move anyone placed by hand.
 
 ## Salary
 
@@ -834,7 +867,7 @@ can reuse them.
   Director in the Executive unit beside their stenographer while the officers
   sit in sibling units, so depth is useless. It is the **employee's** grade, not
   the post's: an officer on grade 9 may sit on a post graded 11.
-  **`Posting.orgPostId` is null on all 554 rows** — the organogram link is
+  **`Posting.orgPostId` is null on every row** — the organogram link is
   `Employee.orgPostId`. Read the posting's org post and every desk gets a null
   section and no chain.
 - **Peers cannot pass to each other.** Sideways movement would make "who holds
@@ -842,8 +875,10 @@ can reuse them.
 - **An office head passing down is exempt from the grade test**, because an
   acting head is the top of their section whatever their own grade — which is
   the whole reason it is a role and not a designation.
-- **251 of 554 employees have no `orgPostId`**, so they have no section and
-  cannot be handed a file. That is missing organogram placement, not a bug.
+- **185 of 624 employees have no `orgPostId`**, so they have no section and
+  cannot be handed a file — 93 of them daily basis, who hold no sanctioned post
+  by definition. See "Desks" above: what remains is organogram gaps, not
+  missing matching.
 
 ## Payments
 
@@ -1033,6 +1068,7 @@ npm run import:report    # dry run over utils/employee_bio.json — writes a rep
 npm run import:employees # import/refresh employees from the HR export (upsert, never deletes)
 npm run import:retire    # remove employees the export does not contain (dry run without --yes)
 npm run import:products  # the 315 mandatory products (--dry to report without writing)
+npm run import:desks     # place employees on organogram posts (--dry to report without writing)
 
 npm run import:test-parameters # a wing's test-parameter file → the Phase G catalogue (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)
