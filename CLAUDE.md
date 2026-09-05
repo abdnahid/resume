@@ -47,6 +47,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 | Log | Covers |
 |---|---|
 | `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
+| `docs/sessions/workflow-desks-and-office-heads.md` | The `/workflow` board, organogram placement, and the `office_head` role — who can be handed a file, and why five offices could not pass one on. Started 2026-09-05, covering work begun 2026-09-02 with step 8a. |
 
 Two rules from the spec that carry real weight:
 
@@ -251,6 +252,14 @@ placed by `npm run import:desks` on 2026-09-05, then 5 office heads seated by
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
 `utils/desk-assignment-report.txt` listing every assignment it makes.
+
+**The picker reads `designationEn` only, and 42 desked employees have none.**
+`EMPLOYEE_DESK_SELECT` in `lib/workflow/inbox.ts` selects the English
+designation and `toDesk()` hands it to `deskRank()`, so 3 Deputy Directors, 15
+Assistant Directors and 11 Field Officers who carry only the Bangla fall into
+the picker's **Other** group instead of their own rank. `RANK_TABLE` already
+holds every Bangla pattern that would match them — the field is simply never
+read. Select `designationBn` too and fall back to it.
 
 **Matching is office → wing → grade → title.** The last two both matter:
 সিএম ঢাকা has Field Officer (CM) and Assistant Director (CM) *both at grade 9*,
