@@ -691,6 +691,52 @@ so the two views cannot drift apart. Each has its own `loading.tsx`. The preview
 went from **3.89 kB of client JavaScript to 210 B** — every interactive panel
 now lives on the page that needs it.
 
+### User
+
+> The immediate availabe senior of FDO will handle this approval only. No need to
+> bother higher authority. Higher authority is satisfied with the desk flow
+> update. Another thing-> FDO should be by default selected in inspection team
+> preparation. Team selection should be searchable multiple option select box
+> like sub-product selection process and categorized like pass-down and sent-up
+> button flow.
+
+### Assistant
+
+Approval moved from the office head to the proposer's **immediate senior**
+(D83). `immediateSeniors()` is the smallest step up the D78 seniority pair —
+which is what makes it work at all: BORHAN UDDIN is a Field Officer on grade 9,
+and his approvers are the **six Assistant Directors on the same grade 9**, not
+the Deputy Directors above them. Grade alone could not have told those apart;
+D78's tie-break is what does.
+
+Several people share the rung and any of them may act, because an approval only
+one named person can give waits for him to come back from leave. A desk further
+up may still approve rather than being refused — a file passed higher than it
+needed to go would otherwise be stranded — but the proposer may never approve
+his own plan.
+
+The proposer is now ticked by default: he is the one going. Only for a plan that
+does not exist yet, so re-adding him to a saved plan cannot put him back on a
+visit a senior desk removed him from.
+
+The picker is searchable and grouped by `groupByRank()`, the same table the
+pass-down list uses, so an officer sees his colleagues under the same headings
+wherever he is choosing from them — and for the same reason it mattered there:
+ten Field Officers and six Assistant Directors in this wing are all grade 9.
+
+**Verified read-only.** The live file had a plan in flight, so nothing was
+written this time:
+
+```
+proposer BORHAN UDDIN, Field Officer, grade 9
+immediate seniors (6): the Assistant Directors, all grade 9
+desks further above, also permitted: 4
+peers and juniors refused: 11
+the proposer's own attempt: refused
+picker: 22 in section under 6 rank headings, proposer present
+plan unchanged: true
+```
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

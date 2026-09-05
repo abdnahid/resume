@@ -1149,20 +1149,38 @@ can reuse them.
 - **The review closes when the file is marked ready.** `reviewIsClosed()` in
   `lib/cm/inspection.ts`; the panel that raises a shortfall disappears rather
   than offering a button the service would refuse.
-- **The inspection plan travels with the file, and the office head approves it**
-  (D82). `lib/cm/inspection.ts`. Whoever holds the file proposes a date and a
-  team; every desk above may **correct** it, because a senior officer who cannot
-  change a plan he is accountable for has to send it back instead — a round trip
-  for a typed date. Approval is `office_head`, which is the wing's Director or
-  the officer acting in that post (D57, D74), so the role already answers "who
-  is the Director here". The approver must also **hold** the file and belong to
-  its office.
+- **The inspection plan travels with the file** (D82). `lib/cm/inspection.ts`.
+  Whoever holds the file proposes a date and a team; every desk above may
+  **correct** it, because a senior officer who cannot change a plan he is
+  accountable for has to send it back instead — a round trip for a typed date.
+- **The approver is the proposer's immediate senior** (D83), not the office
+  head: "is this plan sound" is answered by whoever the officer reports to, and
+  sending it to a Director is asking him to read a date — the higher authority
+  follows it on the desk flow instead. `immediateSeniors()` in `chain.ts` names
+  that rung as the smallest step up the D78 seniority pair, which is what makes
+  it work at all: a Field Officer's approvers are the six Assistant Directors on
+  his own grade 9, not the Deputy Directors above them, and grade alone could
+  not tell those apart. Several people share the rung and **any may act** — an
+  approval only one named person can give waits for him to come back. A desk
+  further up may also approve, because refusing would strand a file passed
+  higher than it needed to go. The proposer may never approve his own plan, and
+  the approver must **hold** the file. The inspection and sampling reports will
+  take the same rule.
 - **Approval issues the office order**, `<office>/INS/<year>/<serial>`, numbered
   then and not at proposal — the same reason an application number waits for
   submission: a number quoted to a factory should mean a visit that will happen.
   It appears on the board row and in the desk flow, so every desk sees it.
   **An approved plan cannot be edited or sent back** — changing the date means a
   fresh order, not an edited one.
+- **The proposer is on the team by default** — he is the one going, and making
+  him tick his own name is a step that is wrong every time it is skipped. Only
+  for a plan that does not exist yet: re-adding him to a saved plan would put
+  him back on a visit a senior desk had removed him from.
+- **The team picker is searchable and grouped by `groupByRank()`** — the same
+  table the pass-down list uses, so an officer sees his colleagues under the
+  same headings wherever he chooses from them. It matters here for the reason it
+  mattered there: ten of the CM wing's Field Officers and six of its Assistant
+  Directors are all on grade 9.
 - **The team is chosen from the proposer's own section, not the office.** Head
   office has 392 desks and an inspection team is drawn from the wing that owns
   the file, so offering the building turns a short choice into a search and
