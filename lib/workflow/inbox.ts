@@ -232,7 +232,7 @@ const LIST_SELECT = {
   state: true,
   submittedAt: true,
   holderEmployeeId: true,
-  holder: { select: { id: true, nameEn: true, designationEn: true } },
+  holder: { select: { id: true, nameEn: true, designationEn: true, designationBn: true } },
   organization: { select: { nameEn: true } },
   factory: { select: { nameEn: true, district: true } },
   product: { select: { serial: true, nameEn: true } },
@@ -280,12 +280,66 @@ export async function heldBy(employeeId: string) {
   });
 }
 
+/**
+ * Files this desk has handled and no longer holds.
+ *
+ * A file leaves your screen the moment you pass it on, which is right for "what
+ * is on my desk" and wrong for everything else: the officer who wrote the
+ * inspection report is the one the applicant telephones, and until now he had
+ * no way to answer. Standing comes from the movement log rather than from a
+ * role — you can see a file because you handled it, which is a fact about this
+ * file and not a permission somebody granted.
+ *
+ * Both directions of the log count. `toEmployeeId` is every desk that held it;
+ * `fromEmployeeId` adds the one case that is not covered, an office head who
+ * received a file and passed it down in the same sitting.
+ *
+ * It is deliberately not office-scoped. Someone who handled a file and has
+ * since transferred still handled it, and hiding it would make the history
+ * disagree with itself.
+ */
+export async function touchedBy(employeeId: string) {
+  return prisma.application.findMany({
+    where: {
+      movements: {
+        some: { OR: [{ toEmployeeId: employeeId }, { fromEmployeeId: employeeId }] },
+      },
+    },
+    select: LIST_SELECT,
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+/**
+ * The desk flow for several files at once.
+ *
+ * One query for the whole board rather than one per row: the board already
+ * loads every file it shows, and a request per card is what made the previous
+ * page feel slow.
+ */
+export async function flowsFor(applicationIds: number[]) {
+  if (applicationIds.length === 0) return [];
+  return prisma.applicationMovement.findMany({
+    where: { applicationId: { in: applicationIds } },
+    select: {
+      id: true,
+      applicationId: true,
+      direction: true,
+      note: true,
+      createdAt: true,
+      fromEmployee: { select: { nameEn: true, designationEn: true, designationBn: true } },
+      toEmployee: { select: { nameEn: true, designationEn: true, designationBn: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+}
+
 export async function movementsFor(applicationId: number) {
   return prisma.applicationMovement.findMany({
     where: { applicationId },
     include: {
-      fromEmployee: { select: { nameEn: true, designationEn: true } },
-      toEmployee: { select: { nameEn: true, designationEn: true } },
+      fromEmployee: { select: { nameEn: true, designationEn: true, designationBn: true } },
+      toEmployee: { select: { nameEn: true, designationEn: true, designationBn: true } },
     },
     orderBy: { id: "asc" },
   });

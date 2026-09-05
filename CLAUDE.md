@@ -1074,6 +1074,19 @@ can reuse them.
   applications; `officeadmin` does not. Payroll authority and file-routing
   authority are different jobs. `User.role` is one enum, so nobody is both —
   accepted deliberately (D57).
+- **A desk that has handled a file keeps seeing it** (D77). `touchedBy()` reads
+  the movement log, so standing is a *fact about the file* rather than a
+  permission somebody granted — and it carries no power, because every action
+  still keys off holding it. A file used to vanish the moment you passed it on,
+  which is right for "what is on my desk" and wrong for everything else: the
+  officer who wrote the inspection report is the one the applicant telephones,
+  and he could not answer. Both directions of the log count — `toEmployeeId` is
+  every desk that held it, and `fromEmployeeId` adds the office head who
+  received and passed down in one sitting. Deliberately **not** office-scoped: a
+  person who handled a file and has since transferred still handled it.
+- **The desk flow is on the board**, collapsed, one query for every row
+  (`flowsFor()`), rendered through the same `describeMovement()` the server half
+  uses (D9) so a reassignment reads identically wherever it appears.
 - **A file is held by a person**, `Application.holderEmployeeId`, and every
   hand-off writes an `ApplicationMovement`. "Nobody holds it" *is* the
   definition of unclaimed — there is no parallel state to disagree with.

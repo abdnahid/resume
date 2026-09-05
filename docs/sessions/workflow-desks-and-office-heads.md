@@ -221,6 +221,61 @@ the script is the only path today.
 held by a non-serving officer, and Alauddin can pass it to 21 desks including
 all three CM Deputy Directors.
 
+### User
+
+> All the subsequent desks of processed application should be able to see the
+> application and its current status. Can also see the desk flow
+
+### Assistant
+
+Built. A file used to leave your board the moment you passed it on, which is
+right for "what is on my desk" and wrong for everything else — the officer who
+wrote the inspection report is the one the applicant telephones, and he had no
+way to answer.
+
+**Standing comes from the movement log, not from a role.** `touchedBy()` returns
+every application whose `ApplicationMovement` names you in either direction:
+`toEmployeeId` is every desk that held it, and `fromEmployeeId` catches the one
+case that misses — an office head who received a file and passed it down in the
+same sitting. It is a fact about the file rather than a permission, and it
+grants nothing: `PassPanel` and `ReceiveButton` still key off holding it, and
+`pass()` re-checks on the server.
+
+Deliberately **not** office-scoped. Somebody who handled a file and has since
+transferred still handled it, and hiding it would make the history disagree with
+itself.
+
+A fifth tile, **"You handled"**, and a collapsed **Desk flow** on every card —
+one `flowsFor()` query for the whole board rather than one per row, rendered
+through the same `describeMovement()` the server half uses (D9), so a
+reassignment reads identically wherever it appears.
+
+**Also fixed while here:** `flowsFor()`, `movementsFor()` and the board's holder
+line all read `designationEn` alone, so Afsana Hossain — one of the 42 who carry
+only the Bangla — rendered with a blank designation. The same fallback as the
+picker.
+
+**Verified against the live database.** The file had moved on by then, which
+made a better test than a synthetic one:
+
+```
+Md. Golam Rabbani     Deputy Director   → CM-2026-000019 [handled]
+Md. Alauddin Hussain  Deputy Director   → CM-2026-000019 [handled]
+KAWSER AHMED KHAN     Deputy Director   → CM-2026-000019 [handled]
+AFSANA HOSSAIN        সহকারী পরিচালক    → CM-2026-000019 [mine]
+মোহাম্মদ আরাফাত হোসেন সরকার              → nothing
+```
+
+And the flow reads end to end, in both languages:
+
+```
+Received by Md. Golam Rabbani — Deputy Director
+Reassigned to Md. Alauddin Hussain, from Md. Golam Rabbani
+  “Reassigned by administration: Md. Golam Rabbani is retired.”
+Passed down to KAWSER AHMED KHAN, by Md. Alauddin Hussain
+Passed down to AFSANA HOSSAIN, by KAWSER AHMED KHAN — সহকারী পরিচালক
+```
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Building2, FileText, Inbox, MapPin } from "lucide-react";
+import { Building2, ChevronDown, FileText, Inbox, MapPin } from "lucide-react";
 import { ReceiveButton, PassPanel } from "./FileActions";
-import type { Desk } from "@/lib/workflow/chain";
+import { describeMovement, type Desk } from "@/lib/workflow/chain";
 
 /**
  * The desk a file arrives at, as a board rather than three fixed lists.
@@ -34,24 +34,38 @@ export type BoardRow = {
   holderName: string | null;
   holderDesignation: string | null;
   /** Which list this row belongs to from the viewer's point of view. */
-  bucket: "mine" | "unclaimed" | "working";
+  bucket: "mine" | "unclaimed" | "working" | "handled";
+};
+
+/** One hand-off in a file's history, as the board renders it. */
+export type FlowStep = {
+  id: number;
+  direction: string;
+  fromName: string | null;
+  toName: string;
+  toDesignation: string | null;
+  note: string | null;
+  at: string;
 };
 
 const BUCKETS = [
   { key: "mine", label: "With you", blurb: "You are holding these." },
   { key: "unclaimed", label: "Waiting to be received", blurb: "Submitted, not yet picked up." },
   { key: "working", label: "Being processed", blurb: "Held by someone in the office." },
+  { key: "handled", label: "You handled", blurb: "Passed on, still yours to follow." },
 ] as const;
 
 type BucketKey = (typeof BUCKETS)[number]["key"];
 
 export default function FileBoard({
   rows,
+  flows,
   down,
   up,
   canReceive,
 }: {
   rows: BoardRow[];
+  flows: Record<number, FlowStep[]>;
   down: Desk[];
   up: Desk[];
   canReceive: boolean;
@@ -82,7 +96,7 @@ export default function FileBoard({
 
   return (
     <>
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Tile
           label="All files"
           n={count("all")}
@@ -120,10 +134,8 @@ export default function FileBoard({
           </p>
         ) : (
           shown.map((a) => (
-            <article
-              key={a.id}
-              className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between"
-            >
+            <article key={a.id} className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm font-semibold text-foreground">
@@ -177,11 +189,80 @@ export default function FileBoard({
                   </p>
                 )}
               </div>
+              </div>
+
+              <DeskFlow steps={flows[a.id] ?? []} />
             </article>
           ))
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * The desks a file has passed through, most recent last.
+ *
+ * Collapsed by default: the board answers "where is it" at a glance and the
+ * history is the follow-up question, so it should not push every other row down
+ * the page. `describeMovement` is shared with the server half (D9), which is
+ * what keeps "Reassigned to X, from Y" reading the same wherever it appears.
+ */
+function DeskFlow({ steps }: { steps: FlowStep[] }) {
+  const [open, setOpen] = useState(false);
+  if (steps.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+      >
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          strokeWidth={1.8}
+        />
+        Desk flow
+        <span className="text-muted-foreground/70">
+          ({steps.length} {steps.length === 1 ? "step" : "steps"})
+        </span>
+      </button>
+
+      {open && (
+        <ol className="mt-3 space-y-3">
+          {steps.map((s, i) => (
+            <li key={s.id} className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span
+                  className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                    i === steps.length - 1 ? "bg-primary" : "bg-border"
+                  }`}
+                />
+                {i < steps.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
+              </div>
+              <div className="min-w-0 pb-1">
+                <p className="text-sm text-foreground">
+                  {describeMovement({
+                    direction: s.direction,
+                    fromName: s.fromName,
+                    toName: s.toName,
+                  })}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {s.toDesignation ? `${s.toDesignation} · ` : ""}
+                  {s.at}
+                </p>
+                {s.note && (
+                  <p className="mt-1 text-xs italic text-muted-foreground">“{s.note}”</p>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }
 

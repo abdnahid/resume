@@ -1,9 +1,11 @@
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { requireInternal } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
-import { actorFor, inboxScope, unclaimed, inProgress, heldBy, candidates } from "@/lib/workflow/inbox";
+import {
+  actorFor, inboxScope, unclaimed, inProgress, heldBy, touchedBy, flowsFor, candidates,
+} from "@/lib/workflow/inbox";
 import { stageInfo } from "@/lib/cm/states";
-import FileBoard from "./_components/FileBoard";
+import FileBoard, { type FlowStep } from "./_components/FileBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,13 @@ const navItems = [{ label: "Files", href: "/workflow" }];
  * counts are tiles and the tiles are the filter, so "what is sitting at the
  * test fee" is a click rather than a read of every row.
  *
+ * **A file you have handled stays visible after you pass it on.** It used to
+ * vanish, which is right for "what is on my desk" and wrong for everything
+ * else: the officer who wrote the inspection report is the one the applicant
+ * telephones, and he could not answer. Standing comes from the movement log, so
+ * it is a fact about the file rather than a permission — and it carries no
+ * power, because the actions still key off holding it.
+ *
  * The rows are shaped here and filtered in the browser: an office holds tens of
  * files, and a round trip per tile would make the board feel slower than the
  * page it replaced.
@@ -27,10 +36,11 @@ export default async function WorkflowPage() {
   const actor = await actorFor(viewer);
   const scope = await inboxScope(actor);
 
-  const [waiting, working, mine, office] = await Promise.all([
+  const [waiting, working, mine, handled, office] = await Promise.all([
     scope ? unclaimed(scope.officeId) : Promise.resolve([]),
     scope ? inProgress(scope.officeId) : Promise.resolve([]),
     actor.employeeId ? heldBy(actor.employeeId) : Promise.resolve([]),
+    actor.employeeId ? touchedBy(actor.employeeId) : Promise.resolve([]),
     actor.officeId
       ? prisma.office.findUnique({
           where: { id: actor.officeId },
@@ -52,7 +62,10 @@ export default async function WorkflowPage() {
   // One shape for the board, so it can filter across all three lists at once.
   const stamp = (d: Date | null) =>
     d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
-  const toRow = (a: (typeof mine)[number], bucket: "mine" | "unclaimed" | "working") => ({
+  const toRow = (
+    a: (typeof mine)[number],
+    bucket: "mine" | "unclaimed" | "working" | "handled",
+  ) => ({
     id: a.id,
     applicationNo: a.applicationNo,
     state: a.state as string,
@@ -65,17 +78,40 @@ export default async function WorkflowPage() {
     productName: a.product?.nameEn ?? null,
     subProductCount: a._count.subProducts,
     holderName: a.holder?.nameEn ?? null,
-    holderDesignation: a.holder?.designationEn ?? null,
+    holderDesignation: a.holder?.designationEn ?? a.holder?.designationBn ?? null,
     bucket,
   });
 
-  // A file held by the viewer appears once, under "with you", not twice.
-  const mineIds = new Set(mine.map((a) => a.id));
+  // A file appears once. "With you" wins over every other reading of it, and a
+  // file already listed as this office's is not repeated as one you handled —
+  // an office head would otherwise see every file in the building twice.
+  const seen = new Set<number>();
+  const once = <T extends { id: number }>(list: T[]) =>
+    list.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+
   const rows = [
-    ...mine.map((a) => toRow(a, "mine")),
-    ...waiting.filter((a) => !mineIds.has(a.id)).map((a) => toRow(a, "unclaimed")),
-    ...working.filter((a) => !mineIds.has(a.id)).map((a) => toRow(a, "working")),
+    ...once(mine).map((a) => toRow(a, "mine")),
+    ...once(waiting).map((a) => toRow(a, "unclaimed")),
+    ...once(working).map((a) => toRow(a, "working")),
+    ...once(handled).map((a) => toRow(a, "handled")),
   ];
+
+  // The desk flow for everything on the board, in one query.
+  const movements = await flowsFor(rows.map((r) => r.id));
+  const flows: Record<number, FlowStep[]> = {};
+  for (const m of movements) {
+    (flows[m.applicationId] ??= []).push({
+      id: m.id,
+      direction: m.direction as string,
+      fromName: m.fromEmployee?.nameEn ?? null,
+      toName: m.toEmployee.nameEn,
+      toDesignation: m.toEmployee.designationEn ?? m.toEmployee.designationBn,
+      note: m.note,
+      at: m.createdAt.toLocaleDateString("en-GB", {
+        day: "numeric", month: "short", year: "numeric",
+      }),
+    });
+  }
 
   return (
     <>
@@ -104,7 +140,7 @@ export default async function WorkflowPage() {
               : "Nothing is waiting for you. Applications are received by the office head, who passes them down for processing — you will see a file here once one reaches your desk."}
           </p>
         ) : (
-          <FileBoard rows={rows} down={down} up={up} canReceive={!!scope} />
+          <FileBoard rows={rows} flows={flows} down={down} up={up} canReceive={!!scope} />
         )}
       </main>
     </>
