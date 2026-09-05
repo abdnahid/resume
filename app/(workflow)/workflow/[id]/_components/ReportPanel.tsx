@@ -190,179 +190,186 @@ export default function ReportPanel({
         প্রারম্ভিক পরিদর্শন প্রতিবেদন
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Only what you learned at the factory. The product, the standards, the
-        company and the factory are printed from the file — you do not retype them.
+        {canEdit
+          ? "Only what you learned at the factory. The product, the standards, the company and the factory are printed from the file — you do not retype them."
+          : "Written by the officer who made the visit. You are reading it to approve it."}
       </p>
 
-      {/* §1 — what the file already knows, shown so the officer can check it
-          against what he saw rather than copy it out. */}
-      <dl className="mt-4 grid gap-x-6 gap-y-1.5 rounded-xl bg-secondary/60 p-3 text-sm sm:grid-cols-2">
-        <Ctx label="পণ্য" value={context.productName} />
-        <Ctx label="বিডিএস নং" value={context.standards.join(", ") || null} />
-        <Ctx label="প্রতিষ্ঠান" value={context.companyName} />
-        <Ctx
-          label="কারখানা"
-          value={[context.factoryName, context.factoryDistrict].filter(Boolean).join(", ")}
-        />
-        <Ctx label="ঘোষিত উৎপাদন ক্ষমতা" value={context.declaredCapacity} />
-        <Ctx label="ঘোষিত চলতি বছরের উৎপাদন" value={context.declaredYearProduction} />
-      </dl>
+      {/* Disabled rather than hidden for a reader: the approver needs to see
+          what was written, and a field he can type into but not save is a
+          form that lies about who owns the work. */}
+      <fieldset disabled={!canEdit} className="contents">
+        {/* §1 — what the file already knows, shown so the officer can check it
+            against what he saw rather than copy it out. */}
+        <dl className="mt-4 grid gap-x-6 gap-y-1.5 rounded-xl bg-secondary/60 p-3 text-sm sm:grid-cols-2">
+          <Ctx label="পণ্য" value={context.productName} />
+          <Ctx label="বিডিএস নং" value={context.standards.join(", ") || null} />
+          <Ctx label="প্রতিষ্ঠান" value={context.companyName} />
+          <Ctx
+            label="কারখানা"
+            value={[context.factoryName, context.factoryDistrict].filter(Boolean).join(", ")}
+          />
+          <Ctx label="ঘোষিত উৎপাদন ক্ষমতা" value={context.declaredCapacity} />
+          <Ctx label="ঘোষিত চলতি বছরের উৎপাদন" value={context.declaredYearProduction} />
+        </dl>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className={label}>খ) দরখাস্তকারীর নাম</span>
-          <input
-            value={form.applicantName}
-            onChange={(e) => setForm((f) => ({ ...f, applicantName: e.target.value }))}
-            className={field}
-          />
-        </label>
-        <label className="block">
-          <span className={label}>পদবি</span>
-          <input
-            value={form.applicantDesignation}
-            onChange={(e) => setForm((f) => ({ ...f, applicantDesignation: e.target.value }))}
-            className={field}
-          />
-        </label>
-      </div>
-
-      <div className="mt-4">
-        <span className={label}>ঙ) সরকারি অনুমোদন</span>
-        <div className="mt-1.5 flex flex-wrap items-center gap-3">
-          <Radio
-            name="govt"
-            checked={form.govtApprovalOk === true}
-            onChange={() => setForm((f) => ({ ...f, govtApprovalOk: true }))}
-            label="সঠিক"
-          />
-          <Radio
-            name="govt"
-            checked={form.govtApprovalOk === false}
-            onChange={() => setForm((f) => ({ ...f, govtApprovalOk: false }))}
-            label="সঠিক নয়"
-          />
-          <input
-            value={form.govtApprovalNote}
-            onChange={(e) => setForm((f) => ({ ...f, govtApprovalNote: e.target.value }))}
-            placeholder="মন্তব্য"
-            className="min-w-40 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
-          />
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={label}>খ) দরখাস্তকারীর নাম</span>
+            <input
+              value={form.applicantName}
+              onChange={(e) => setForm((f) => ({ ...f, applicantName: e.target.value }))}
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>পদবি</span>
+            <input
+              value={form.applicantDesignation}
+              onChange={(e) => setForm((f) => ({ ...f, applicantDesignation: e.target.value }))}
+              className={field}
+            />
+          </label>
         </div>
-      </div>
 
-      <Heading>২(খ) স্বাস্থ্য ও পরিবেশগত অবস্থা</Heading>
-      <ul className="space-y-2">
-        {conditions.map((c) => (
-          <li key={c.key} className="flex flex-wrap items-center gap-2">
-            <span className="w-52 shrink-0 text-sm text-foreground">{c.labelBn}</span>
+        <div className="mt-4">
+          <span className={label}>ঙ) সরকারি অনুমোদন</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3">
             <Radio
-              name={`c-${c.key}`}
-              checked={cond[c.key].satisfactory}
-              onChange={() => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], satisfactory: true } }))}
-              label="সন্তোষজনক"
+              name="govt"
+              checked={form.govtApprovalOk === true}
+              onChange={() => setForm((f) => ({ ...f, govtApprovalOk: true }))}
+              label="সঠিক"
             />
             <Radio
-              name={`c-${c.key}`}
-              checked={!cond[c.key].satisfactory}
-              onChange={() => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], satisfactory: false } }))}
-              label="সন্তোষজনক নয়"
+              name="govt"
+              checked={form.govtApprovalOk === false}
+              onChange={() => setForm((f) => ({ ...f, govtApprovalOk: false }))}
+              label="সঠিক নয়"
             />
             <input
-              value={cond[c.key].note}
-              onChange={(e) => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], note: e.target.value } }))}
+              value={form.govtApprovalNote}
+              onChange={(e) => setForm((f) => ({ ...f, govtApprovalNote: e.target.value }))}
               placeholder="মন্তব্য"
-              className="min-w-32 flex-1 rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+              className="min-w-40 flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
             />
-          </li>
-        ))}
-      </ul>
+          </div>
+        </div>
 
-      <Heading>২(ঙ–ছ) উৎপাদন — যা পাওয়া গেল</Heading>
-      <div className="grid gap-4 sm:grid-cols-4">
-        <label className="block">
-          <span className={label}>ক্ষমতা</span>
-          <input
-            value={form.foundCapacityValue}
-            onChange={(e) => setForm((f) => ({ ...f, foundCapacityValue: e.target.value }))}
-            inputMode="decimal"
-            className={field}
-          />
-        </label>
-        <label className="block">
-          <span className={label}>একক</span>
-          <select
-            value={form.foundCapacityUnitId}
-            onChange={(e) => setForm((f) => ({ ...f, foundCapacityUnitId: e.target.value }))}
-            className={field}
-          >
-            <option value="">—</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.code} · {u.nameEn}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className={label}>উৎপাদনের হার (%)</span>
-          <input
-            value={form.utilisationPercent}
-            onChange={(e) => setForm((f) => ({ ...f, utilisationPercent: e.target.value }))}
-            inputMode="decimal"
-            className={field}
-          />
-        </label>
-        <label className="block">
-          <span className={label}>ইউনিট প্রতি মূল্য (৳)</span>
-          <input
-            value={form.unitCostTaka}
-            onChange={(e) => setForm((f) => ({ ...f, unitCostTaka: e.target.value }))}
-            inputMode="decimal"
-            className={field}
-          />
-        </label>
-      </div>
+        <Heading>২(খ) স্বাস্থ্য ও পরিবেশগত অবস্থা</Heading>
+        <ul className="space-y-2">
+          {conditions.map((c) => (
+            <li key={c.key} className="flex flex-wrap items-center gap-2">
+              <span className="w-52 shrink-0 text-sm text-foreground">{c.labelBn}</span>
+              <Radio
+                name={`c-${c.key}`}
+                checked={cond[c.key].satisfactory}
+                onChange={() => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], satisfactory: true } }))}
+                label="সন্তোষজনক"
+              />
+              <Radio
+                name={`c-${c.key}`}
+                checked={!cond[c.key].satisfactory}
+                onChange={() => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], satisfactory: false } }))}
+                label="সন্তোষজনক নয়"
+              />
+              <input
+                value={cond[c.key].note}
+                onChange={(e) => setCond((s) => ({ ...s, [c.key]: { ...s[c.key], note: e.target.value } }))}
+                placeholder="মন্তব্য"
+                className="min-w-32 flex-1 rounded-lg border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+              />
+            </li>
+          ))}
+        </ul>
 
-      <Heading>২(জ) মোড়কীকরণ এবং চিহ্নিতকরণ</Heading>
-      <ul className="grid gap-1.5 sm:grid-cols-2">
-        {markings.map((m, i) => (
-          <li key={m.key} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 odd:bg-secondary/40">
-            <span className="text-sm text-foreground">
-              <span className="mr-1.5 text-xs text-muted-foreground">{i + 1}.</span>
-              {m.labelBn}
-            </span>
-            <span className="flex shrink-0 gap-2">
-              <Radio name={`m-${m.key}`} checked={mark[m.key]} onChange={() => setMark((s) => ({ ...s, [m.key]: true }))} label="আছে" />
-              <Radio name={`m-${m.key}`} checked={!mark[m.key]} onChange={() => setMark((s) => ({ ...s, [m.key]: false }))} label="নাই" />
-            </span>
-          </li>
-        ))}
-      </ul>
+        <Heading>২(ঙ–ছ) উৎপাদন — যা পাওয়া গেল</Heading>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <label className="block">
+            <span className={label}>ক্ষমতা</span>
+            <input
+              value={form.foundCapacityValue}
+              onChange={(e) => setForm((f) => ({ ...f, foundCapacityValue: e.target.value }))}
+              inputMode="decimal"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>একক</span>
+            <select
+              value={form.foundCapacityUnitId}
+              onChange={(e) => setForm((f) => ({ ...f, foundCapacityUnitId: e.target.value }))}
+              className={field}
+            >
+              <option value="">—</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.code} · {u.nameEn}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className={label}>উৎপাদনের হার (%)</span>
+            <input
+              value={form.utilisationPercent}
+              onChange={(e) => setForm((f) => ({ ...f, utilisationPercent: e.target.value }))}
+              inputMode="decimal"
+              className={field}
+            />
+          </label>
+          <label className="block">
+            <span className={label}>ইউনিট প্রতি মূল্য (৳)</span>
+            <input
+              value={form.unitCostTaka}
+              onChange={(e) => setForm((f) => ({ ...f, unitCostTaka: e.target.value }))}
+              inputMode="decimal"
+              className={field}
+            />
+          </label>
+        </div>
 
-      <Heading>বিবরণ</Heading>
-      <div className="space-y-3">
-        {narrative.map((n) => (
-          <label key={n.key} className="block">
-            <span className="text-sm text-foreground">{n.labelBn}</span>
+        <Heading>২(জ) মোড়কীকরণ এবং চিহ্নিতকরণ</Heading>
+        <ul className="grid gap-1.5 sm:grid-cols-2">
+          {markings.map((m, i) => (
+            <li key={m.key} className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 odd:bg-secondary/40">
+              <span className="text-sm text-foreground">
+                <span className="mr-1.5 text-xs text-muted-foreground">{i + 1}.</span>
+                {m.labelBn}
+              </span>
+              <span className="flex shrink-0 gap-2">
+                <Radio name={`m-${m.key}`} checked={mark[m.key]} onChange={() => setMark((s) => ({ ...s, [m.key]: true }))} label="আছে" />
+                <Radio name={`m-${m.key}`} checked={!mark[m.key]} onChange={() => setMark((s) => ({ ...s, [m.key]: false }))} label="নাই" />
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <Heading>বিবরণ</Heading>
+        <div className="space-y-3">
+          {narrative.map((n) => (
+            <label key={n.key} className="block">
+              <span className="text-sm text-foreground">{n.labelBn}</span>
+              <textarea
+                value={ans[n.key]}
+                onChange={(e) => setAns((s) => ({ ...s, [n.key]: e.target.value }))}
+                rows={2}
+                className={field}
+              />
+            </label>
+          ))}
+          <label className="block">
+            <span className={label}>মন্তব্য</span>
             <textarea
-              value={ans[n.key]}
-              onChange={(e) => setAns((s) => ({ ...s, [n.key]: e.target.value }))}
+              value={form.remarks}
+              onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
               rows={2}
               className={field}
             />
           </label>
-        ))}
-        <label className="block">
-          <span className={label}>মন্তব্য</span>
-          <textarea
-            value={form.remarks}
-            onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
-            rows={2}
-            className={field}
-          />
-        </label>
-      </div>
+        </div>
+
+      </fieldset>
 
       {gaps.length > 0 && report && (
         <ul className="mt-4 space-y-1 rounded-xl bg-amber-500/5 p-3 text-xs text-muted-foreground">

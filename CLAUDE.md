@@ -1196,6 +1196,14 @@ can reuse them.
   `toBengaliDigits()`. It appears on the board row and in the desk flow, so
   every desk sees it. **An approved plan cannot be edited or sent back** —
   changing the date means a fresh order, not an edited one.
+- **Sampling and the report are the visiting officer's work alone** (D88) —
+  whoever proposed the inspection plan. A senior desk supervises and approves;
+  it does not seal jars or write up a visit it did not make. **Holding the file
+  is not enough for these two**, unlike everything else on the process page,
+  because the file passes back through the approver's hands and he would
+  otherwise inherit the officer's job with it. The panels still render for a
+  reader — with the fields disabled and saying why — since the approver has to
+  read what he is approving.
 - **The FDO's sampling screen** (D87) sits on the process page once the plan is
   approved — sealing samples for an unauthorised visit would be jars nobody sent
   anyone to collect. `lib/samples/screen.ts` assembles it; the arithmetic stays

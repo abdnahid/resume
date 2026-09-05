@@ -77,6 +77,18 @@ export default async function ProcessPage({
 
   const stage = stageInfo(app.state);
   const isHolder = !!actor.employeeId && app.holderEmployeeId === actor.employeeId;
+
+  /**
+   * The visiting officer — whoever proposed the inspection plan.
+   *
+   * **Sampling and the report are his work alone.** A senior desk supervises and
+   * approves; it does not seal jars or write up a visit it did not make. Holding
+   * the file is not enough for these two, unlike everything else on this page,
+   * because the file passes through the approver's hands on its way back and he
+   * would otherwise inherit the officer's job with it.
+   */
+  const isVisitingOfficer =
+    !!actor.employeeId && plan?.proposedByEmployeeId === actor.employeeId;
   const open = rounds.find((r) => r.respondedAt === null) ?? null;
   const stamp = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -236,14 +248,6 @@ export default async function ProcessPage({
               />
             )}
 
-            {/* ── The application ─────────────────────────────────────── */}
-          </div>
-
-          {/* The record of what has happened, beside the controls rather than
-              among them: once the review has closed the correction rounds are
-              history, and reading them next to the inspection plan made them
-              look like part of it. */}
-          <div className="space-y-5">
             {sampling && (
               <SamplingPanel
                 applicationId={app.id}
@@ -251,7 +255,7 @@ export default async function ProcessPage({
                 boxes={sampling.boxes}
                 problems={sampling.problems}
                 committed={sampling.committed}
-                canEdit={isHolder}
+                canEdit={isHolder && isVisitingOfficer}
               />
             )}
 
@@ -305,7 +309,9 @@ export default async function ProcessPage({
                       }
                     : null
                 }
-                canEdit={isHolder && !report?.approvedAt && !report?.submittedAt}
+                canEdit={
+                  isHolder && isVisitingOfficer && !report?.approvedAt && !report?.submittedAt
+                }
                 canApprove={
                   isHolder &&
                   !!report?.submittedAt &&
@@ -316,6 +322,13 @@ export default async function ProcessPage({
               />
             )}
 
+          </div>
+
+          {/* The record of what has happened, beside the controls rather than
+              among them: once the review has closed the correction rounds are
+              history, and reading them next to the inspection plan made them
+              look like part of it. */}
+          <div className="space-y-5">
             {rounds.length > 0 && (
               <Card title={`Corrections asked for (${rounds.length})`}>
                 <ol className="space-y-4">

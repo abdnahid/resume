@@ -175,8 +175,9 @@ export default function SamplingPanel({
         Sampling plan
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        The labs and the tests are worked out from the routing map. What only you
-        can say is how many specimens each lab wants — ask them, then type it.
+        {canEdit
+          ? "The labs and the tests are worked out from the routing map. What only you can say is how many specimens each lab wants — ask them, then type it."
+          : "The visiting officer plans this and seals the samples. You are seeing it as it stands."}
       </p>
 
       {cells.length === 0 ? (
