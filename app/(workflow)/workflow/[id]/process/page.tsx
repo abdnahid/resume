@@ -8,7 +8,7 @@ import { stageInfo } from "@/lib/cm/states";
 import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
 import { planFor, teamCandidates, reviewIsClosed } from "@/lib/cm/inspection";
-import { immediateSeniorsOf } from "@/lib/workflow/inbox";
+import { delegatorOf } from "@/lib/workflow/inbox";
 import ReviewPanel from "../_components/ReviewPanel";
 import InspectionPanel from "../_components/InspectionPanel";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
@@ -47,7 +47,7 @@ export default async function ProcessPage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, rounds, artworkTargets, plan, team, seniors] = await Promise.all([
+  const [movements, rounds, artworkTargets, plan, team, approver] = await Promise.all([
     movementsFor(applicationId),
     roundsFor(applicationId),
     artworkTargetsFor(applicationId),
@@ -55,10 +55,8 @@ export default async function ProcessPage({
     app.bstiOfficeId
       ? teamCandidates(app.bstiOfficeId, actor.employeeId)
       : Promise.resolve({ scopedToSection: false, candidates: [] }),
-    // Who this desk sends the plan to for approval (D83).
-    app.bstiOfficeId && actor.employeeId
-      ? immediateSeniorsOf(actor.employeeId, app.bstiOfficeId)
-      : Promise.resolve([]),
+    // Who handed this file down, and therefore approves its plan (D84).
+    actor.employeeId ? delegatorOf(applicationId, actor.employeeId) : Promise.resolve(null),
   ]);
 
   const stage = stageInfo(app.state);
@@ -208,11 +206,7 @@ export default async function ProcessPage({
                 candidates={team.candidates}
                 candidatesAreSectionOnly={team.scopedToSection}
                 proposerEmployeeId={actor.employeeId}
-                seniors={seniors.map((d) => ({
-                  employeeId: d.employeeId,
-                  name: d.name,
-                  designation: d.designation,
-                }))}
+                approver={approver}
                 canEdit={isHolder && !plan?.approvedAt}
                 // Approval is the proposer's senior, not the office head
                 // (D83). The service re-checks the seniority; this only decides

@@ -144,40 +144,67 @@ export async function proposeInspection(args: {
 }
 
 /**
- * Send the plan up for approval — which is what actually moves the file.
+ * Send the plan back up for approval.
  *
- * **Proposing and sending are two acts.** Writing the date and the team leaves
- * the file where it is, so the officer can come back to it; sending hands it to
- * a senior, and *that* is what makes it his to approve and no longer the
- * proposer's to edit. Without this the plan sat saved on the proposer's desk:
- * he could still change it and the senior never received anything to approve.
+ * **There is nobody to choose.** The approver is the officer who handed the file
+ * down in the first place (D84) — he delegated the work, so the plan returns to
+ * him. Offering a list of seniors made the sender pick a person the file's own
+ * history already names, and let him pick the wrong one.
  *
- * The hand-off goes through `pass()` rather than writing the holder here, so a
- * plan travels on exactly the chain everything else does (D58/D78/D79) and lands
- * in the movement log like any other hand-off. The target must be senior — the
- * ordinary "up" rule — so this cannot be used to push a plan sideways.
+ * **Proposing and sending stay two acts.** Writing the date and the team leaves
+ * the file where it is, so the officer can come back to it; sending hands it
+ * over, and *that* is what makes it his senior's to approve and no longer his
+ * own to edit. Without this step the plan sat saved on the proposer's desk: he
+ * could still change it and the senior had nothing to approve.
+ *
+ * The hand-off is written here rather than through `pass()` because there is no
+ * choice of desk to guard: the target is derived from the movement log, so the
+ * check that stops an arbitrary sideways move has nothing to stop. It is
+ * recorded as an `up` like any other return, so the desk flow reads the same.
  */
 export async function sendPlanForApproval(args: {
   applicationId: number;
-  toEmployeeId: string;
+  employeeId: string;
   note: string | null;
-  actor: { userId: string; role: string; employeeId: string | null; officeId: number | null };
+  actorUserId: string;
 }) {
+  const app = await prisma.application.findUniqueOrThrow({
+    where: { id: args.applicationId },
+    select: { holderEmployeeId: true },
+  });
+  if (app.holderEmployeeId !== args.employeeId) {
+    throw new Error("Only whoever is holding this file can send its plan for approval.");
+  }
+
   const plan = await planFor(args.applicationId);
   if (!plan) throw new Error("Write the plan before sending it for approval.");
   if (plan.approvedAt) throw new Error("This plan is already approved.");
-  if (args.toEmployeeId === args.actor.employeeId) {
-    throw new Error("Send the plan to your senior, not to yourself.");
+
+  const { delegatorOf } = await import("@/lib/workflow/inbox");
+  const to = await delegatorOf(args.applicationId, args.employeeId);
+  if (!to) {
+    throw new Error(
+      "Nobody handed this file down to you, so there is no senior to return it to.",
+    );
   }
 
-  const { pass } = await import("@/lib/workflow/inbox");
-  await pass(args.applicationId, args.toEmployeeId, "up", args.note, args.actor);
-
-  return prisma.application.update({
-    where: { id: args.applicationId },
-    data: { state: "inspection_pending_approval" },
-    select: { id: true, state: true, holderEmployeeId: true },
-  });
+  await prisma.$transaction([
+    prisma.application.update({
+      where: { id: args.applicationId },
+      data: { holderEmployeeId: to.employeeId, state: "inspection_pending_approval" },
+    }),
+    prisma.applicationMovement.create({
+      data: {
+        applicationId: args.applicationId,
+        fromEmployeeId: args.employeeId,
+        toEmployeeId: to.employeeId,
+        direction: "up",
+        note: args.note?.trim() || "Inspection plan sent for approval.",
+        actorUserId: args.actorUserId,
+      },
+    }),
+  ]);
+  return to;
 }
 
 /**

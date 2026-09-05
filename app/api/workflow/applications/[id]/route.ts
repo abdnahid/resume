@@ -124,15 +124,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       if (body.action === "send-plan") {
-        const to = typeof body.toEmployeeId === "string" ? body.toEmployeeId : "";
-        if (!to) return NextResponse.json({ error: "Choose who to send it to." }, { status: 400 });
-        const app = await sendPlanForApproval({
+        // No target in the body: the approver is whoever handed the file down
+        // (D84), which the movement log already knows.
+        const to = await sendPlanForApproval({
           applicationId,
-          toEmployeeId: to,
+          employeeId: actor.employeeId,
           note: typeof body.note === "string" ? body.note : null,
-          actor,
+          actorUserId: actor.userId,
         });
-        return NextResponse.json({ application: app });
+        return NextResponse.json({ sentTo: to });
       }
 
       if (body.action === "approve-plan") {

@@ -41,7 +41,7 @@ export default function InspectionPanel({
   candidates,
   candidatesAreSectionOnly,
   proposerEmployeeId,
-  seniors,
+  approver,
   canEdit,
   canApprove,
   officeName,
@@ -54,10 +54,10 @@ export default function InspectionPanel({
   /** Whoever is writing the plan — on the team by default; he is going. */
   proposerEmployeeId: string | null;
   /**
-   * The desks immediately above the holder — who the plan goes to for approval
-   * (D83). Empty when nobody is senior to him in his section.
+   * Who handed this file down, and therefore who approves the plan (D84).
+   * Null at the top of a chain, where nobody delegated it.
    */
-  seniors: { employeeId: string; name: string; designation: string | null }[];
+  approver: { employeeId: string; name: string; designation: string | null } | null;
   /** True for whoever is holding the file while the plan is unapproved. */
   canEdit: boolean;
   /** True for the office head holding the file. */
@@ -85,7 +85,6 @@ export default function InspectionPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const [sendTo, setSendTo] = useState(seniors[0]?.employeeId ?? "");
 
   async function send(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action);
@@ -177,7 +176,9 @@ export default function InspectionPanel({
       <p className="mt-1 text-sm text-muted-foreground">
         {canApprove
           ? "Correct anything that is wrong, then approve. Approving issues the office order."
-          : "Save the plan while you are still working on it. Sending it hands the file to your senior, who approves it — after that it is no longer yours to edit."}
+          : approver
+            ? `Save the plan while you are still working on it. Sending it returns the file to ${approver.name}, who handed it down to you and approves it — after that it is no longer yours to edit.`
+            : "Save the plan while you are still working on it."}
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -368,41 +369,28 @@ export default function InspectionPanel({
             and that is what makes it his to approve and no longer yours to
             edit. Two acts, because an officer writing a plan should be able to
             come back to it before it goes. */}
-        {plan && !canApprove && seniors.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={sendTo}
-              onChange={(e) => setSendTo(e.target.value)}
-              className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
-            >
-              {seniors.map((s) => (
-                <option key={s.employeeId} value={s.employeeId}>
-                  {s.name}
-                  {s.designation ? ` — ${s.designation}` : ""}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => send("send-plan", { toEmployeeId: sendTo, note })}
-              disabled={busy !== null || !sendTo}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10 disabled:opacity-50"
-            >
-              {busy === "send-plan" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
-              ) : (
-                <SendHorizontal className="h-3.5 w-3.5" strokeWidth={2} />
-              )}
-              Send for approval
-            </button>
-          </div>
+        {/* No picker: the plan goes back to whoever handed the file down
+            (D84), so there is nothing to choose. */}
+        {plan && !canApprove && approver && (
+          <button
+            type="button"
+            onClick={() => send("send-plan", { note })}
+            disabled={busy !== null}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/10 disabled:opacity-50"
+          >
+            {busy === "send-plan" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+            ) : (
+              <SendHorizontal className="h-3.5 w-3.5" strokeWidth={2} />
+            )}
+            Send to {approver.name} for approval
+          </button>
         )}
 
-        {plan && !canApprove && seniors.length === 0 && (
+        {plan && !canApprove && !approver && (
           <p className="w-full text-xs text-muted-foreground">
-            Nobody in your section is senior to you, so there is no one to send
-            this to. An administrator has to place a senior desk above you before
-            the plan can be approved.
+            Nobody handed this file down to you, so there is no senior to return
+            it to for approval.
           </p>
         )}
 

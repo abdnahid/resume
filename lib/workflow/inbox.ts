@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { employeesOfOffice } from "@/lib/salary/payroll";
-import { eligibleDesks, immediateSeniors, rank, type Desk, type Direction } from "./chain";
+import { eligibleDesks, rank, type Desk, type Direction } from "./chain";
 
 /** Roles that may act on a file at all. */
 export type WorkflowActor = {
@@ -311,16 +311,31 @@ export async function touchedBy(employeeId: string) {
 }
 
 /**
- * The desks immediately above one officer — who approves his work (D83).
+ * Who handed this file down to this desk.
  *
- * Prisma-free rule, server-side lookup: the chain module decides "nearest
- * senior", this supplies the desks to decide it over.
+ * The most recent `down` movement addressed to them — the officer who delegated
+ * the work, and therefore the one it goes back to for approval (D84). Only
+ * `down` counts: a `receive` has no sender, an `up` came from somebody junior,
+ * and a `reassign` was an administrator moving a stranded file rather than a
+ * superior delegating work.
+ *
+ * Returns null at the top of a chain, where nobody delegated anything.
  */
-export async function immediateSeniorsOf(employeeId: string, officeId: number): Promise<Desk[]> {
-  const all = await desksOfOffice(officeId);
-  const me = all.find((d) => d.employeeId === employeeId);
-  if (!me) return [];
-  return immediateSeniors(me, all);
+export async function delegatorOf(applicationId: number, employeeId: string) {
+  const m = await prisma.applicationMovement.findFirst({
+    where: { applicationId, toEmployeeId: employeeId, direction: "down" },
+    orderBy: { id: "desc" },
+    select: {
+      fromEmployeeId: true,
+      fromEmployee: { select: { nameEn: true, designationEn: true, designationBn: true } },
+    },
+  });
+  if (!m?.fromEmployeeId || !m.fromEmployee) return null;
+  return {
+    employeeId: m.fromEmployeeId,
+    name: m.fromEmployee.nameEn,
+    designation: m.fromEmployee.designationEn ?? m.fromEmployee.designationBn,
+  };
 }
 
 /**
