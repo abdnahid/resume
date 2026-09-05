@@ -1124,6 +1124,18 @@ can reuse them.
   every desk that held it, and `fromEmployeeId` adds the office head who
   received and passed down in one sitting. Deliberately **not** office-scoped: a
   person who handled a file and has since transferred still handled it.
+- **`/workflow/[id]` is the whole file, read-only** (D80) — the application
+  preview, the attachments and the fees, for every officer on its flow.
+  `canViewApplication()` is the named rule and it is the same standing that puts
+  a file on your board (D77): you hold it, you have handled it, it is your
+  office's and you are its head, or you are a superadmin. Reading is not acting
+  — every action still keys off *holding* it and `pass()` re-checks on the
+  server. **A refusal is `notFound()`, not a 403**, for the reason D71 gives:
+  a distinguishable refusal would let any member of staff enumerate which
+  application numbers exist and which office holds them.
+- **The attachments panel says the bytes are not stored.** The kernel document
+  store does not exist, so an officer must not open that list believing BSTI
+  holds the applicant's trade licence.
 - **The desk flow is on the board**, collapsed, one query for every row
   (`flowsFor()`), rendered through the same `describeMovement()` the server half
   uses (D9) so a reassignment reads identically wherever it appears.

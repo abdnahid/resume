@@ -459,6 +459,60 @@ ABDULLAH AL NAHID            Inspector         + desk Assistant Director    → 
 That is defensible if the organogram placement is going to be corrected soon,
 and wrong until it is.
 
+### User
+
+> One thing I forgot to point. Every officer one the application flow should be
+> able to see the application preview+attachments+fee details
+
+### Assistant
+
+Built `/workflow/[id]` — the whole file, read-only (D80). Until now an officer
+saw a summary row and nothing else, which is thin for the feature spec §8 calls
+most of the perceived value of the system.
+
+**`canViewApplication()` is one named rule**, not logic re-derived at the page,
+because "who may read this file" is the question an auditor asks. Standing is
+the same as D77's: you hold it, you have handled it, it is your office's and you
+are its head, or you are a superadmin. The office head's reach is the office's
+files rather than only the ones they touched — a file they have not yet picked
+up is one they must read before deciding who gets it.
+
+**Reading is not acting.** Every action still keys off *holding* the file and
+`pass()` re-checks on the server, so a previous desk may follow a file and may
+not move it.
+
+**A refusal is `notFound()`, not a 403** — the same reasoning D71 gives for
+`/s/<ref>`. A distinguishable refusal would let any member of staff enumerate
+which application numbers exist and which office holds them.
+
+**The attachments panel says the bytes are not stored**, because the document
+store does not exist. An officer must not open that list believing BSTI holds
+the applicant's trade licence.
+
+Verified against the live file:
+
+```
+Alauddin — handled it, office head    → CAN open
+Kawser — handled it                   → CAN open
+Afsana — holds it                     → CAN open
+Golam Rabbani — handled it, retired    → CAN open
+Arafat — never touched it              → refused (404)
+Jahidur Rahman — same section, untouched → refused (404)
+the superadmin                         → CAN open
+```
+
+Same-section-but-untouched being refused is the point: proximity is not
+standing.
+
+And it has real content to show — Istiak Sugar Refinary, product #252, BDS
+1758:2022 attached, 3 sub-products with 6 articles, 7 documents recorded, 14
+answers, application fee ৳1,150 paid in the sandbox, test fee ৳7,748.
+
+**One thing I noticed and did not fix:** the retired officer can still read
+files he handled. That follows from D77 and is arguably right, but the real
+answer is that a retired employee's account should not authenticate at all —
+which is an auth concern rather than a per-file one, and nobody has asked for it.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

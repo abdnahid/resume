@@ -311,6 +311,49 @@ export async function touchedBy(employeeId: string) {
 }
 
 /**
+ * May this officer open this file?
+ *
+ * The same standing that puts a file on your board (D77) lets you read it: you
+ * hold it, you have handled it, it is your office's and you are its head, or you
+ * are a superadmin. Spelled out here as one named rule rather than re-derived at
+ * the page, because "who may read this file" is the question an auditor asks.
+ *
+ * Reading is not acting. Every action still keys off *holding* the file, and
+ * `pass()` re-checks on the server — a previous desk may follow a file and may
+ * not move it.
+ *
+ * The office head's reach is the office's files rather than only the ones they
+ * touched, because they receive the office's post: a file they have not yet
+ * picked up is one they must be able to read before deciding who gets it.
+ */
+export async function canViewApplication(
+  actor: WorkflowActor,
+  applicationId: number,
+): Promise<boolean> {
+  if (actor.role === "superadmin") return true;
+
+  const app = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { bstiOfficeId: true, holderEmployeeId: true },
+  });
+  if (!app) return false;
+
+  if (actor.role === "office_head" && actor.officeId && app.bstiOfficeId === actor.officeId) {
+    return true;
+  }
+  if (!actor.employeeId) return false;
+  if (app.holderEmployeeId === actor.employeeId) return true;
+
+  const handled = await prisma.applicationMovement.count({
+    where: {
+      applicationId,
+      OR: [{ toEmployeeId: actor.employeeId }, { fromEmployeeId: actor.employeeId }],
+    },
+  });
+  return handled > 0;
+}
+
+/**
  * The desk flow for several files at once.
  *
  * One query for the whole board rather than one per row: the board already

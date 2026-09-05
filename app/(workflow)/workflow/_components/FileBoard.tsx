@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Building2, ChevronDown, FileText, Inbox, MapPin } from "lucide-react";
 import { ReceiveButton, PassPanel } from "./FileActions";
@@ -138,9 +139,15 @@ export default function FileBoard({
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-semibold text-foreground">
+                  {/* The whole file, for anyone on its flow — preview,
+                      attachments and fees (D80). Read-only; the actions stay
+                      on this board, keyed off holding it. */}
+                  <Link
+                    href={`/workflow/${a.id}`}
+                    className="font-mono text-sm font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                  >
                     {a.applicationNo ?? `#${a.id}`}
-                  </span>
+                  </Link>
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
                     {a.stateLabel}
                   </span>
