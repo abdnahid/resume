@@ -60,6 +60,54 @@ export default async function WorkflowFilePage({
   const stamp = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
+  /**
+   * The journey, hand-offs and correction rounds together.
+   *
+   * A round is a leg but not a desk-to-desk move — `ApplicationMovement`
+   * requires an employee on the receiving end and the applicant is not one — so
+   * the two are merged here rather than in the table.
+   */
+  const flow = [
+    ...movements.map((m) => ({
+      key: `m${m.id}`,
+      at: stamp(m.createdAt),
+      when: m.createdAt.getTime(),
+      seq: 0,
+      external: false,
+      text: describeMovement({
+        direction: m.direction,
+        fromName: m.fromEmployee?.nameEn ?? null,
+        toName: m.toEmployee.nameEn,
+      }),
+      sub: m.toEmployee.designationEn ?? m.toEmployee.designationBn ?? "",
+      note: m.note,
+    })),
+    ...rounds.flatMap((r) => [
+      {
+        key: `s${r.id}`,
+        at: stamp(r.raisedAt),
+        when: r.raisedAt.getTime(),
+        seq: 1,
+        external: true,
+        text: `Sent to the applicant for correction — round ${r.roundNo}, ${r.items.length} ${r.items.length === 1 ? "point" : "points"}`,
+        sub: r.raisedBy.nameEn,
+        note: r.note,
+      },
+      ...(r.respondedAt
+        ? [{
+            key: `r${r.id}`,
+            at: stamp(r.respondedAt),
+            when: r.respondedAt.getTime(),
+            seq: 2,
+            external: true,
+            text: `Applicant returned it — round ${r.roundNo}`,
+            sub: "",
+            note: r.response,
+          }]
+        : []),
+    ]),
+  ].sort((a, b) => a.when - b.when || a.seq - b.seq);
+
   const stage = stageInfo(app.state);
   const heldDocs = new Map(app.documents.map((d) => [d.kind, d]));
   const answers = new Map(
@@ -90,8 +138,17 @@ export default async function WorkflowFilePage({
             {stage.label}
           </span>
         </div>
+        {/* While a round is open the file is nominally with the applicant even
+            though the officer keeps the desk (D81), and saying "with <officer>"
+            there is the thing that reads as wrong. */}
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {app.holder ? (
+          {stage.holder === "applicant" && app.holder ? (
+            <>
+              with <span className="font-medium text-foreground">the applicant</span>
+              {" — "}
+              {app.holder.nameEn} is waiting on it
+            </>
+          ) : app.holder ? (
             <>
               with <span className="font-medium text-foreground">{app.holder.nameEn}</span>
               {app.holder.designationEn ? `, ${app.holder.designationEn}` : ""}
@@ -415,42 +472,33 @@ export default async function WorkflowFilePage({
               </div>
             </Card>
 
-            <Card title={`Desk flow (${movements.length})`}>
-              {movements.length === 0 ? (
+            <Card title={`Desk flow (${flow.length})`}>
+              {flow.length === 0 ? (
                 <Empty>Not yet received.</Empty>
               ) : (
                 <ol className="space-y-3">
-                  {movements.map((m, i) => (
-                    <li key={m.id} className="flex gap-3">
+                  {flow.map((f, i) => (
+                    <li key={f.key} className="flex gap-3">
                       <div className="flex flex-col items-center">
                         <span
                           className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                            i === movements.length - 1 ? "bg-primary" : "bg-border"
+                            f.external
+                              ? "bg-amber-500"
+                              : i === flow.length - 1
+                                ? "bg-primary"
+                                : "bg-border"
                           }`}
                         />
-                        {i < movements.length - 1 && (
-                          <span className="mt-1 w-px flex-1 bg-border" />
-                        )}
+                        {i < flow.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
                       </div>
                       <div className="min-w-0 pb-1">
-                        <p className="text-sm text-foreground">
-                          {describeMovement({
-                            direction: m.direction,
-                            fromName: m.fromEmployee?.nameEn ?? null,
-                            toName: m.toEmployee.nameEn,
-                          })}
-                        </p>
+                        <p className="text-sm text-foreground">{f.text}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {m.toEmployee.designationEn ?? m.toEmployee.designationBn ?? ""}
-                          {" · "}
-                          {m.createdAt.toLocaleDateString("en-GB", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          {f.sub ? `${f.sub} · ` : ""}
+                          {f.at}
                         </p>
-                        {m.note && (
-                          <p className="mt-1 text-xs italic text-muted-foreground">“{m.note}”</p>
+                        {f.note && (
+                          <p className="mt-1 text-xs italic text-muted-foreground">“{f.note}”</p>
                         )}
                       </div>
                     </li>

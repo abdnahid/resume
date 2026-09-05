@@ -6,6 +6,7 @@
  * reachable from here.
  */
 import { prisma } from "@/lib/prisma";
+import { assertEditable } from "./shortfall";
 import {
   missingForSubmission,
   applicationFeePoisha,
@@ -286,9 +287,9 @@ export async function attachBds(applicationId: number, purchaseId: number, userI
       attachedPurchases: { select: { id: true, bdsId: true } },
     },
   });
-  if (app.state !== "draft" && app.state !== "pending_app_fee") {
-    throw new Error("This application can no longer be edited.");
-  }
+  // A correction round can reopen the product, and the standards follow from it
+  // (D81), so this asks about the target rather than about the state.
+  await assertEditable(applicationId, "product");
 
   // Standing on the file, checked here rather than only at the route. The
   // routes do check it, but they are not the only caller: `fulfilPayment()`
@@ -376,9 +377,9 @@ export async function attachBds(applicationId: number, purchaseId: number, userI
  */
 export async function detachBds(applicationId: number, purchaseId: number, userId: string) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-  if (app.state !== "draft" && app.state !== "pending_app_fee") {
-    throw new Error("This application can no longer be edited.");
-  }
+  // A correction round can reopen the product, and the standards follow from it
+  // (D81), so this asks about the target rather than about the state.
+  await assertEditable(applicationId, "product");
 
   const membership = await prisma.organizationMembership.findUnique({
     where: { userId_organizationId: { userId, organizationId: app.organizationId } },
@@ -424,9 +425,9 @@ export async function detachBds(applicationId: number, purchaseId: number, userI
  */
 export async function setProduct(applicationId: number, productId: number, userId: string) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-  if (app.state !== "draft" && app.state !== "pending_app_fee") {
-    throw new Error("This application can no longer be edited.");
-  }
+  // A correction round can reopen the product, and the standards follow from it
+  // (D81), so this asks about the target rather than about the state.
+  await assertEditable(applicationId, "product");
 
   const product = await prisma.product.findUnique({
     where: { id: productId },

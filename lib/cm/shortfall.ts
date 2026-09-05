@@ -20,7 +20,7 @@
  * Server half (D9) — `states.ts` and `policy.ts` hold the Prisma-free rules.
  */
 import { prisma } from "@/lib/prisma";
-import { editScope, type EditScope } from "./states";
+import { canEditTarget, editScope, type EditScope } from "./states";
 import { allShortfallTargets } from "./policy";
 
 /** The round awaiting an answer, if there is one. */
@@ -47,6 +47,19 @@ export async function roundsFor(applicationId: number) {
   });
 }
 
+/** Rounds for several files at once — one query for the whole board. */
+export async function roundsForMany(applicationIds: number[]) {
+  if (applicationIds.length === 0) return [];
+  return prisma.shortfallRound.findMany({
+    where: { applicationId: { in: applicationIds } },
+    include: {
+      items: { select: { id: true } },
+      raisedBy: { select: { nameEn: true } },
+    },
+    orderBy: [{ applicationId: "asc" }, { roundNo: "asc" }],
+  });
+}
+
 /**
  * What the applicant may edit on this application right now.
  *
@@ -61,6 +74,28 @@ export async function editScopeFor(applicationId: number): Promise<EditScope> {
   if (!app) return { kind: "none" };
   const round = app.state === "shortfall_issued" ? await openRound(applicationId) : null;
   return editScope(app.state, round?.items.map((i) => i.target) ?? []);
+}
+
+/**
+ * Throw unless the applicant may write this part of the application.
+ *
+ * **Every applicant-facing write goes through here**, and the services are
+ * where it has to live rather than the routes: `setProduction`, `saveAnswers`,
+ * the SKU writes and the sub-product writes each carried their own inline
+ * `state !== "draft" && state !== "pending_app_fee"`, so a correction round
+ * opened the form on screen and every save still failed with "This application
+ * can no longer be edited". One gate, one message.
+ */
+export async function assertEditable(applicationId: number, target: string) {
+  const scope = await editScopeFor(applicationId);
+  if (scope.kind === "none") {
+    throw new Error("This application can no longer be edited.");
+  }
+  if (!canEditTarget(scope, target)) {
+    throw new Error(
+      "BSTI reopened only the points it marked for correction, and this is not one of them.",
+    );
+  }
 }
 
 /**

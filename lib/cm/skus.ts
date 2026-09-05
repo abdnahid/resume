@@ -7,6 +7,7 @@
  * that a licence gains over its life, not a paragraph written once.
  */
 import { prisma } from "@/lib/prisma";
+import { assertEditable } from "./shortfall";
 import { validateSku, validateLabelImage, type SkuInput } from "./policy";
 
 /** The size vocabulary the form offers — 12 types, 43 units. */
@@ -69,9 +70,9 @@ async function subProductOf(applicationId: number, applicationSubProductId: numb
  */
 async function guard(applicationId: number, userId: string) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-  if (app.state !== "draft" && app.state !== "pending_app_fee") {
-    throw new Error("This application can no longer be edited.");
-  }
+  // A correction round can reopen the articles alone (D81), so this asks about
+  // the target rather than about the state.
+  await assertEditable(applicationId, "skus");
   const membership = await prisma.organizationMembership.findUnique({
     where: { userId_organizationId: { userId, organizationId: app.organizationId } },
   });

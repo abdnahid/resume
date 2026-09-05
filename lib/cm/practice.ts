@@ -12,13 +12,18 @@
 import { prisma } from "@/lib/prisma";
 import { CM_QUESTIONS, CM_QUESTION_INDEX, type CapacityAuthorityValue } from "./policy";
 import { productionSchema, parseOrThrow } from "./schemas";
+import { assertEditable } from "./shortfall";
 
-/** Editability and standing, the same gate the SKU writes go through. */
-async function guard(applicationId: number, userId: string) {
+/**
+ * Editability and standing, the same gate the SKU writes go through.
+ *
+ * `target` is which part of the application this write touches, so a correction
+ * round that reopened only the capacity does not also let the questionnaire be
+ * rewritten (D81).
+ */
+async function guard(applicationId: number, userId: string, target: string) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-  if (app.state !== "draft" && app.state !== "pending_app_fee") {
-    throw new Error("This application can no longer be edited.");
-  }
+  await assertEditable(applicationId, target);
   const membership = await prisma.organizationMembership.findUnique({
     where: { userId_organizationId: { userId, organizationId: app.organizationId } },
   });
@@ -44,7 +49,7 @@ export async function setProduction(
   input: ProductionInput,
   userId: string,
 ) {
-  await guard(applicationId, userId);
+  await guard(applicationId, userId, "production");
 
   // One rule set, shared with the form (`productionSchema`). The service parses
   // too rather than trusting the route, because it is the layer every caller
@@ -87,7 +92,7 @@ export async function saveAnswers(
   answers: Record<string, unknown>,
   userId: string,
 ) {
-  await guard(applicationId, userId);
+  await guard(applicationId, userId, "answers");
 
   const writes = [];
   for (const [key, raw] of Object.entries(answers)) {
@@ -127,7 +132,7 @@ export async function saveAnswers(
  * applicant who spotted a mistake in it.
  */
 export async function setConsent(applicationId: number, accepted: boolean, userId: string) {
-  await guard(applicationId, userId);
+  await guard(applicationId, userId, "declaration");
   return prisma.application.update({
     where: { id: applicationId },
     data: {

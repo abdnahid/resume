@@ -13,6 +13,7 @@
  * and an overwrite cannot answer it.
  */
 import { prisma } from "@/lib/prisma";
+import { assertEditable } from "./shortfall";
 
 /** The sub-products offered for a product, with what each would cost to test. */
 export async function choicesFor(productId: number) {
@@ -71,8 +72,9 @@ export async function selectedFor(applicationId: number) {
  */
 async function guard(applicationId: number, userId: string, allowFdo = false) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
-  const editable = app.state === "draft" || app.state === "pending_app_fee";
-  if (!editable && !allowFdo) throw new Error("This application can no longer be edited.");
+  // The FDO's amendment at inspection is exempt by design; for the applicant a
+  // correction round can reopen the sub-products alone (D81).
+  if (!allowFdo) await assertEditable(applicationId, "sub_products");
 
   if (!allowFdo) {
     const membership = await prisma.organizationMembership.findUnique({

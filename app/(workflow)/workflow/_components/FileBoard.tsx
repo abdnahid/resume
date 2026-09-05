@@ -32,13 +32,21 @@ export type BoardRow = {
   productSerial: number | null;
   productName: string | null;
   subProductCount: number;
+  /** The stage says the applicant has it, whoever holds the desk. */
+  withApplicant: boolean;
   holderName: string | null;
   holderDesignation: string | null;
   /** Which list this row belongs to from the viewer's point of view. */
   bucket: "mine" | "unclaimed" | "working" | "handled";
 };
 
-/** One hand-off in a file's history, as the board renders it. */
+/**
+ * One step in a file's history, as the board renders it.
+ *
+ * `label` is set for steps that are not desk-to-desk hand-offs — a correction
+ * round leaving for the applicant and coming back. `describeMovement()` stays
+ * free of CM's vocabulary (D9), so the page words those and this renders them.
+ */
 export type FlowStep = {
   id: number;
   direction: string;
@@ -47,6 +55,9 @@ export type FlowStep = {
   toDesignation: string | null;
   note: string | null;
   at: string;
+  label?: string;
+  /** Draw it as a departure from BSTI rather than a step inside it. */
+  external?: boolean;
 };
 
 const BUCKETS = [
@@ -186,6 +197,18 @@ export default function FileBoard({
                   <PassPanel applicationId={a.id} down={down} up={up} />
                 ) : a.bucket === "unclaimed" && canReceive ? (
                   <ReceiveButton applicationId={a.id} />
+                ) : a.withApplicant ? (
+                  <p className="py-2 text-sm">
+                    <span className="text-muted-foreground">with</span>{" "}
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
+                      the applicant
+                    </span>
+                    {a.holderName && (
+                      <span className="block text-xs text-muted-foreground">
+                        {a.holderName} is waiting on it
+                      </span>
+                    )}
+                  </p>
                 ) : a.holderName ? (
                   // py-2 so the holder line sits on the Preview button's
                   // baseline rather than a few pixels above it.
@@ -254,18 +277,23 @@ function DeskFlow({ steps }: { steps: FlowStep[] }) {
               <div className="flex flex-col items-center">
                 <span
                   className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                    i === steps.length - 1 ? "bg-primary" : "bg-border"
+                    s.external
+                      ? "bg-amber-500"
+                      : i === steps.length - 1
+                        ? "bg-primary"
+                        : "bg-border"
                   }`}
                 />
                 {i < steps.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
               </div>
               <div className="min-w-0 pb-1">
                 <p className="text-sm text-foreground">
-                  {describeMovement({
-                    direction: s.direction,
-                    fromName: s.fromName,
-                    toName: s.toName,
-                  })}
+                  {s.label ??
+                    describeMovement({
+                      direction: s.direction,
+                      fromName: s.fromName,
+                      toName: s.toName,
+                    })}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {s.toDesignation ? `${s.toDesignation} · ` : ""}

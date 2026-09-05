@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   actorFor, inboxScope, unclaimed, inProgress, heldBy, touchedBy, flowsFor, candidates,
 } from "@/lib/workflow/inbox";
+import { roundsForMany } from "@/lib/cm/shortfall";
 import { stageInfo } from "@/lib/cm/states";
 import FileBoard, { type FlowStep } from "./_components/FileBoard";
 
@@ -77,6 +78,9 @@ export default async function WorkflowPage() {
     productSerial: a.product?.serial ?? null,
     productName: a.product?.nameEn ?? null,
     subProductCount: a._count.subProducts,
+    // While a round is open the file is with the applicant even though the
+    // officer keeps the desk (D81), so the board must not say "with <officer>".
+    withApplicant: stageInfo(a.state).holder === "applicant",
     holderName: a.holder?.nameEn ?? null,
     holderDesignation: a.holder?.designationEn ?? a.holder?.designationBn ?? null,
     bucket,
@@ -96,9 +100,15 @@ export default async function WorkflowPage() {
     ...once(handled).map((a) => toRow(a, "handled")),
   ];
 
-  // The desk flow for everything on the board, in one query.
-  const movements = await flowsFor(rows.map((r) => r.id));
+  // The desk flow for everything on the board, in two queries.
+  const ids = rows.map((r) => r.id);
+  const [movements, rounds] = await Promise.all([flowsFor(ids), roundsForMany(ids)]);
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
   const flows: Record<number, FlowStep[]> = {};
+  const sortKey: Record<number, { at: number; seq: number }[]> = {};
+
   for (const m of movements) {
     (flows[m.applicationId] ??= []).push({
       id: m.id,
@@ -107,10 +117,53 @@ export default async function WorkflowPage() {
       toName: m.toEmployee.nameEn,
       toDesignation: m.toEmployee.designationEn ?? m.toEmployee.designationBn,
       note: m.note,
-      at: m.createdAt.toLocaleDateString("en-GB", {
-        day: "numeric", month: "short", year: "numeric",
-      }),
+      at: day(m.createdAt),
     });
+    (sortKey[m.applicationId] ??= []).push({ at: m.createdAt.getTime(), seq: 0 });
+  }
+
+  /**
+   * A correction round is a leg of the journey, not a desk-to-desk hand-off, so
+   * it cannot be an `ApplicationMovement` — that table's `toEmployeeId` is
+   * required and the applicant is not an employee. It is merged in here instead,
+   * because "where is the file" has to answer "with the applicant" when it is.
+   */
+  for (const r of rounds) {
+    const n = r.items.length;
+    (flows[r.applicationId] ??= []).push({
+      id: -r.id * 2,
+      direction: "shortfall",
+      fromName: r.raisedBy.nameEn,
+      toName: "the applicant",
+      toDesignation: null,
+      note: r.note,
+      at: day(r.raisedAt),
+      label: `Sent to the applicant for correction — round ${r.roundNo}, ${n} ${n === 1 ? "point" : "points"}`,
+      external: true,
+    });
+    (sortKey[r.applicationId] ??= []).push({ at: r.raisedAt.getTime(), seq: 1 });
+    if (r.respondedAt) {
+      flows[r.applicationId]!.push({
+        id: -r.id * 2 - 1,
+        direction: "shortfall",
+        fromName: null,
+        toName: r.raisedBy.nameEn,
+        toDesignation: null,
+        note: r.response,
+        at: day(r.respondedAt),
+        label: `Applicant returned it — round ${r.roundNo}`,
+        external: true,
+      });
+      sortKey[r.applicationId]!.push({ at: r.respondedAt.getTime(), seq: 2 });
+    }
+  }
+
+  // Chronological, so a round sits between the hand-offs it happened between.
+  for (const id of Object.keys(flows)) {
+    const k = Number(id);
+    const paired = flows[k].map((step, i) => ({ step, key: sortKey[k][i] }));
+    paired.sort((a, b) => a.key.at - b.key.at || a.key.seq - b.key.seq);
+    flows[k] = paired.map((p) => p.step);
   }
 
   return (
