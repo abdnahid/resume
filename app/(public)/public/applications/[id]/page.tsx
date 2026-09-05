@@ -9,7 +9,10 @@ import { choicesFor } from "@/lib/cm/sub-products";
 import { prefillableAnswers } from "@/lib/cm/practice";
 import { CM_DOCUMENTS, FORM_STEPS, stepProgress, type FormStep } from "@/lib/cm/policy";
 import { missingForSubmission as companyGaps } from "@/lib/client/organization";
-import { isEditable, stageInfo } from "@/lib/cm/states";
+import { canEditAnyDocument, canEditTarget, stageInfo } from "@/lib/cm/states";
+import { editScopeFor, openRound } from "@/lib/cm/shortfall";
+import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
+import ShortfallNotice from "./_components/ShortfallNotice";
 import Footer from "@/components/layout/Footer";
 import StageTracker from "./_components/StageTracker";
 import FormProgress, { StepGaps, StepNav } from "./_components/FormProgress";
@@ -85,7 +88,19 @@ export default async function ApplicationPage({
       app.productId ? choicesFor(app.productId) : Promise.resolve([]),
     ]);
 
-  const editable = isEditable(app.state) && membership.role !== "viewer";
+  /**
+   * What is open to edit, point by point.
+   *
+   * Before submission everything is; while a correction round is open only the
+   * points BSTI marked are (D81); otherwise nothing. `editScopeFor()` is the
+   * same call the write routes make, so what is greyed out here and what is
+   * refused there cannot disagree.
+   */
+  const [rawScope, round] = await Promise.all([editScopeFor(app.id), openRound(app.id)]);
+  const scope = membership.role === "viewer" ? ({ kind: "none" } as const) : rawScope;
+  const can = (target: string) => canEditTarget(scope, target);
+  /** True while the whole form is open — before submission. */
+  const editable = scope.kind === "all";
   const info = stageInfo(app.state);
 
   const raw = Number((await searchParams).step);
@@ -157,6 +172,31 @@ export default async function ApplicationPage({
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
+            {/* Above the form, not beside it: the marked points are the only
+                thing that can be edited, so they are the page (D81). There is
+                no notification channel yet — no mail, no SMS — so this panel is
+                the notice. */}
+            {round && (
+              <ShortfallNotice
+                applicationId={app.id}
+                roundNo={round.roundNo}
+                raisedAt={round.raisedAt.toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+                raisedBy={round.raisedBy.nameEn}
+                note={round.note}
+                items={round.items.map((i) => ({
+                  id: i.id,
+                  label: shortfallLabel(i.target),
+                  comment: i.comment,
+                  step: allShortfallTargets().find((t) => t.target === i.target)?.step ?? 2,
+                }))}
+                canRespond={membership.role !== "viewer"}
+              />
+            )}
+
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Step {step} of {FORM_STEPS.length}
@@ -223,7 +263,7 @@ export default async function ApplicationPage({
                         }
                       : null
                   }
-                  editable={editable}
+                  editable={can("product")}
                 />
 
                 {/*
@@ -242,7 +282,7 @@ export default async function ApplicationPage({
                     variantCount: sp.skus.length,
                     declaredByFdo: sp.declaredBy === "fdo",
                   }))}
-                  editable={editable}
+                  editable={can("sub_products")}
                 />
 
                 <SkuStep
@@ -280,7 +320,7 @@ export default async function ApplicationPage({
                     hintEn: t.hintEn,
                     units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
                   }))}
-                  editable={editable}
+                  editable={can("skus")}
                 />
 
                 <BdsStep
@@ -288,7 +328,9 @@ export default async function ApplicationPage({
                   productName={app.product?.nameEn ?? null}
                   requirements={requirements}
                   returnStep={step}
-                  editable={editable}
+                  // The standards follow from the product, so reopening the
+                  // product is what reopens which standards must be attached.
+                  editable={can("product")}
                 />
 
                 <DocumentsStep
@@ -299,7 +341,9 @@ export default async function ApplicationPage({
                     fileName: d.fileName,
                     sizeBytes: d.sizeBytes,
                   }))}
-                  editable={editable}
+                  // Papers are marked one at a time, so the step opens when any
+                  // one of them is and the route decides which.
+                  editable={canEditAnyDocument(scope)}
                 />
               </>
             )}
@@ -325,7 +369,7 @@ export default async function ApplicationPage({
                   kind: t.kind as string,
                   units: t.units.map((u) => ({ id: u.id, code: u.code, nameEn: u.nameEn })),
                 }))}
-                editable={editable}
+                editable={can("production")}
               />
             )}
 
@@ -342,11 +386,12 @@ export default async function ApplicationPage({
                 gaps={gaps ?? []}
                 feeStatus={app.applicationFeePayment?.status ?? null}
                 feeReference={app.applicationFeePayment?.reference ?? null}
-                editable={editable}
+                editable={can("answers")}
               />
             )}
 
             {editable && stepGaps.length > 0 && step !== 4 && <StepGaps gaps={stepGaps} />}
+
 
             <StepNav applicationId={app.id} current={step} last={FORM_STEPS.length} />
           </div>
@@ -387,7 +432,7 @@ export default async function ApplicationPage({
               </ul>
             </section>
 
-            {!editable && info.holder !== "closed" && (
+            {!editable && !round && info.holder !== "closed" && (
               <p className="rounded-xl bg-muted/60 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
                 This application has been submitted and can no longer be edited. If BSTI needs
                 anything more, you will be asked for it here.

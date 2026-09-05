@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireInternal } from "@/lib/auth-guard";
-import { actorFor, receive, pass } from "@/lib/workflow/inbox";
+import { actorFor, receive, pass, canViewApplication } from "@/lib/workflow/inbox";
+import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -44,6 +45,44 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         typeof body.note === "string" ? body.note : null,
         actor,
       );
+      return NextResponse.json({ application: app });
+    }
+
+    if (body.action === "shortfall") {
+      // Standing to read is not standing to write: `raiseShortfall` demands the
+      // caller be *holding* the file. The 404 here only keeps a stranger from
+      // learning the file exists at all.
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+      const raw = Array.isArray(body.items) ? body.items : [];
+      const items = raw.flatMap((i) =>
+        i && typeof i === "object" &&
+        typeof (i as { target?: unknown }).target === "string" &&
+        typeof (i as { comment?: unknown }).comment === "string"
+          ? [{ target: (i as { target: string }).target, comment: (i as { comment: string }).comment }]
+          : [],
+      );
+      const round = await raiseShortfall({
+        applicationId,
+        employeeId: actor.employeeId,
+        note: typeof body.note === "string" ? body.note : null,
+        items,
+      });
+      return NextResponse.json({ round });
+    }
+
+    if (body.action === "ready") {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+      const app = await markReadyForProcessing({ applicationId, employeeId: actor.employeeId });
       return NextResponse.json({ application: app });
     }
 

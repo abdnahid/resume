@@ -8,7 +8,9 @@ import { describeMovement } from "@/lib/workflow/chain";
 import { getApplication } from "@/lib/cm/applications";
 import { testFeeFor } from "@/lib/cm/sub-products";
 import { stageInfo } from "@/lib/cm/states";
-import { CM_DOCUMENTS, CM_QUESTIONS } from "@/lib/cm/policy";
+import { CM_DOCUMENTS, CM_QUESTIONS, allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
+import { roundsFor } from "@/lib/cm/shortfall";
+import ReviewPanel from "./_components/ReviewPanel";
 import { formatPoisha, takaToPoisha } from "@/lib/payments/money";
 import { salePricePolicy } from "@/lib/store/bds-catalog";
 
@@ -45,10 +47,18 @@ export default async function WorkflowFilePage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, testFee] = await Promise.all([
+  const [movements, testFee, rounds] = await Promise.all([
     movementsFor(applicationId),
     testFeeFor(applicationId).catch(() => null),
+    roundsFor(applicationId),
   ]);
+
+  // The correction loop is between whoever holds the file and the applicant
+  // (D81), so the panel only appears for the holder. The service re-checks.
+  const isHolder = !!actor.employeeId && app.holderEmployeeId === actor.employeeId;
+  const open = rounds.find((r) => r.respondedAt === null) ?? null;
+  const stamp = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   const stage = stageInfo(app.state);
   const heldDocs = new Map(app.documents.map((d) => [d.kind, d]));
@@ -94,6 +104,62 @@ export default async function WorkflowFilePage({
 
         <div className="mt-8 grid gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
+            {isHolder && (
+              <ReviewPanel
+                applicationId={app.id}
+                targets={allShortfallTargets().map((t) => ({ ...t, step: t.step }))}
+                openRound={
+                  open
+                    ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
+                    : null
+                }
+              />
+            )}
+
+            {rounds.length > 0 && (
+              <Card title={`Corrections asked for (${rounds.length})`}>
+                <ol className="space-y-4">
+                  {rounds.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-border p-3">
+                      <p className="text-sm font-medium text-foreground">
+                        Round {r.roundNo}
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">
+                          {r.raisedBy.nameEn} · {stamp(r.raisedAt)}
+                        </span>
+                        <span
+                          className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            r.respondedAt
+                              ? "bg-secondary text-muted-foreground"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                        >
+                          {r.respondedAt ? `answered ${stamp(r.respondedAt)}` : "awaiting the applicant"}
+                        </span>
+                      </p>
+                      {r.note && (
+                        <p className="mt-1 text-xs italic text-muted-foreground">“{r.note}”</p>
+                      )}
+                      <ul className="mt-2 space-y-1.5">
+                        {r.items.map((i) => (
+                          <li key={i.id} className="text-sm">
+                            <span className="font-medium text-foreground">
+                              {shortfallLabel(i.target)}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">{i.comment}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {r.response && (
+                        <p className="mt-2 rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">Applicant: </span>
+                          {r.response}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </Card>
+            )}
             {/* ── The application ─────────────────────────────────────── */}
             <Card title="Applicant">
               <Row label="Company" value={app.organization.nameEn} bn={app.organization.nameBn} />

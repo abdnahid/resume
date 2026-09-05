@@ -76,6 +76,49 @@ export function isEditable(state: ApplicationState): boolean {
 }
 
 /**
+ * How much of the application the applicant may change right now.
+ *
+ * Before submission, everything. While a shortfall round is open, **only the
+ * points the officer marked** (D81) — that is what makes a shortfall an edit
+ * permission rather than a request the applicant may answer by rewriting the
+ * file. Otherwise nothing.
+ *
+ * Prisma-free, and the one place the question is answered, so the page that
+ * greys a step out and the route that refuses the write cannot disagree.
+ */
+export type EditScope =
+  | { kind: "all" }
+  | { kind: "targets"; targets: readonly string[] }
+  | { kind: "none" };
+
+export function editScope(
+  state: ApplicationState,
+  openTargets: readonly string[] = [],
+): EditScope {
+  if (isEditable(state)) return { kind: "all" };
+  if (state === "shortfall_issued") return { kind: "targets", targets: openTargets };
+  return { kind: "none" };
+}
+
+export function canEditTarget(scope: EditScope, target: string): boolean {
+  if (scope.kind === "all") return true;
+  if (scope.kind === "none") return false;
+  return scope.targets.includes(target);
+}
+
+/**
+ * May the applicant touch documents at all — any one of them?
+ *
+ * Documents are marked individually (`document:<kind>`), so the step is open
+ * when any single paper is, and `canEditTarget` then decides which.
+ */
+export function canEditAnyDocument(scope: EditScope): boolean {
+  if (scope.kind === "all") return true;
+  if (scope.kind === "none") return false;
+  return scope.targets.some((t) => t.startsWith("document:"));
+}
+
+/**
  * The transitions the *applicant* may drive. Deliberately a short list — every
  * other move in §5.2 belongs to the workflow engine, and a transition table the
  * applicant's routes can reach is a transition the applicant can eventually be
@@ -84,6 +127,10 @@ export function isEditable(state: ApplicationState): boolean {
 const APPLICANT_TRANSITIONS: Partial<Record<ApplicationState, ApplicationState[]>> = {
   draft: ["pending_app_fee", "withdrawn"],
   pending_app_fee: ["draft", "submitted", "withdrawn"],
+  // Answering a shortfall is the applicant's move; the officer decides what
+  // happens next (D81). Withdrawal stays available — a file being corrected is
+  // still the applicant's to abandon.
+  shortfall_issued: ["shortfall_responded", "withdrawn"],
 };
 
 export function canApplicantMove(from: ApplicationState, to: ApplicationState): boolean {

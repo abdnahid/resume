@@ -1133,6 +1133,31 @@ can reuse them.
   server. **A refusal is `notFound()`, not a 403**, for the reason D71 gives:
   a distinguishable refusal would let any member of staff enumerate which
   application numbers exist and which office holds them.
+- **Corrections are a loop between the holder and the applicant** (D81), run
+  from `/workflow/[id]` and answered on the applicant's own application page.
+  `lib/cm/shortfall.ts` is the server half; the rules are Prisma-free in
+  `states.ts` (`editScope`) and `policy.ts` (`SHORTFALL_SECTIONS`).
+- **A shortfall is an edit permission, not a note.** The officer ticks points
+  from a closed list and each becomes a `ShortfallItem` row naming what
+  reopens — a section like `production`, or `document:<kind>` for one paper.
+  `editScope()` turns those rows into "may I write this", and **both the page
+  that greys a step out and the route that refuses the write call it**, so they
+  cannot disagree. A free-text note could not be turned into a permission, and
+  reopening the whole application invites changes nobody asked for after the fee
+  is paid.
+- **The file never leaves the officer's desk during a round.**
+  `holderEmployeeId` is untouched; the *state* is what says the applicant owes a
+  response. Handing it back would put it in an applicant inbox that does not
+  exist.
+- **It runs any number of rounds** — the client's rule, which settles the
+  "maximum rounds" half of §10 #7 — and ends when the officer marks the file
+  ready, which is the existing `review_passed`. Nothing checks that a marked
+  point was *actually* corrected: that judgement is the officer's, which is why
+  the file goes back to him to look again.
+- **There is no notification channel.** No mail (client addresses are often
+  `@mobile.bsti.invalid` placeholders) and SMS is not enabled, so the panel on
+  the application page *is* the notice. Do not describe the applicant as
+  "notified" until a channel exists.
 - **The attachments panel says the bytes are not stored.** The kernel document
   store does not exist, so an officer must not open that list believing BSTI
   holds the applicant's trade licence.

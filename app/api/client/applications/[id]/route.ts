@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { membershipFor, setProduct } from "@/lib/cm/applications";
-import { isEditable } from "@/lib/cm/states";
+import { canEditTarget } from "@/lib/cm/states";
+import { editScopeFor } from "@/lib/cm/shortfall";
 
 async function guard(applicationId: number) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -25,9 +26,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if ("error" in g) return NextResponse.json({ error: g.error }, { status: g.status });
 
   const app = await prisma.application.findUniqueOrThrow({ where: { id } });
-  if (!isEditable(app.state))
+  // A shortfall reopens named points and nothing else (D81), so the question is
+  // "may I write *this*", never "is the file editable".
+  const scope = await editScopeFor(id);
+  if (scope.kind === "none")
     return NextResponse.json(
       { error: "This application has been submitted and can no longer be edited." },
+      { status: 409 },
+    );
+  if (!canEditTarget(scope, "product"))
+    return NextResponse.json(
+      { error: "Only the points BSTI marked for correction can be changed." },
       { status: 409 },
     );
 

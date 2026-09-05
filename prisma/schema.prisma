@@ -336,6 +336,7 @@ model User {
   applicationEvents    ApplicationEvent[]
   applicationConsents  Application[]         @relation("ApplicationConsent")
   applicationMovements ApplicationMovement[]
+  shortfallResponses   ShortfallRound[]      @relation("ShortfallRespondedBy")
 
   // ─ Samples and lab testing ─
   consignmentsReceived Consignment[]      @relation("ConsignmentReceivedBy")
@@ -591,6 +592,7 @@ model Employee {
   consignmentsOpened    Consignment[]           @relation("ConsignmentOpenedBy")
   samplesSealed         SampleRegistration[]    @relation("SampleSealedBy")
   labTestOrdersHeld     LabTestOrder[]          @relation("LabTestOrderHolder")
+  shortfallsRaised      ShortfallRound[]        @relation("ShortfallRaisedBy")
   testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
 }
 
@@ -2006,6 +2008,7 @@ model Application {
   production ApplicationProduction?
   answers    ApplicationAnswer[]
   movements  ApplicationMovement[]
+  shortfalls ShortfallRound[]
 
   @@index([organizationId])
   @@index([factoryId])
@@ -3177,4 +3180,64 @@ model Reidentification {
 
   @@index([actorUserId])
   @@index([createdAt])
+}
+
+/// One round of corrections asked for by the reviewing officer.
+///
+/// The loop is directly between the officer holding the file and the applicant,
+/// and it may run any number of times until the officer marks the application
+/// ready for processing (D81). So a round is a row rather than a column: the
+/// third round has to be able to say something different from the first, and
+/// "what did we ask for last time" is a question asked in disputes.
+///
+/// The file does **not** change hands while a round is open. The officer keeps
+/// it — `holderEmployeeId` is untouched — because the work is his and the state
+/// is what says the applicant owes a response.
+model ShortfallRound {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// 1, 2, 3 … Unique per application, so a round can be cited by number in a
+  /// letter without ambiguity.
+  roundNo Int
+
+  raisedByEmployeeId String
+  raisedBy           Employee @relation("ShortfallRaisedBy", fields: [raisedByEmployeeId], references: [id])
+  raisedAt           DateTime @default(now())
+
+  /// The covering note — what is wrong overall. The specifics are the items.
+  note String?
+
+  respondedAt       DateTime?
+  respondedByUserId String?
+  respondedBy       User?     @relation("ShortfallRespondedBy", fields: [respondedByUserId], references: [id])
+  /// What the applicant says they changed.
+  response String?
+
+  items ShortfallItem[]
+
+  @@unique([applicationId, roundNo])
+  @@index([applicationId])
+}
+
+/// One marked correction point.
+///
+/// `target` names the part of the application that reopens — a section key such
+/// as `product` or `production`, or `document:<kind>` for a single paper. The
+/// applicant may edit **only** what is marked, which is the whole reason the
+/// points are rows and not a free-text note: a note cannot be turned into an
+/// edit permission.
+model ShortfallItem {
+  id Int @id @default(autoincrement())
+
+  roundId Int
+  round   ShortfallRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  target  String
+  comment String
+
+  @@unique([roundId, target])
+  @@index([roundId])
 }

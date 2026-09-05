@@ -681,3 +681,85 @@ export function stepProgress(gaps: Gap[]) {
     return { ...s, outstanding: outstanding.length, complete: outstanding.length === 0 };
   });
 }
+
+// ─── Shortfall targets (D81) ────────────────────────────────────────────────
+
+/**
+ * The parts of an application a reviewing officer can reopen for correction.
+ *
+ * **A shortfall is an edit permission, not a note.** The officer marks points;
+ * exactly those parts become editable again and nothing else does. So the
+ * points have to be a closed list the form can be keyed on — a free-text
+ * "please fix your capacity figures" cannot be turned into a permission, and an
+ * application reopened wholesale invites changes nobody asked for after the
+ * fee has been paid.
+ *
+ * `step` is which page of the four-step form the target lives on, so the
+ * applicant can be sent straight there.
+ *
+ * Documents are addressed one at a time as `document:<kind>` — "your trade
+ * licence has expired" should not reopen the whole checklist. `DOCUMENT_TARGET`
+ * builds the key; `SHORTFALL_SECTIONS` covers everything else.
+ */
+export type ShortfallSection = {
+  target: string;
+  label: string;
+  hint: string;
+  step: 1 | 2 | 3 | 4;
+};
+
+export const SHORTFALL_SECTIONS: readonly ShortfallSection[] = [
+  {
+    target: "product",
+    label: "Product and standards",
+    hint: "The wrong product was chosen, or the standards attached do not certify it.",
+    step: 2,
+  },
+  {
+    target: "sub_products",
+    label: "Sub-products",
+    hint: "The variants declared do not match what the factory makes.",
+    step: 2,
+  },
+  {
+    target: "skus",
+    label: "Brands, sizes and packaging",
+    hint: "An article is missing, duplicated, or described wrongly.",
+    step: 2,
+  },
+  {
+    target: "production",
+    label: "Production capacity",
+    hint: "The capacity, the year's production, or the authority stating it.",
+    step: 3,
+  },
+  {
+    target: "answers",
+    label: "BSTI's questions",
+    hint: "An answer is missing, or does not describe what the factory does.",
+    step: 4,
+  },
+] as const;
+
+export const DOCUMENT_TARGET_PREFIX = "document:";
+export const documentTarget = (kind: string) => `${DOCUMENT_TARGET_PREFIX}${kind}`;
+export const isDocumentTarget = (target: string) => target.startsWith(DOCUMENT_TARGET_PREFIX);
+export const documentKindOf = (target: string) => target.slice(DOCUMENT_TARGET_PREFIX.length);
+
+/** Every target an officer may mark, sections first and then each document. */
+export function allShortfallTargets(): ShortfallSection[] {
+  return [
+    ...SHORTFALL_SECTIONS,
+    ...CM_DOCUMENTS.map((d) => ({
+      target: documentTarget(d.kind),
+      label: d.label,
+      hint: d.hint ?? "",
+      step: 2 as const,
+    })),
+  ];
+}
+
+/** A target's label, for showing back what was asked for. */
+export function shortfallLabel(target: string): string {
+  return allShortfallTargets().find((t) => t.target === target)?.label ?? target;
+}

@@ -523,6 +523,72 @@ Done. The application number is a label again, and each row carries a **Preview*
 button beside its action — the number read as an identifier rather than as a way
 in, so the link was hiding the feature.
 
+### User
+
+> Now at the FDO desk he will preview the whole application and if found any
+> mistake he can request for correction. After sending shortafall requests the
+> client will be notified and the application will be open for that marked
+> correction point. THis process will be directly between FDO and client any
+> number of time untill FDO marks application as Ready for processing.
+
+### Assistant
+
+Built (D81). The states already existed — `shortfall_issued`,
+`shortfall_responded`, `review_passed` — so this is the loop the state machine
+was drawn for.
+
+**The design decision that everything follows from: a shortfall is an edit
+permission, not a note.** The officer ticks points from a closed list and each
+becomes a `ShortfallItem` row naming what reopens — a section like `production`,
+or `document:<kind>` for one paper, because "your trade licence has expired"
+should not reopen the whole checklist. `editScope()` in `states.ts` is the one
+place those rows become "may I write this", and **both the page that greys a
+step out and the route that refuses the write call it**, so they cannot
+disagree. A free-text note could not be turned into a permission, and reopening
+the whole application would invite changes nobody asked for after the fee was
+paid.
+
+**The file never leaves the officer's desk.** `holderEmployeeId` is untouched
+and the *state* is what says the applicant owes a response — handing it back
+would put it in an applicant inbox that does not exist and lose the officer who
+has been reading it.
+
+**Any number of rounds**, which answers the "maximum rounds" half of §10 #7 with
+the client's own rule. Ends at the existing `review_passed`, so the applicant's
+tracker gains no new stage. Nothing checks that a marked point was *actually*
+corrected: that judgement is the officer's, which is why he looks again rather
+than the system deciding it has been satisfied.
+
+Raising is guarded on **holding** the file, not on a role — an officer two desks
+away who may read it (D80) must not be able to write to the applicant in its
+name.
+
+**Verified end to end against the live file**, then rolled back so the client's
+own testing was not disturbed:
+
+```
+start                 state=submitted          scope=none
+officer marks 2 points state=shortfall_issued   scope=targets [production, document:trade_licence]
+                      production editable=true, trade_licence=true, product=false, answers=false
+  a blank comment and an unknown target were dropped
+  second round while one is open  → refused
+  marking ready while one is open → refused
+  a non-holder raising            → refused
+applicant responds    state=shortfall_responded scope=none
+round 2 (skus)        state=shortfall_issued    scope=targets [skus]
+officer marks ready   state=review_passed       scope=none
+2 rounds recorded, both answered
+```
+
+**A bug found on the way and fixed:** the document DELETE route had *no*
+editability guard at all, so a submitted application's papers could be deleted
+by anyone in the company after BSTI had begun reviewing them.
+
+**Said plainly rather than papered over:** there is no notification channel. No
+mail — client addresses are often `@mobile.bsti.invalid` placeholders — and SMS
+is not enabled. The panel on the applicant's page *is* the notice. The file
+should not be described as "the client is notified" until a channel exists.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was
