@@ -74,3 +74,63 @@ export function describeMovement(m: {
   const verb = m.direction === "down" ? "Passed down to" : "Sent up to";
   return m.fromName ? `${verb} ${m.toName}, by ${m.fromName}` : `${verb} ${m.toName}`;
 }
+
+/**
+ * The rank a desk is grouped under in a picker — Director, Deputy Director,
+ * Assistant Director, Field Officer and so on.
+ *
+ * **Grade cannot do this on its own.** Assistant Director, Inspector, Examiner,
+ * Field Officer and Senior Examiner are *all* grade 9, so a list ordered by
+ * grade alone puts 82 Assistant Directors and 56 Field Officers in one
+ * undifferentiated run. The designation is what separates them.
+ *
+ * Matched most specific first, and in both languages, because the roster holds
+ * both: "সহকারী পরিচালক" contains "পরিচালক", and "Deputy Director" contains
+ * "Director", so testing the shorter one first would file every deputy under
+ * Director. The parenthetical is ignored — "Assistant Director (CM)" and
+ * "Assistant Director (Metrology)" are the same rank on a picker.
+ */
+/** Ordered most senior first. The first pattern that matches wins. */
+const RANK_TABLE: { label: string; order: number; patterns: string[] }[] = [
+  { label: "Head of Office", order: 0, patterns: ["head of office", "অফিস প্রধান"] },
+  { label: "Director", order: 10, patterns: ["director (physics)", "director (chemistry)"] },
+  { label: "Deputy Director", order: 20, patterns: ["deputy director", "উপপরিচালক"] },
+  { label: "Assistant Director", order: 30, patterns: ["assistant director", "সহকারী পরিচালক"] },
+  { label: "Director", order: 10, patterns: ["director", "পরিচালক"] },
+  { label: "Senior Examiner", order: 40, patterns: ["senior examiner", "ঊর্ধ্বতন পরীক্ষক", "উর্ধ্বতন পরীক্ষক"] },
+  { label: "Senior Inspector", order: 41, patterns: ["senior inspector", "ঊর্ধ্বতন পরিদর্শক"] },
+  { label: "Field Officer", order: 50, patterns: ["field officer", "ফিল্ড অফিসার"] },
+  { label: "Examiner", order: 60, patterns: ["examiner", "পরীক্ষক"] },
+  { label: "Inspector", order: 61, patterns: ["inspector", "পরিদর্শক"] },
+];
+
+export type DeskRank = { label: string; order: number };
+
+export function deskRank(designation: string | null): DeskRank {
+  const d = (designation ?? "").toLowerCase().trim();
+  if (!d) return { label: "Other", order: 900 };
+  for (const r of RANK_TABLE) if (r.patterns.some((pat) => d.includes(pat))) return r;
+  // Not one of the chain's ranks — a Programmer, a Store Officer. Kept under
+  // its own name rather than lumped into "Other", because it is a real desk.
+  const pretty = (designation ?? "").trim();
+  return { label: pretty.charAt(0).toUpperCase() + pretty.slice(1), order: 800 };
+}
+
+/**
+ * Desks grouped by rank for a picker, seniority first, and by grade then name
+ * within each group. Prisma-free so the panel can call it.
+ */
+export function groupByRank(desks: Desk[]): { label: string; desks: Desk[] }[] {
+  const groups = new Map<string, { order: number; desks: Desk[] }>();
+  for (const d of desks) {
+    const r = deskRank(d.designation);
+    if (!groups.has(r.label)) groups.set(r.label, { order: r.order, desks: [] });
+    groups.get(r.label)!.desks.push(d);
+  }
+  return [...groups]
+    .sort((a, b) => a[1].order - b[1].order || a[0].localeCompare(b[0]))
+    .map(([label, g]) => ({
+      label,
+      desks: g.desks.sort((a, b) => rank(a.grade) - rank(b.grade) || a.name.localeCompare(b.name)),
+    }));
+}

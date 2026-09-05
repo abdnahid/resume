@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Inbox, Loader2 } from "lucide-react";
-import type { Desk } from "@/lib/workflow/chain";
+import { groupByRank, type Desk } from "@/lib/workflow/chain";
 
 /**
  * Receiving a file, and passing it on.
@@ -139,12 +139,22 @@ export function PassPanel({
             onChange={(e) => setTo(e.target.value)}
           >
             <option value="">Choose a desk…</option>
-            {list.map((d) => (
-              <option key={d.employeeId} value={d.employeeId}>
-                {d.name}
-                {d.designation ? ` — ${d.designation}` : ""}
-                {d.grade ? ` (grade ${d.grade})` : ""}
-              </option>
+            {/*
+              Grouped by rank rather than listed flat: Assistant Director,
+              Inspector, Examiner and Field Officer are all grade 9, so an
+              ordered list runs 80-odd names together with nothing to read them
+              by. The rank comes from the designation (`groupByRank`), in both
+              languages, since the roster holds both.
+            */}
+            {groupByRank(list).map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.desks.map((d) => (
+                  <option key={d.employeeId} value={d.employeeId}>
+                    {d.name}
+                    {d.grade ? ` — grade ${d.grade}` : ""}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
 
