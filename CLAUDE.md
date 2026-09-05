@@ -276,10 +276,54 @@ matching failure:**
 
 ### Can a CM application be worked in every office?
 
-**Not yet, and the blocker is one thing: nobody holds `office_head`** — 0 of 23
-offices. The role exists (D57) and the inbox is built, but a submitted
-application is received by the office head, so until someone holds it in each
-office no file can start moving anywhere. Assigned at `/hr/listing/roles`.
+**All 23 offices now have an `office_head`**, assigned 2026-09-05 by
+`npm run import:office-heads`. One thing still blocks the flow — see the
+cross-section note below.
+
+**Who holds it.** A designated *Head of Office* where one exists (three people
+are, and all three have no grade at all, so ranking by seniority would have
+skipped exactly the right person); otherwise the seniormost officer of the
+office, whatever wing he comes from. **At head office it is the CM wing's
+seniormost officer, not the building's** — the Director (CM) post is vacant, so
+DD (CM) acts in it, which is why D57 made this a role and not a designation.
+
+**Payroll was not collateral damage.** `User.role` is a single enum, so granting
+`office_head` to someone holding `officeadmin` silently removes their payroll
+authority — and the natural head was the officeadmin at 14 of 23 offices. The
+two are different jobs (payroll can be run by the accounts head, by any
+officer), so the script moves `officeadmin` to the office's accounts desk where
+one exists and **reports the office rather than guessing** where none does.
+Payroll still runs everywhere meanwhile, because a superadmin is not
+office-scoped.
+
+**15 offices have no local payroll admin** and need one nominated at
+`/hr/listing/roles`: Barishal, Sylhet, Chittagong, Rangpur, Mymensingh, Cumilla,
+Faridpur, Cox's Bazar, Bogura, Dinajpur, Noakhali, DMI, Narsingdi, Rajshahi,
+Narayanganj.
+
+**Two heads hold no desk** — Narsingdi and Narayanganj — so they can receive a
+file but not pass it on: `candidates()` works from `desksOfOffice()`, and
+someone with no post is not in it.
+
+### The hand-off the routing needs, and does not yet allow
+
+A branch office head may come from any wing — a DD (Metrology) at Barisal
+receives CM applications — and must pass the file **into the CM section**,
+where AD (CM) → FO (CM) carries it on. When the sampling letter is approved a
+letter goes to the **testing wing head** of Chemical or Physical at that office,
+who is simply the seniormost officer of that section: DD, AD or Examiner by
+availability. At head office the CM wing director receives, and the
+Physical/Chemical wing director gets the letter after approval.
+
+**`candidates()` blocks the first step.** It restricts even the office head to
+`sectionUnitId === sender.sectionUnitId`, so a Metrology head cannot pass a CM
+file into the CM section at all. D58 needs amending: the head's first hand-off
+crosses into the *service's* section, and movement stays within that section
+afterwards.
+
+**"Testing wing head" needs no new table.** It is derivable — the seniormost
+officer of the office's Chemical or Physical section — which supersedes the
+`LabMember` table proposed earlier.
 
 Everything else is in place. **22 of 23 offices have CM-desked staff** — from 23
 at Chittagong down to 1 at Patuakhali. The exception is **DMI, which has none**,
