@@ -90,6 +90,12 @@ export function describeMovement(m: {
   toName: string;
 }): string {
   if (m.direction === "receive") return `Received by ${m.toName}`;
+  // A reassignment names who was holding it, never who "sent" it — nobody did.
+  if (m.direction === "reassign") {
+    return m.fromName
+      ? `Reassigned to ${m.toName}, from ${m.fromName}`
+      : `Reassigned to ${m.toName}`;
+  }
   const verb = m.direction === "down" ? "Passed down to" : "Sent up to";
   return m.fromName ? `${verb} ${m.toName}, by ${m.fromName}` : `${verb} ${m.toName}`;
 }

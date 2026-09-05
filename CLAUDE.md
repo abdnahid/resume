@@ -1051,6 +1051,20 @@ can reuse them.
   picker says *"— Director, additional charge"* rather than silently promoting
   him. No history is kept; `toDesk()` is the only reader, so making it a dated
   table later is one place.
+- **A file whose holder stops serving is stuck, and only an administrator can
+  free it** (D76). `holderEmployeeId` is a person and "nobody holds it" is the
+  definition of unclaimed, so a file does not fall back to anyone when its
+  holder leaves — it sits at a desk nobody is at. Worse, `pass()` lets only the
+  holder move a file, and a retiree who has given up their desk has no
+  `sectionUnitId`, so `canPassTo()` refuses before it looks at grade. D75's
+  sender exemption does not help, because the section check comes first.
+  `npm run fix:orphaned-files` moves each such file to its office's head — where
+  it would have gone had the holder never received it — and writes a
+  **`reassign`** movement. Not an `up`: nobody sent it, and "sent up by
+  <retired officer>" is a lie in the one feature spec §8 calls most of the
+  perceived value of the system. `fromEmployeeId` still names who was holding
+  it, so the break in custody stays visible. **There is no screen for this** —
+  reassignment is on the step 8+ list and the script is the only way to do it.
 - **A retired officer may never be handed a file** (D75). `Desk.isActive`,
   checked on the candidate and **never on the sender** — a file already in a
   retired officer's hands must still be movable out of them. Office scoping is
@@ -1271,6 +1285,8 @@ npm run import:retire    # remove employees the export does not contain (dry run
 npm run import:products  # the 315 mandatory products (--dry to report without writing)
 npm run import:desks     # place employees on organogram posts (--dry to report without writing)
 npm run import:office-head-desks # seat each office head on their office's Executive desk (--dry)
+npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
+npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
 
 npm run import:test-parameters # a wing's test-parameter file → the Phase G catalogue (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)

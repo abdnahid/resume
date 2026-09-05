@@ -2385,6 +2385,16 @@ enum MovementDirection {
   up
   /// Picked up by the receiving office in the first place.
   receive
+  /// Moved by an administrator rather than by whoever held it — because the
+  /// holder retired, transferred, or is otherwise unable to pass it on.
+  ///
+  /// It is its own direction because the alternatives both lie. Recording it as
+  /// `up` would read "sent up by <holder>" when the holder did nothing, and the
+  /// movement log is the answer to "who has my file and what happened to it",
+  /// which is the single feature spec §8 calls most of the perceived value of
+  /// the system. `fromEmployeeId` still names who was holding it, so the gap in
+  /// custody stays visible instead of being smoothed over.
+  reassign
 }
 
 /// Every hand-off of a file, append-only (spec §4.2).

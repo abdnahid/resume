@@ -175,6 +175,52 @@ Committed as `d5e574d`.
 
 ---
 
+### User
+
+> I received an application in Golam Rabbani's profile and the application is
+> stuck there. Can you bring it to current acting director's desk?
+
+### Assistant
+
+One file: **CM-2026-000019**, Istiak Sugar Refinary, Colour Fastness Ratings of
+Textiles, Head Office, `submitted`, with a single `receive` movement to Golam
+Rabbani and nothing after it.
+
+**It was genuinely stuck, and the reason is structural.**
+`Application.holderEmployeeId` is a person and "nobody holds it" is the
+definition of unclaimed (D58) — which is the right shape and has one
+consequence: a file does not fall back to anybody when its holder stops being
+available. On top of that `pass()` lets only the holder move a file, and
+retiring him released his desk, so he had no `sectionUnitId` and `canPassTo()`
+refused before it ever looked at grade. D75's sender exemption does not rescue
+this, because the section check comes first.
+
+**Moved to Md. Alauddin Hussain**, the acting Director and Head Office's
+`office_head` — where the file would have arrived had Rabbani never received it
+(D57).
+
+**The movement is a new `reassign` direction, not an `up`.** Nobody sent it, and
+a log reading "sent up by Md. Golam Rabbani" would attribute an action to
+somebody who had already left — in the one feature spec §8 calls most of the
+perceived value of the system. `fromEmployeeId` still names him, so the break in
+custody stays visible rather than being smoothed over. The log now reads:
+
+```
+Received by Md. Golam Rabbani
+Reassigned to Md. Alauddin Hussain, from Md. Golam Rabbani
+  — Reassigned by administration: Md. Golam Rabbani is retired.
+```
+
+`npm run fix:orphaned-files` is the general form — every file held by someone
+not `active` goes to that office's head, idempotent, and it refuses rather than
+guesses where the office has no serving head or where the head *is* the stuck
+holder. **There is no screen for it.** Reassignment is on the step 8+ list and
+the script is the only path today.
+
+**Verified:** Alauddin holds the file, Rabbani holds none, no file anywhere is
+held by a non-serving officer, and Alauddin can pass it to 21 desks including
+all three CM Deputy Directors.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was
@@ -185,7 +231,13 @@ Committed as `d5e574d`.
 - **`Posting.orgPostId` is null on every row** — the organogram link is
   `Employee.orgPostId`. (Carried forward from step 8a; re-confirmed.)
 - Roster 731; desked 479; without a desk 252.
-- Office heads: 23 of 23 assigned, 23 of 23 now desked.
+- Office heads: 23 of 23 assigned, 22 of 23 desked — Head Office's holds the
+  Director post in additional charge instead, which is the same thing.
+- **The export records the acting designation, not the substantive one.** That
+  is how a Deputy Director arrived as a grade-4 পরিচালক.
+- A file does not fall back to anyone when its holder leaves, and the holder is
+  the only person who can move it. Both are deliberate; together they strand the
+  file.
 
 ### User
 
