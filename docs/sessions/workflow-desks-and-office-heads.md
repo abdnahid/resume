@@ -355,6 +355,53 @@ With D78 and D79 together, **no desk in any of the 23 offices can reach nobody.*
 The route's refusal message changed with it — "a more junior desk" would have
 been a lie about the rule being enforced.
 
+### User
+
+> An UI update is needed beside all my main work. On the navbar while logged in
+> employee should be able to see his/her, designation/desk as well as ID.
+> Another thing-> currently name is like a button. It is taking me to
+> /public/dashboard always. I dont need that. The design should be like this
+> "Name(id)" and "designaion" will be shown stacked on top of other. On the
+> right side of it, a dropdown arrow button/three dot button remains. That
+> button opens a drop down. There he can switch his roles/desks(if any). In the
+> dropdown more opotions will be added later.
+
+### Assistant
+
+The offending navbar is `ModuleNavbar` — workflow, store and the module
+placeholders. The `/hr` navbar was already a proper dropdown.
+
+**`components/layout/AccountMenu.tsx`** — `Name (employee id)` over the
+designation, as text, with a caret beside it. The name being a link to
+`/public/dashboard` sent staff to the *client* account page, which is why it
+felt wrong.
+
+**`GET /api/me`** supplies what the session does not. `ModuleNavbar` reads the
+session client-side deliberately — the store is ISR and awaiting a session
+server-side would opt every catalogue page out of static generation (D10) — so
+it has a name and a role and nothing else. The route is **internal by default
+and stays that way**: everything it returns is employment data, and the navbar
+only calls it when the session says `INTERNAL`, so no client ever provokes the
+refusal. It applies the same `designationBn` fallback as the picker.
+
+**The `/hr` navbar got the same treatment** where it was thin: the identity is
+now stacked in the bar rather than one click inside the dropdown, and the desk
+appears in the dropdown. It shares `useMe()` rather than duplicating the fetch.
+
+**On switching desks — I did not ship a dead control.** Nobody holds two.
+`User.role` is a single enum so there is no second role, and a post held in
+additional charge (D74) is the only way to occupy a second desk — one person
+does, and he gave up his substantive seat when it went to Kawser, so even he has
+just the one. The menu therefore *shows* what you hold and marks what you act
+from. When somebody genuinely holds two the extra row appears by itself and the
+choice becomes real; wiring the selection through to `toDesk()` is the work that
+waits for that day, and it is a behaviour change rather than a display one.
+
+Verified the payload for four people — the acting Director (one desk, marked
+*additional charge*), Afsana Hossain (Bangla-only designation, resolves), the
+superadmin, and a plain Deputy Director. `/store` renders 200 through the
+rewritten navbar.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

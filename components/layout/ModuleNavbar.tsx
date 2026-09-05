@@ -10,11 +10,10 @@ import {
   Shield,
   Menu,
   X,
-  UserRound,
-  LogOut,
 } from "lucide-react";
 import Image from "next/image";
 import { authClient } from "@/lib/auth-client";
+import AccountMenu, { useMe } from "./AccountMenu";
 
 export type ModuleNavItem = {
   label: string;
@@ -74,6 +73,11 @@ export default function ModuleNavbar({
     await authClient.signOut();
     window.location.href = "/";
   }
+
+  const isInternal =
+    (session?.user as { accountType?: string } | undefined)?.accountType === "INTERNAL";
+  // The designation and desks the session does not carry.
+  const me = useMe(isInternal);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -176,23 +180,13 @@ export default function ModuleNavbar({
             {isPending ? (
               <span className="hidden h-10 w-24 animate-pulse rounded-lg bg-secondary sm:block" />
             ) : session ? (
-              <div className="hidden items-center gap-1 sm:flex">
-                <Link
-                  href="/public/dashboard"
-                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary hover:text-primary"
-                >
-                  <UserRound className="h-4 w-4" strokeWidth={1.8} />
-                  <span className="max-w-[10ch] truncate">
-                    {session.user.name}
-                  </span>
-                </Link>
-                <button
-                  onClick={handleSignOut}
-                  aria-label="Sign out"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-subtitle transition-colors hover:bg-secondary hover:text-primary cursor-pointer"
-                >
-                  <LogOut className="h-[18px] w-[18px]" strokeWidth={1.8} />
-                </button>
+              <div className="hidden items-center sm:flex">
+                <AccountMenu
+                  fallbackName={session.user.name}
+                  me={me}
+                  isInternal={isInternal}
+                  onSignOut={handleSignOut}
+                />
               </div>
             ) : (
               <div className="hidden items-center gap-1 sm:flex">
@@ -247,13 +241,41 @@ export default function ModuleNavbar({
                 <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3">
                   {session ? (
                     <>
-                      <Link
-                        href="/public/dashboard"
-                        onClick={() => setMobileOpen(false)}
-                        className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
-                      >
-                        My account
-                      </Link>
+                      <div className="rounded-lg border border-border px-4 py-2.5">
+                        <p className="text-sm font-semibold text-foreground">
+                          {me?.nameEn ?? session.user.name}
+                          {me && (
+                            <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                              ({me.employeeId})
+                            </span>
+                          )}
+                        </p>
+                        {(me?.designationEn ?? me?.designationBn) && (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {me?.designationEn ?? me?.designationBn}
+                          </p>
+                        )}
+                        {me?.desks.map((d) => (
+                          <p key={d.id} className="mt-1 text-xs text-muted-foreground">
+                            {d.titleEn}
+                            {d.kind === "acting" && (
+                              <span className="ml-1 font-medium text-primary">
+                                additional charge
+                              </span>
+                            )}
+                            <span className="block text-[11px]">{d.unitEn}</span>
+                          </p>
+                        ))}
+                      </div>
+                      {!isInternal && (
+                        <Link
+                          href="/public/dashboard"
+                          onClick={() => setMobileOpen(false)}
+                          className="rounded-lg border border-border px-4 py-2.5 text-center text-sm font-semibold text-foreground hover:bg-muted"
+                        >
+                          My account
+                        </Link>
+                      )}
                       <button
                         onClick={handleSignOut}
                         className="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-subtitle hover:bg-muted cursor-pointer"

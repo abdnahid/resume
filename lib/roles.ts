@@ -38,3 +38,12 @@ export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }
   { value: "data_entry", label: "Data entry", hint: "Records only" },
   { value: "employee", label: "Employee", hint: "Their own profile" },
 ];
+
+/**
+ * A role's display name. Falls back to the stored value rather than to "Unknown"
+ * — `client` is not assignable but is a real value on a real row, and showing it
+ * verbatim is more honest than hiding it behind a placeholder.
+ */
+export function roleLabel(role: string): string {
+  return ROLE_LABELS.find((r) => r.value === role)?.label ?? role;
+}

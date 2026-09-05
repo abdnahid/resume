@@ -13,11 +13,13 @@ import {
   Key,
   FileText,
   Building2,
+  Briefcase,
   Shield,
   X,
   Menu,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { useMe } from "@/components/layout/AccountMenu";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,6 +180,9 @@ function useClickOutside(cb: () => void) {
 // ─── Navbar ───────────────────────────────────────────────────────────────────
 
 export default function Navbar({ user }: { user: SessionUser }) {
+  // The desks the session prop does not carry. Everyone reaching this navbar is
+  // internal — it renders only inside `app/(main)`.
+  const me = useMe(true);
   const pathname = usePathname();
   // Null on the print views, which render the navbar outside the provider.
   const sidebar = useOptionalSidebar();
@@ -324,10 +329,22 @@ export default function Navbar({ user }: { user: SessionUser }) {
                     className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card ${rc.dot}`}
                   />
                 </span>
-                <span
-                  className={`max-w-32 truncate font-medium leading-none ${lang === "bn" ? "font-bn-serif text-base" : ""}`}
-                >
-                  {displayName}
+                <span className="hidden min-w-0 flex-col text-left leading-tight sm:flex">
+                  <span
+                    className={`max-w-40 truncate font-medium ${lang === "bn" ? "font-bn-serif text-base" : ""}`}
+                  >
+                    {displayName}
+                    <span className="ml-1 font-mono text-[11px] font-normal text-muted-foreground">
+                      ({user.employeeId})
+                    </span>
+                  </span>
+                  {/* The rank is what a colleague asks for after the name, so it
+                      belongs in the bar rather than one click inside it. */}
+                  <span
+                    className={`max-w-40 truncate text-[11px] font-normal text-muted-foreground ${lang === "bn" ? "font-bn-serif" : ""}`}
+                  >
+                    {displayDesignation}
+                  </span>
                 </span>
                 <ChevronDown
                   size={14}
@@ -404,6 +421,40 @@ export default function Navbar({ user }: { user: SessionUser }) {
                       {user.employeeId}
                     </p>
                   </div>
+
+                  {/* Desk. A post held in additional charge (D74) is a second
+                      desk rather than a relabelling of the first, and it is the
+                      one the workflow acts from, so it is listed first. */}
+                  {me && me.desks.length > 0 && (
+                    <div className="border-b border-border px-4 py-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {me.desks.length > 1 ? "Your desks" : "Your desk"}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {me.desks.map((d) => (
+                          <li key={d.id} className="flex items-start gap-2.5">
+                            <Briefcase
+                              size={13}
+                              className="mt-0.5 shrink-0 text-muted-foreground"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm leading-snug text-foreground">
+                                {d.titleEn}
+                                {d.kind === "acting" && (
+                                  <span className="ml-1 text-xs font-medium text-primary">
+                                    additional charge
+                                  </span>
+                                )}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {d.unitEn}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Links */}
                   <div className="px-2 py-1.5">

@@ -141,6 +141,27 @@ and a theme class in `app/globals.css`.
   must use the same container as its page** — the organogram's skeleton sat in
   `PageContainer` while the page was full-bleed, so the chart jumped sideways
   on load, which is the one thing a skeleton is meant to prevent.
+- **The navbar identity is text, not a link.** `Name (employee id)` over the
+  designation, with a caret beside it opening the account menu. It used to be a
+  button to `/public/dashboard` — the *client* account page — so a member of
+  staff clicking their own name landed on the citizen-facing surface.
+  `components/layout/AccountMenu.tsx` holds it, and both navbars use it:
+  `ModuleNavbar` renders it directly, `Navbar` (the /hr one) shares its `useMe()`
+  hook.
+- **`GET /api/me` supplies what the session does not** — designation, office and
+  the desks held. `ModuleNavbar` reads the session client-side on purpose (the
+  store is ISR and awaiting a session server-side would opt every catalogue page
+  out of static generation), so it has a name and a role and nothing else. The
+  route is **internal by default and stays that way**: everything it returns is
+  employment data, and the navbar only calls it when the session says
+  `INTERNAL`, so no client provokes the refusal.
+- **The account menu shows the desks you hold; it does not switch between
+  them.** Nobody holds two today — `User.role` is a single enum, and a post held
+  in additional charge (D74) is the only second desk anyone can have. So it
+  marks what you act from rather than offering a control that would do nothing.
+  When someone genuinely holds two, the row appears on its own and wiring the
+  choice through to `toDesk()` is the work that follows — a behaviour change,
+  not a display one.
 - **`loading.tsx` is what makes a click feel responsive.** Every slow route needs
   one; `app/(main)/hr/loading.tsx` is the fallback for everything under /hr.
 
