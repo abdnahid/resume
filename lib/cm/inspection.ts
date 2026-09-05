@@ -228,6 +228,7 @@ export async function approveInspection(args: {
   applicationId: number;
   employeeId: string;
   role: string;
+  actorUserId: string;
 }) {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: args.applicationId },
@@ -258,6 +259,19 @@ export async function approveInspection(args: {
 
   const orderNo = await nextOrderNo(app.bstiOfficeId);
 
+  /**
+   * **Approval hands the file back to whoever proposed the plan.**
+   *
+   * He is the officer going to the factory: he estimates the samples, takes the
+   * tokens, seals them and writes the report. Leaving the file on the
+   * approver's desk left every one of those things at the wrong desk — the
+   * report panel appeared for the Assistant Director who approved the visit
+   * rather than the Field Officer making it.
+   *
+   * Recorded as a `down`, which is what it is, and that also makes the return
+   * journey right by itself: `delegatorOf()` then resolves to this approver, so
+   * the report goes back to the same person who approved the plan.
+   */
   await prisma.$transaction([
     prisma.inspectionPlan.update({
       where: { id: plan.id },
@@ -265,7 +279,20 @@ export async function approveInspection(args: {
     }),
     prisma.application.update({
       where: { id: args.applicationId },
-      data: { state: "inspection_approved" },
+      data: {
+        state: "inspection_approved",
+        holderEmployeeId: plan.proposedByEmployeeId,
+      },
+    }),
+    prisma.applicationMovement.create({
+      data: {
+        applicationId: args.applicationId,
+        fromEmployeeId: args.employeeId,
+        toEmployeeId: plan.proposedByEmployeeId,
+        direction: "down",
+        note: `Inspection approved — office order ${orderNo}.`,
+        actorUserId: args.actorUserId,
+      },
     }),
   ]);
   return planFor(args.applicationId);

@@ -141,6 +141,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           applicationId,
           employeeId: actor.employeeId,
           role: actor.role,
+          actorUserId: actor.userId,
         });
         return NextResponse.json({ plan });
       }

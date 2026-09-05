@@ -1174,6 +1174,12 @@ can reuse them.
   reads the same. The proposer may never approve his own plan, and the approver
   must **hold** the file. The inspection and sampling reports will take the same
   rule.
+- **Approval hands the file back down to whoever proposed the plan.** He is the
+  officer going to the factory — he estimates the samples, takes the tokens,
+  seals them and writes the report — so leaving the file on the approver's desk
+  put every one of those at the wrong desk. Recorded as a `down`, which also
+  makes the return journey right by itself: `delegatorOf()` then resolves to the
+  approver, so the report goes back to the same officer who approved the plan.
 - **Approval issues the office order**, and it is an official letter (D85).
   `/workflow/[id]/order` renders it on the government letterhead — `GovHeader`
   with `orgForOffice()`, so a Barishal order carries Barishal's address — naming
