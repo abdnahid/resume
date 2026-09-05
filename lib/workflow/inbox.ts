@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { employeesOfOffice } from "@/lib/salary/payroll";
-import { eligibleDesks, rank, type Desk, type Direction } from "./chain";
+import { eligibleDesks, immediateSeniors, rank, type Desk, type Direction } from "./chain";
 
 /** Roles that may act on a file at all. */
 export type WorkflowActor = {
@@ -308,6 +308,19 @@ export async function touchedBy(employeeId: string) {
     select: LIST_SELECT,
     orderBy: { updatedAt: "desc" },
   });
+}
+
+/**
+ * The desks immediately above one officer — who approves his work (D83).
+ *
+ * Prisma-free rule, server-side lookup: the chain module decides "nearest
+ * senior", this supplies the desks to decide it over.
+ */
+export async function immediateSeniorsOf(employeeId: string, officeId: number): Promise<Desk[]> {
+  const all = await desksOfOffice(officeId);
+  const me = all.find((d) => d.employeeId === employeeId);
+  if (!me) return [];
+  return immediateSeniors(me, all);
 }
 
 /**

@@ -133,22 +133,26 @@ export async function proposeInspection(args: {
 }
 
 /**
- * The office head approves, and the office order issues.
+ * The proposer's senior approves, and the office order issues.
  *
- * Guarded on the role rather than on seniority: `office_head` is precisely
- * "the desk that speaks for this office", and where the Director's post is
- * vacant it is the officer acting in it (D57, D74). Also guarded on holding the
- * file, so an office head cannot approve a plan that is still three desks below
- * him and which he has therefore not read.
+ * **The immediate senior, not the office head** (D83). The question "is this
+ * plan sound" is answered by whoever the proposing officer reports to; sending
+ * it up to a Director is asking him to read a date, and the client is content to
+ * follow it on the desk flow instead.
+ *
+ * A desk **further** up may still approve rather than being refused. If a file
+ * has been passed higher than it needed to go, refusing would strand it; what
+ * matters is that nobody junior to — or level with — the proposer signs off his
+ * own plan.
+ *
+ * Guarded on holding the file either way, so a senior cannot approve a plan
+ * still three desks below him that he has therefore not read.
  */
 export async function approveInspection(args: {
   applicationId: number;
   employeeId: string;
   role: string;
 }) {
-  if (args.role !== "office_head" && args.role !== "superadmin") {
-    throw new Error("Only the office head can approve an inspection plan.");
-  }
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: args.applicationId },
     select: { state: true, holderEmployeeId: true, bstiOfficeId: true },
@@ -157,27 +161,24 @@ export async function approveInspection(args: {
     throw new Error("The file has to reach you before you can approve its plan.");
   }
 
-  // The head of *this* office. Holding the file already implies it reached them
-  // and `pass()` only moves a file inside its own office — but the order carries
-  // an office's name, so the office is checked here rather than inferred from
-  // how the file got there.
-  if (args.role === "office_head") {
-    const me = await prisma.employee.findUnique({
-      where: { id: args.employeeId },
-      select: {
-        officeId: true,
-        postings: { where: { relievedAt: null }, select: { officeId: true }, take: 1 },
-      },
-    });
-    const mine = me?.postings[0]?.officeId ?? me?.officeId ?? null;
-    if (!mine || mine !== app.bstiOfficeId) {
-      throw new Error("This file belongs to another office, whose head approves its inspections.");
-    }
-  }
-
   const plan = await planFor(args.applicationId);
   if (!plan) throw new Error("There is no inspection plan to approve.");
   if (plan.approvedAt) throw new Error("This plan is already approved.");
+
+  if (args.role !== "superadmin") {
+    if (plan.proposedByEmployeeId === args.employeeId) {
+      throw new Error("An inspection plan is approved by your senior, not by you.");
+    }
+    if (!app.bstiOfficeId) throw new Error("This file has no office.");
+    const { desksOfOffice } = await import("@/lib/workflow/inbox");
+    const { canPassTo } = await import("@/lib/workflow/chain");
+    const desks = await desksOfOffice(app.bstiOfficeId);
+    const proposer = desks.find((d) => d.employeeId === plan.proposedByEmployeeId);
+    const me = desks.find((d) => d.employeeId === args.employeeId);
+    if (!proposer || !me || !canPassTo(proposer, me, "up")) {
+      throw new Error("Only an officer senior to whoever proposed this plan can approve it.");
+    }
+  }
 
   const orderNo = await nextOrderNo(app.bstiOfficeId);
 
@@ -288,18 +289,8 @@ export async function teamCandidates(officeId: number, employeeId: string | null
   const section = mine?.sectionUnitId ?? null;
   const inScope = section === null ? desks : desks.filter((d) => d.sectionUnitId === section);
 
-  return {
-    scopedToSection: section !== null,
-    candidates: inScope
-      .map((d) => ({
-        id: d.employeeId,
-        nameEn: d.name,
-        designation: d.designation,
-        grade: d.grade,
-      }))
-      .sort(
-        (a, b) =>
-          (a.grade ?? 99) - (b.grade ?? 99) || a.nameEn.localeCompare(b.nameEn),
-      ),
-  };
+  // Returned as `Desk`s so the picker can group them with `groupByRank()` —
+  // the same table the pass-down list uses, so an officer sees his colleagues
+  // under the same headings wherever he is choosing from them.
+  return { scopedToSection: section !== null, candidates: inScope };
 }

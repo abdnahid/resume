@@ -120,6 +120,37 @@ export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): 
     : isJuniorTo(sender, candidate);
 }
 
+/**
+ * The nearest desks above this one — the officer's *immediate* senior.
+ *
+ * Approvals stop here rather than climbing to the office head (D83): the
+ * question "is this inspection plan sound" is answered by whoever the proposing
+ * officer reports to, and sending it further is asking a Director to read a date.
+ *
+ * "Nearest" is the smallest step up the seniority pair, so it survives the grade
+ * ties D78 exists for: an Assistant Director is the immediate senior of a Field
+ * Officer on the same grade 9, and the Deputy Director above them is not.
+ * Several people usually share that rung, and any of them may act — an approval
+ * that could only be given by one named person waits for him to come back.
+ */
+export function immediateSeniors(sender: Desk, all: Desk[]): Desk[] {
+  const seniors = all.filter((d) => canPassTo(sender, d, "up"));
+  if (seniors.length === 0) return [];
+  // The *least* senior of those still above: the largest pair below the
+  // sender's, since a lower pair means more senior.
+  const best = seniors.reduce<[number, number]>(
+    (acc, d) => {
+      const [g, o] = seniority(d);
+      return g > acc[0] || (g === acc[0] && o > acc[1]) ? [g, o] : acc;
+    },
+    [-Infinity, -Infinity],
+  );
+  return seniors.filter((d) => {
+    const [g, o] = seniority(d);
+    return g === best[0] && o === best[1];
+  });
+}
+
 /** The desks a sender may choose from, most senior first. */
 export function eligibleDesks(sender: Desk, all: Desk[], direction: Direction): Desk[] {
   return all

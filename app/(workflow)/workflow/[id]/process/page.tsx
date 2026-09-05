@@ -202,11 +202,16 @@ export default async function ProcessPage({
                 }
                 candidates={team.candidates}
                 candidatesAreSectionOnly={team.scopedToSection}
+                proposerEmployeeId={actor.employeeId}
                 canEdit={isHolder && !plan?.approvedAt}
+                // Approval is the proposer's senior, not the office head
+                // (D83). The service re-checks the seniority; this only decides
+                // whether to draw the button.
                 canApprove={
                   isHolder &&
-                  !plan?.approvedAt &&
-                  (actor.role === "office_head" || actor.role === "superadmin")
+                  !!plan &&
+                  !plan.approvedAt &&
+                  plan.proposedByEmployeeId !== actor.employeeId
                 }
               />
             )}

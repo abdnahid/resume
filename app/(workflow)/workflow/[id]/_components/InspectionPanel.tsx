@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, CheckCircle2, Loader2, RotateCcw, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, Loader2, RotateCcw, Search, Users, X } from "lucide-react";
+import { groupByRank, type Desk } from "@/lib/workflow/chain";
 
 /**
  * The inspection plan — proposing it, correcting it, approving it (D82).
@@ -18,12 +19,8 @@ import { CalendarDays, CheckCircle2, Loader2, RotateCcw, Users } from "lucide-re
  * edited one.
  */
 
-export type Candidate = {
-  id: string;
-  nameEn: string;
-  designation: string | null;
-  grade: number | null;
-};
+/** A colleague who could join the team — a `Desk`, so it groups by rank. */
+export type Candidate = Desk;
 
 export type PlanView = {
   scheduledOn: string;
@@ -41,6 +38,7 @@ export default function InspectionPanel({
   plan,
   candidates,
   candidatesAreSectionOnly,
+  proposerEmployeeId,
   canEdit,
   canApprove,
   officeName,
@@ -50,6 +48,8 @@ export default function InspectionPanel({
   candidates: Candidate[];
   /** False when the proposer holds no desk, so the whole office is offered. */
   candidatesAreSectionOnly: boolean;
+  /** Whoever is writing the plan — on the team by default; he is going. */
+  proposerEmployeeId: string | null;
   /** True for whoever is holding the file while the plan is unapproved. */
   canEdit: boolean;
   /** True for the office head holding the file. */
@@ -59,9 +59,21 @@ export default function InspectionPanel({
   const router = useRouter();
   const [date, setDate] = useState(plan?.scheduledOn ?? "");
   const [note, setNote] = useState(plan?.note ?? "");
-  const [team, setTeam] = useState<Record<string, string>>(
-    Object.fromEntries((plan?.members ?? []).map((m) => [m.employeeId, m.role ?? ""])),
+  /**
+   * The officer writing the plan starts on the team: he is the one going, and
+   * making him tick his own name is a step that is wrong every time it is
+   * skipped. Only for a plan that does not exist yet — once one is saved its
+   * team is what it says, and quietly re-adding somebody a senior desk removed
+   * would put him back on the visit.
+   */
+  const [team, setTeam] = useState<Record<string, string>>(() =>
+    plan
+      ? Object.fromEntries(plan.members.map((m) => [m.employeeId, m.role ?? ""]))
+      : proposerEmployeeId
+        ? { [proposerEmployeeId]: "Team leader" }
+        : {},
   );
+  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
@@ -122,6 +134,18 @@ export default function InspectionPanel({
 
   // ── Not yet approved ─────────────────────────────────────────────────────
   const chosen = Object.keys(team);
+
+  const q = query.trim().toLowerCase();
+  const groups = groupByRank(
+    q
+      ? candidates.filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.designation ?? "").toLowerCase().includes(q) ||
+            c.employeeId.includes(q),
+        )
+      : candidates,
+  );
 
   if (!canEdit && !canApprove) {
     return plan ? (
@@ -199,11 +223,11 @@ export default function InspectionPanel({
         {chosen.length > 0 && (
           <ul className="mt-2 space-y-1.5">
             {chosen.map((id) => {
-              const c = candidates.find((x) => x.id === id);
+              const c = candidates.find((x) => x.employeeId === id);
               return (
                 <li key={id} className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-foreground">
-                    {c?.nameEn ?? id}
+                    {c?.name ?? id}
                     {c?.designation && (
                       <span className="text-xs text-muted-foreground"> · {c.designation}</span>
                     )}
@@ -234,31 +258,77 @@ export default function InspectionPanel({
         )}
 
         {picking && (
-          <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-2">
-            {candidates.map((c) => (
-              <li key={c.id}>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    checked={c.id in team}
-                    onChange={(e) =>
-                      setTeam((t) => {
-                        const n = { ...t };
-                        if (e.target.checked) n[c.id] = "";
-                        else delete n[c.id];
-                        return n;
-                      })
-                    }
-                    className="h-3.5 w-3.5 accent-[var(--primary)]"
-                  />
-                  <span className="text-foreground">{c.nameEn}</span>
-                  {c.designation && (
-                    <span className="text-xs text-muted-foreground">{c.designation}</span>
-                  )}
-                </label>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-2 rounded-xl border border-border p-2">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+                strokeWidth={1.8}
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search by name or designation…"
+                className="w-full rounded-lg border border-border bg-background py-1.5 pl-8 pr-8 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="Clear the search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" strokeWidth={2} />
+                </button>
+              )}
+            </div>
+
+            {/* Grouped by the same rank table the pass-down picker uses, so 16
+                officers on grade 9 do not run together as one undifferentiated
+                list. */}
+            <div className="mt-2 max-h-72 space-y-3 overflow-y-auto">
+              {groups.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-muted-foreground">
+                  Nobody in your section matches “{query}”.
+                </p>
+              ) : (
+                groups.map((g) => (
+                  <div key={g.label}>
+                    <p className="px-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      {g.label}
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {g.desks.map((c) => (
+                        <li key={c.employeeId}>
+                          <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-sm hover:bg-muted">
+                            <input
+                              type="checkbox"
+                              checked={c.employeeId in team}
+                              onChange={(e) =>
+                                setTeam((t) => {
+                                  const n = { ...t };
+                                  if (e.target.checked) n[c.employeeId] = "";
+                                  else delete n[c.employeeId];
+                                  return n;
+                                })
+                              }
+                              className="h-3.5 w-3.5 accent-[var(--primary)]"
+                            />
+                            <span className="text-foreground">{c.name}</span>
+                            {c.grade !== null && (
+                              <span className="text-xs text-muted-foreground">grade {c.grade}</span>
+                            )}
+                            {c.employeeId === proposerEmployeeId && (
+                              <span className="text-xs text-primary">you</span>
+                            )}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         )}
       </div>
 
