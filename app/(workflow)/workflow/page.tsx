@@ -5,6 +5,7 @@ import {
   actorFor, inboxScope, unclaimed, inProgress, heldBy, touchedBy, flowsFor, candidates,
 } from "@/lib/workflow/inbox";
 import { roundsForMany } from "@/lib/cm/shortfall";
+import { plansForMany } from "@/lib/cm/inspection";
 import { stageInfo } from "@/lib/cm/states";
 import FileBoard, { type FlowStep } from "./_components/FileBoard";
 
@@ -60,6 +61,32 @@ export default async function WorkflowPage() {
         ])
       : [[], []];
 
+  // A file appears once. "With you" wins over every other reading of it, and a
+  // file already listed as this office's is not repeated as one you handled —
+  // an office head would otherwise see every file in the building twice.
+  const seen = new Set<number>();
+  const once = <T extends { id: number }>(list: T[]) =>
+    list.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
+
+  const bucketed = [
+    ...once(mine).map((a) => [a, "mine"] as const),
+    ...once(waiting).map((a) => [a, "unclaimed"] as const),
+    ...once(working).map((a) => [a, "working"] as const),
+    ...once(handled).map((a) => [a, "handled"] as const),
+  ];
+
+  // Fetched before the rows are shaped, because the office order goes on the
+  // row itself and `toRow` reads it.
+  const ids = bucketed.map(([a]) => a.id);
+  const [movements, rounds, plans] = await Promise.all([
+    flowsFor(ids),
+    roundsForMany(ids),
+    plansForMany(ids),
+  ]);
+  const planOf = new Map(plans.map((p) => [p.applicationId, p]));
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
   // One shape for the board, so it can filter across all three lists at once.
   const stamp = (d: Date | null) =>
     d ? d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : null;
@@ -81,30 +108,19 @@ export default async function WorkflowPage() {
     // While a round is open the file is with the applicant even though the
     // officer keeps the desk (D81), so the board must not say "with <officer>".
     withApplicant: stageInfo(a.state).holder === "applicant",
+    // The office order is the visit's authority, so it belongs on the row
+    // rather than one click inside the file (D82).
+    orderNo: planOf.get(a.id)?.orderNo ?? null,
+    inspectionOn: (() => {
+      const p = planOf.get(a.id);
+      return p ? day(p.scheduledOn) : null;
+    })(),
     holderName: a.holder?.nameEn ?? null,
     holderDesignation: a.holder?.designationEn ?? a.holder?.designationBn ?? null,
     bucket,
   });
 
-  // A file appears once. "With you" wins over every other reading of it, and a
-  // file already listed as this office's is not repeated as one you handled —
-  // an office head would otherwise see every file in the building twice.
-  const seen = new Set<number>();
-  const once = <T extends { id: number }>(list: T[]) =>
-    list.filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
-
-  const rows = [
-    ...once(mine).map((a) => toRow(a, "mine")),
-    ...once(waiting).map((a) => toRow(a, "unclaimed")),
-    ...once(working).map((a) => toRow(a, "working")),
-    ...once(handled).map((a) => toRow(a, "handled")),
-  ];
-
-  // The desk flow for everything on the board, in two queries.
-  const ids = rows.map((r) => r.id);
-  const [movements, rounds] = await Promise.all([flowsFor(ids), roundsForMany(ids)]);
-  const day = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const rows = bucketed.map(([a, bucket]) => toRow(a, bucket));
 
   const flows: Record<number, FlowStep[]> = {};
   const sortKey: Record<number, { at: number; seq: number }[]> = {};
@@ -155,6 +171,38 @@ export default async function WorkflowPage() {
         external: true,
       });
       sortKey[r.applicationId]!.push({ at: r.respondedAt.getTime(), seq: 2 });
+    }
+  }
+
+  /**
+   * The inspection is a leg too — proposed, then approved with an office order.
+   * The order is what the factory is shown, so every desk on the flow sees it.
+   */
+  for (const p of plans) {
+    const on = p.scheduledOn.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    (flows[p.applicationId] ??= []).push({
+      id: -100000 - p.applicationId * 2,
+      direction: "inspection",
+      fromName: null,
+      toName: p.proposedBy.nameEn,
+      toDesignation: null,
+      note: null,
+      at: day(p.proposedAt),
+      label: `Inspection proposed for ${on} — ${p._count.members} on the team`,
+    });
+    (sortKey[p.applicationId] ??= []).push({ at: p.proposedAt.getTime(), seq: 3 });
+    if (p.approvedAt && p.orderNo) {
+      flows[p.applicationId]!.push({
+        id: -100001 - p.applicationId * 2,
+        direction: "inspection",
+        fromName: null,
+        toName: p.approvedBy?.nameEn ?? "",
+        toDesignation: null,
+        note: null,
+        at: day(p.approvedAt),
+        label: `Inspection approved — office order ${p.orderNo}`,
+      });
+      sortKey[p.applicationId]!.push({ at: p.approvedAt.getTime(), seq: 4 });
     }
   }
 

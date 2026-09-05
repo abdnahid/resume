@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, ChevronDown, Eye, FileText, Inbox, MapPin } from "lucide-react";
+import { Building2, CalendarCheck, ChevronDown, Eye, FileText, Inbox, MapPin } from "lucide-react";
 import { ReceiveButton, PassPanel } from "./FileActions";
 import { describeMovement, type Desk } from "@/lib/workflow/chain";
 
@@ -34,6 +34,9 @@ export type BoardRow = {
   subProductCount: number;
   /** The stage says the applicant has it, whoever holds the desk. */
   withApplicant: boolean;
+  /** The approved office order, once one has issued. */
+  orderNo: string | null;
+  inspectionOn: string | null;
   holderName: string | null;
   holderDesignation: string | null;
   /** Which list this row belongs to from the viewer's point of view. */
@@ -177,6 +180,13 @@ export default function FileBoard({
                   )}
                   {a.submittedAt && <span>submitted {a.submittedAt}</span>}
                 </p>
+                {a.orderNo && (
+                  <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary">
+                    <CalendarCheck className="h-3 w-3 shrink-0" strokeWidth={1.8} />
+                    <span className="font-mono font-medium">{a.orderNo}</span>
+                    <span className="text-primary/80">inspection {a.inspectionOn}</span>
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 items-start gap-2 sm:justify-end">

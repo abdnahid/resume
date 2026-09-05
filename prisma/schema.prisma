@@ -593,6 +593,9 @@ model Employee {
   samplesSealed         SampleRegistration[]    @relation("SampleSealedBy")
   labTestOrdersHeld     LabTestOrder[]          @relation("LabTestOrderHolder")
   shortfallsRaised      ShortfallRound[]        @relation("ShortfallRaisedBy")
+  inspectionsProposed   InspectionPlan[]        @relation("InspectionProposedBy")
+  inspectionsApproved   InspectionPlan[]        @relation("InspectionApprovedBy")
+  inspectionTeams       InspectionTeamMember[]
   testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
 }
 
@@ -2009,6 +2012,7 @@ model Application {
   answers    ApplicationAnswer[]
   movements  ApplicationMovement[]
   shortfalls ShortfallRound[]
+  inspection InspectionPlan?
 
   @@index([organizationId])
   @@index([factoryId])
@@ -3240,4 +3244,71 @@ model ShortfallItem {
 
   @@unique([roundId, target])
   @@index([roundId])
+}
+
+/// The visit: when it happens and who goes (D82).
+///
+/// One live plan per application — `applicationId` is unique — because "the
+/// inspection is on the 12th" has to have a single answer. Editing it before
+/// approval is how a senior desk changes the date or the team; the movement log
+/// already records who held the file when, so a second table of revisions would
+/// duplicate a history that exists.
+///
+/// **The plan travels with the file rather than in a queue of its own.** It is
+/// proposed by whoever holds the file, moves up the ordinary chain (D58/D78/D79)
+/// and is approved by the office head — who is the wing's Director, or the
+/// officer acting in that post (D57, D74). That is why there is no approver
+/// column pointing at a role: the role already decides.
+model InspectionPlan {
+  id Int @id @default(autoincrement())
+
+  applicationId Int         @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  proposedByEmployeeId String
+  proposedBy           Employee @relation("InspectionProposedBy", fields: [proposedByEmployeeId], references: [id])
+  proposedAt           DateTime @default(now())
+
+  /// The day of the visit. A date, not a timestamp — the factory is told a day.
+  scheduledOn DateTime
+  note        String?
+
+  approvedByEmployeeId String?
+  approvedBy           Employee? @relation("InspectionApprovedBy", fields: [approvedByEmployeeId], references: [id])
+  approvedAt           DateTime?
+
+  /// The office order, issued at approval and shown to every desk on the flow.
+  /// Assigned then rather than at proposal, for the reason an application number
+  /// is: a number quoted to a factory should mean an approved visit, and
+  /// numbering proposals burns numbers on visits that never happened.
+  orderNo String? @unique
+
+  members InspectionTeamMember[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+/// Who goes on the visit.
+///
+/// A row rather than a text field, so "which inspections was this officer on"
+/// is answerable and a team member can be checked against the roster. The
+/// proposing officer is not added automatically: at a branch office he may be
+/// sending juniors, and assuming otherwise puts a name on an order that never
+/// agreed to be there.
+model InspectionTeamMember {
+  id Int @id @default(autoincrement())
+
+  planId Int
+  plan   InspectionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  /// Free text — "Team leader", "Sampling officer". The organogram says what
+  /// they are; this says what they are doing on this visit.
+  role String?
+
+  @@unique([planId, employeeId])
+  @@index([planId])
 }

@@ -10,7 +10,9 @@ import { testFeeFor } from "@/lib/cm/sub-products";
 import { stageInfo } from "@/lib/cm/states";
 import { CM_DOCUMENTS, CM_QUESTIONS, allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
+import { planFor, teamCandidates, reviewIsClosed } from "@/lib/cm/inspection";
 import ReviewPanel from "./_components/ReviewPanel";
+import InspectionPanel from "./_components/InspectionPanel";
 import { formatPoisha, takaToPoisha } from "@/lib/payments/money";
 import { salePricePolicy } from "@/lib/store/bds-catalog";
 
@@ -47,11 +49,13 @@ export default async function WorkflowFilePage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, testFee, rounds, artworkTargets] = await Promise.all([
+  const [movements, testFee, rounds, artworkTargets, plan, team] = await Promise.all([
     movementsFor(applicationId),
     testFeeFor(applicationId).catch(() => null),
     roundsFor(applicationId),
     artworkTargetsFor(applicationId),
+    planFor(applicationId),
+    app.bstiOfficeId ? teamCandidates(app.bstiOfficeId) : Promise.resolve([]),
   ]);
 
   // The correction loop is between whoever holds the file and the applicant
@@ -162,7 +166,10 @@ export default async function WorkflowFilePage({
 
         <div className="mt-8 grid gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
-            {isHolder && (
+            {/* The review closes when the file is marked ready: no shortfall
+                may follow, so the panel that raises one goes away rather than
+                offering a button the service would refuse (D82). */}
+            {isHolder && !reviewIsClosed(app.state) && (
               <ReviewPanel
                 applicationId={app.id}
                 targets={[
@@ -180,6 +187,44 @@ export default async function WorkflowFilePage({
                   open
                     ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
                     : null
+                }
+              />
+            )}
+
+            {reviewIsClosed(app.state) && (
+              <InspectionPanel
+                applicationId={app.id}
+                officeName={app.bstiOffice?.nameEn ?? null}
+                plan={
+                  plan
+                    ? {
+                        scheduledOn: plan.scheduledOn.toISOString().slice(0, 10),
+                        note: plan.note,
+                        proposedBy: plan.proposedBy.nameEn,
+                        proposedAt: stamp(plan.proposedAt),
+                        approvedBy: plan.approvedBy?.nameEn ?? null,
+                        approvedAt: plan.approvedAt ? stamp(plan.approvedAt) : null,
+                        orderNo: plan.orderNo,
+                        members: plan.members.map((m) => ({
+                          employeeId: m.employeeId,
+                          name: m.employee.nameEn,
+                          designation: m.employee.designationEn ?? m.employee.designationBn,
+                          role: m.role,
+                        })),
+                      }
+                    : null
+                }
+                candidates={team.map((c) => ({
+                  id: c.id,
+                  nameEn: c.nameEn,
+                  designation: c.designationEn ?? c.designationBn,
+                  grade: c.grade,
+                }))}
+                canEdit={isHolder && !plan?.approvedAt}
+                canApprove={
+                  isHolder &&
+                  !plan?.approvedAt &&
+                  (actor.role === "office_head" || actor.role === "superadmin")
                 }
               />
             )}

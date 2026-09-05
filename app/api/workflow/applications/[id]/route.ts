@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, receive, pass, canViewApplication } from "@/lib/workflow/inbox";
 import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
+import { proposeInspection, approveInspection, requestPlanRevision } from "@/lib/cm/inspection";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -84,6 +85,52 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       const app = await markReadyForProcessing({ applicationId, employeeId: actor.employeeId });
       return NextResponse.json({ application: app });
+    }
+
+    // ── The inspection plan (D82) ─────────────────────────────────────────
+    if (body.action === "plan" || body.action === "approve-plan" || body.action === "revise-plan") {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+
+      if (body.action === "plan") {
+        const raw = Array.isArray(body.members) ? body.members : [];
+        const members = raw.flatMap((m) =>
+          m && typeof m === "object" && typeof (m as { employeeId?: unknown }).employeeId === "string"
+            ? [{
+                employeeId: (m as { employeeId: string }).employeeId,
+                role: typeof (m as { role?: unknown }).role === "string" ? (m as { role: string }).role : null,
+              }]
+            : [],
+        );
+        const plan = await proposeInspection({
+          applicationId,
+          employeeId: actor.employeeId,
+          scheduledOn: new Date(String(body.scheduledOn ?? "")),
+          note: typeof body.note === "string" ? body.note : null,
+          members,
+        });
+        return NextResponse.json({ plan });
+      }
+
+      if (body.action === "approve-plan") {
+        const plan = await approveInspection({
+          applicationId,
+          employeeId: actor.employeeId,
+          role: actor.role,
+        });
+        return NextResponse.json({ plan });
+      }
+
+      const plan = await requestPlanRevision({
+        applicationId,
+        employeeId: actor.employeeId,
+        reason: typeof body.reason === "string" ? body.reason : null,
+      });
+      return NextResponse.json({ plan });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

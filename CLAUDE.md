@@ -1133,6 +1133,27 @@ can reuse them.
   server. **A refusal is `notFound()`, not a 403**, for the reason D71 gives:
   a distinguishable refusal would let any member of staff enumerate which
   application numbers exist and which office holds them.
+- **The review closes when the file is marked ready.** `reviewIsClosed()` in
+  `lib/cm/inspection.ts`; the panel that raises a shortfall disappears rather
+  than offering a button the service would refuse.
+- **The inspection plan travels with the file, and the office head approves it**
+  (D82). `lib/cm/inspection.ts`. Whoever holds the file proposes a date and a
+  team; every desk above may **correct** it, because a senior officer who cannot
+  change a plan he is accountable for has to send it back instead — a round trip
+  for a typed date. Approval is `office_head`, which is the wing's Director or
+  the officer acting in that post (D57, D74), so the role already answers "who
+  is the Director here". The approver must also **hold** the file and belong to
+  its office.
+- **Approval issues the office order**, `<office>/INS/<year>/<serial>`, numbered
+  then and not at proposal — the same reason an application number waits for
+  submission: a number quoted to a factory should mean a visit that will happen.
+  It appears on the board row and in the desk flow, so every desk sees it.
+  **An approved plan cannot be edited or sent back** — changing the date means a
+  fresh order, not an edited one.
+- **Team members are rows, and replaced rather than merged.** A list diffed on
+  save leaves somebody on the visit because nobody remembered to remove them.
+  Each named officer is checked against the serving roster: a plan is an
+  instruction to people.
 - **Corrections are a loop between the holder and the applicant** (D81), run
   from `/workflow/[id]` and answered on the applicant's own application page.
   `lib/cm/shortfall.ts` is the server half; the rules are Prisma-free in
