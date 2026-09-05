@@ -9,8 +9,12 @@ import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
 import { planFor, teamCandidates, reviewIsClosed } from "@/lib/cm/inspection";
 import { delegatorOf } from "@/lib/workflow/inbox";
+import { reportFor, reportGaps } from "@/lib/cm/inspection-report";
+import { INSPECTION_CONDITIONS, INSPECTION_MARKINGS, INSPECTION_NARRATIVE } from "@/lib/cm/policy";
+import { prisma } from "@/lib/prisma";
 import ReviewPanel from "../_components/ReviewPanel";
 import InspectionPanel from "../_components/InspectionPanel";
+import ReportPanel from "../_components/ReportPanel";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +51,8 @@ export default async function ProcessPage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, rounds, artworkTargets, plan, team, approver] = await Promise.all([
+  const [movements, rounds, artworkTargets, plan, team, approver, report, units] =
+    await Promise.all([
     movementsFor(applicationId),
     roundsFor(applicationId),
     artworkTargetsFor(applicationId),
@@ -57,6 +62,8 @@ export default async function ProcessPage({
       : Promise.resolve({ scopedToSection: false, candidates: [] }),
     // Who handed this file down, and therefore approves its plan (D84).
     actor.employeeId ? delegatorOf(applicationId, actor.employeeId) : Promise.resolve(null),
+    reportFor(applicationId),
+    prisma.sizeUnit.findMany({ select: { id: true, code: true, nameEn: true }, orderBy: { code: "asc" } }),
   ]);
 
   const stage = stageInfo(app.state);
@@ -228,6 +235,67 @@ export default async function ProcessPage({
               history, and reading them next to the inspection plan made them
               look like part of it. */}
           <div className="space-y-5">
+            {/* The report follows the approved order: the visit has to have
+                been authorised before there is anything to report on (D86). */}
+            {plan?.approvedAt && (
+              <ReportPanel
+                applicationId={app.id}
+                context={{
+                  productName: app.product?.nameEn ?? null,
+                  standards: app.product?.standards.map((ps) => ps.bds.number) ?? [],
+                  companyName: app.organization.nameEn,
+                  factoryName: app.factory.nameEn,
+                  factoryDistrict: app.factory.district,
+                  declaredCapacity: app.production
+                    ? `${app.production.annualCapacityValue} ${app.production.capacityUnit.code} (${app.production.authority})`
+                    : null,
+                  declaredYearProduction: app.production
+                    ? `${app.production.currentYearProduction} ${app.production.capacityUnit.code} — ${app.production.currentYearLabel}`
+                    : null,
+                }}
+                conditions={[...INSPECTION_CONDITIONS]}
+                markings={[...INSPECTION_MARKINGS]}
+                narrative={[...INSPECTION_NARRATIVE]}
+                units={units}
+                gaps={reportGaps(report)}
+                report={
+                  report
+                    ? {
+                        applicantName: report.applicantName,
+                        applicantDesignation: report.applicantDesignation,
+                        govtApprovalOk: report.govtApprovalOk,
+                        govtApprovalNote: report.govtApprovalNote,
+                        foundCapacityValue:
+                          report.foundCapacityValue === null ? null : String(report.foundCapacityValue),
+                        foundCapacityUnitId: report.foundCapacityUnitId,
+                        utilisationPercent:
+                          report.utilisationPercent === null ? null : String(report.utilisationPercent),
+                        unitCostTaka:
+                          report.unitCostPoisha === null ? null : String(report.unitCostPoisha / 100),
+                        remarks: report.remarks,
+                        conditions: Object.fromEntries(
+                          report.conditions.map((c) => [c.key, { satisfactory: c.satisfactory, note: c.note }]),
+                        ),
+                        markings: Object.fromEntries(report.markings.map((m) => [m.key, m.present])),
+                        answers: Object.fromEntries(report.answers.map((a) => [a.key, a.text])),
+                        submittedAt: report.submittedAt ? stamp(report.submittedAt) : null,
+                        approvedAt: report.approvedAt ? stamp(report.approvedAt) : null,
+                        reportNo: report.reportNo,
+                        preparedBy: report.preparedBy.nameEn,
+                      }
+                    : null
+                }
+                canEdit={isHolder && !report?.approvedAt && !report?.submittedAt}
+                canApprove={
+                  isHolder &&
+                  !!report?.submittedAt &&
+                  !report.approvedAt &&
+                  report.preparedByEmployeeId !== actor.employeeId
+                }
+                approverName={approver?.name ?? null}
+              />
+            )}
+
             {rounds.length > 0 && (
               <Card title={`Corrections asked for (${rounds.length})`}>
                 <ol className="space-y-4">

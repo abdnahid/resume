@@ -595,6 +595,8 @@ model Employee {
   shortfallsRaised      ShortfallRound[]        @relation("ShortfallRaisedBy")
   inspectionsProposed   InspectionPlan[]        @relation("InspectionProposedBy")
   inspectionsApproved   InspectionPlan[]        @relation("InspectionApprovedBy")
+  reportsPrepared       InspectionReport[]      @relation("ReportPreparedBy")
+  reportsApproved       InspectionReport[]      @relation("ReportApprovedBy")
   inspectionTeams       InspectionTeamMember[]
   testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
 }
@@ -2011,8 +2013,9 @@ model Application {
   production ApplicationProduction?
   answers    ApplicationAnswer[]
   movements  ApplicationMovement[]
-  shortfalls ShortfallRound[]
-  inspection InspectionPlan?
+  shortfalls       ShortfallRound[]
+  inspection       InspectionPlan?
+  inspectionReport InspectionReport?
 
   @@index([organizationId])
   @@index([factoryId])
@@ -2226,6 +2229,9 @@ model SizeUnit {
 
   skus       ApplicationSku[]
   capacities ApplicationProduction[]
+  /// Capacity as an inspecting officer found it, which may differ from what
+  /// the applicant declared (D86).
+  foundCapacities InspectionReport[]
 
   @@unique([sizeTypeId, code])
   @@index([sizeTypeId])
@@ -3311,4 +3317,104 @@ model InspectionTeamMember {
 
   @@unique([planId, employeeId])
   @@index([planId])
+}
+
+/// প্রারম্ভিক পরিদর্শন প্রতিবেদন — what the officer found at the factory (D86).
+///
+/// One per application, because it records one visit. A re-inspection is a
+/// later concern and will be a second row keyed differently; making it one now
+/// would be a column nothing sets.
+///
+/// **The narrative answers are rows, not columns.** The wing's form has eleven
+/// of them and will grow more; a column each means a migration every time. The
+/// same reasoning as the shortfall points and the marking checks.
+model InspectionReport {
+  id Int @id @default(autoincrement())
+
+  applicationId Int         @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  preparedByEmployeeId String
+  preparedBy           Employee @relation("ReportPreparedBy", fields: [preparedByEmployeeId], references: [id])
+  preparedAt           DateTime @default(now())
+
+  /// §1(খ) The person who signed the application, as found at the factory.
+  applicantName        String?
+  applicantDesignation String?
+
+  /// §1(ঙ) সরকারি অনুমোদন — correct, not correct, or not yet recorded.
+  govtApprovalOk   Boolean?
+  govtApprovalNote String?
+
+  /// §2(ঙ) Production, as *found* — separate from what the applicant declared
+  /// in `ApplicationProduction`, because "did they under-declare" is the
+  /// question an inspection exists to answer.
+  foundCapacityValue Decimal? @db.Decimal(16, 3)
+  foundCapacityUnitId Int?
+  foundCapacityUnit   SizeUnit? @relation(fields: [foundCapacityUnitId], references: [id])
+  /// §2(চ) উৎপাদন ক্ষমতার ভিত্তিতে উৎপাদনের শতকরা হার.
+  utilisationPercent Decimal? @db.Decimal(5, 2)
+  /// §2(ছ) ইউনিট প্রতি উৎপাদন মূল্য — integer poisha, as money is everywhere.
+  unitCostPoisha Int?
+
+  remarks String?
+
+  submittedAt DateTime?
+
+  approvedByEmployeeId String?
+  approvedBy           Employee? @relation("ReportApprovedBy", fields: [approvedByEmployeeId], references: [id])
+  approvedAt           DateTime?
+  /// Assigned at approval, like the office order (D82/D85).
+  reportNo String? @unique
+
+  conditions InspectionConditionCheck[]
+  markings   InspectionMarkingCheck[]
+  answers    InspectionReportAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([foundCapacityUnitId])
+}
+
+/// §2(খ) One row of স্বাস্থ্য ও পরিবেশগত অবস্থা.
+model InspectionConditionCheck {
+  id Int @id @default(autoincrement())
+
+  reportId Int
+  report   InspectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  /// A key from `INSPECTION_CONDITIONS`.
+  key          String
+  satisfactory Boolean
+  note         String?
+
+  @@unique([reportId, key])
+}
+
+/// §2(জ) One row of মোড়কীকরণ এবং চিহ্নিতকরণ.
+model InspectionMarkingCheck {
+  id Int @id @default(autoincrement())
+
+  reportId Int
+  report   InspectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  /// A key from `INSPECTION_MARKINGS`.
+  key     String
+  present Boolean
+
+  @@unique([reportId, key])
+}
+
+/// One narrative answer — a key from `INSPECTION_NARRATIVE`.
+model InspectionReportAnswer {
+  id Int @id @default(autoincrement())
+
+  reportId Int
+  report   InspectionReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  key  String
+  text String
+
+  @@unique([reportId, key])
 }

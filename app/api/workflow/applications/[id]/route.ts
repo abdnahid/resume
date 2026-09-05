@@ -5,6 +5,7 @@ import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
 import {
   proposeInspection, approveInspection, requestPlanRevision, sendPlanForApproval,
 } from "@/lib/cm/inspection";
+import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -150,6 +151,82 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         reason: typeof body.reason === "string" ? body.reason : null,
       });
       return NextResponse.json({ plan });
+    }
+
+    // ── The inspection report (D86) ───────────────────────────────────────
+    if (
+      body.action === "report" ||
+      body.action === "send-report" ||
+      body.action === "approve-report"
+    ) {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+
+      if (body.action === "report") {
+        const num = (v: unknown) =>
+          typeof v === "number" && Number.isFinite(v) ? v : null;
+        const list = <T,>(v: unknown, pick: (x: Record<string, unknown>) => T | null): T[] =>
+          Array.isArray(v)
+            ? v.flatMap((x) =>
+                x && typeof x === "object" ? ([pick(x as Record<string, unknown>)].filter(Boolean) as T[]) : [],
+              )
+            : [];
+
+        const report = await saveReport({
+          applicationId,
+          employeeId: actor.employeeId,
+          input: {
+            applicantName: typeof body.applicantName === "string" ? body.applicantName : null,
+            applicantDesignation:
+              typeof body.applicantDesignation === "string" ? body.applicantDesignation : null,
+            govtApprovalOk: typeof body.govtApprovalOk === "boolean" ? body.govtApprovalOk : null,
+            govtApprovalNote:
+              typeof body.govtApprovalNote === "string" ? body.govtApprovalNote : null,
+            foundCapacityValue: num(body.foundCapacityValue),
+            foundCapacityUnitId: num(body.foundCapacityUnitId),
+            utilisationPercent: num(body.utilisationPercent),
+            unitCostPoisha: num(body.unitCostPoisha),
+            remarks: typeof body.remarks === "string" ? body.remarks : null,
+            conditions: list(body.conditions, (x) =>
+              typeof x.key === "string" && typeof x.satisfactory === "boolean"
+                ? { key: x.key, satisfactory: x.satisfactory, note: typeof x.note === "string" ? x.note : null }
+                : null,
+            ),
+            markings: list(body.markings, (x) =>
+              typeof x.key === "string" && typeof x.present === "boolean"
+                ? { key: x.key, present: x.present }
+                : null,
+            ),
+            answers: list(body.answers, (x) =>
+              typeof x.key === "string" && typeof x.text === "string"
+                ? { key: x.key, text: x.text }
+                : null,
+            ),
+          },
+        });
+        return NextResponse.json({ report });
+      }
+
+      if (body.action === "send-report") {
+        const to = await sendReportForApproval({
+          applicationId,
+          employeeId: actor.employeeId,
+          note: typeof body.note === "string" ? body.note : null,
+          actorUserId: actor.userId,
+        });
+        return NextResponse.json({ sentTo: to });
+      }
+
+      const report = await approveReport({
+        applicationId,
+        employeeId: actor.employeeId,
+        role: actor.role,
+      });
+      return NextResponse.json({ report });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

@@ -789,3 +789,63 @@ export function artworkSkuIdOf(target: string): number | null {
   const n = Number(target.slice(ARTWORK_TARGET_PREFIX.length));
   return Number.isInteger(n) ? n : null;
 }
+
+// ─── The initial inspection report (D86) ────────────────────────────────────
+
+/**
+ * প্রারম্ভিক পরিদর্শন প্রতিবেদন — the form BSTI uses today, as rows.
+ *
+ * Taken from the wing's own `inspectionReport.html`. The five conditions and
+ * nine marking checks are **rows rather than columns** for the reason the
+ * shortfall points are: a tick against a named thing can be counted, reported
+ * on and reordered when the form changes, and a column per item means a
+ * migration every time the wing adds one.
+ */
+export type ConditionCheck = { key: string; labelBn: string; labelEn: string };
+
+/** §2(খ) স্বাস্থ্য ও পরিবেশগত অবস্থা — satisfactory or not, with a remark. */
+export const INSPECTION_CONDITIONS: readonly ConditionCheck[] = [
+  { key: "surroundings", labelBn: "কারখানার পারিপার্শ্বিক", labelEn: "Factory surroundings" },
+  { key: "raw_material_storage", labelBn: "কাঁচামাল সংরক্ষণ", labelEn: "Raw material storage" },
+  { key: "processing_area", labelBn: "প্রক্রিয়ার স্থান", labelEn: "Processing area" },
+  { key: "filling_packing", labelBn: "ফিলিং/প্যাকিং", labelEn: "Filling and packing" },
+  { key: "finished_storage", labelBn: "উৎপাদিত পণ্য সংরক্ষণ", labelEn: "Finished goods storage" },
+] as const;
+
+/** §2(জ) মোড়কীকরণ এবং চিহ্নিতকরণ — present on the pack, or not. */
+export const INSPECTION_MARKINGS: readonly ConditionCheck[] = [
+  { key: "product_name", labelBn: "পণ্যের নাম", labelEn: "Product name" },
+  { key: "company_name_address", labelBn: "প্রতিষ্ঠানের নাম ও পূর্ণ ঠিকানা", labelEn: "Company name and full address" },
+  { key: "manufacture_date", labelBn: "উৎপাদনের তারিখ", labelEn: "Date of manufacture" },
+  { key: "expiry_date", labelBn: "মেয়াদ উত্তীর্ণের তারিখ", labelEn: "Expiry date" },
+  { key: "batch_code", labelBn: "ব্যাচ / কোড নং", labelEn: "Batch or code number" },
+  { key: "standard_mark", labelBn: "মান চিহ্ন", labelEn: "Standard mark" },
+  { key: "ingredients", labelBn: "উপাদান", labelEn: "Ingredients" },
+  { key: "warnings", labelBn: "সতর্কতামূলক নির্দেশনা (প্রযোজ্য ক্ষেত্রে)", labelEn: "Warnings, where applicable" },
+  { key: "weight_price", labelBn: "ওজন ও মূল্য", labelEn: "Weight and price" },
+] as const;
+
+/**
+ * The narrative sections. Each is a paragraph the officer writes on the visit.
+ *
+ * The wing's form attaches a file to most of these — a machinery list, a
+ * process description. **The bytes are still discarded** (there is no document
+ * store), so recording a file that cannot be reopened would be worse than
+ * asking for the substance in words. Each carries the original Bengali label so
+ * the printed report matches the form officers already know.
+ */
+export type ReportField = { key: string; labelBn: string; labelEn: string; hint?: string };
+
+export const INSPECTION_NARRATIVE: readonly ReportField[] = [
+  { key: "machinery", labelBn: "ক) পণ্য উৎপাদনে ব্যবহৃত যন্ত্রপাতির তালিকা", labelEn: "Machinery used in production" },
+  { key: "raw_materials", labelBn: "গ) ব্যবহৃত কাঁচামাল", labelEn: "Raw materials used" },
+  { key: "process", labelBn: "ঘ) পণ্য প্রস্তুত প্রণালীর সংক্ষিপ্ত বিবরণ", labelEn: "Brief description of the process" },
+  { key: "lab_equipment", labelBn: "ক) পণ্য পরীক্ষণের জন্য পরীক্ষাগারে স্থাপিত যন্ত্রপাতির তালিকা", labelEn: "Testing equipment in the factory laboratory" },
+  { key: "qc_staff", labelBn: "খ) গুণগত মান নিরীক্ষায় নিয়োজিত কর্মকর্তাবৃন্দের তথ্য", labelEn: "Officers engaged in quality control" },
+  { key: "record_keeping", labelBn: "গ) পরীক্ষণ প্রতিবেদন সংরক্ষণের পদ্ধতি", labelEn: "How test reports are retained" },
+  { key: "outside_lab", labelBn: "ঘ) অন্য কোন পরীক্ষাগারে পণ্য পরীক্ষা করা হইলে পরীক্ষাগারের নাম ও প্রতিবেদন", labelEn: "Any outside laboratory used, and its report" },
+  { key: "testing_programme", labelBn: "ঙ) কারখানার বিদ্যমান পরীক্ষণ ও পরিদর্শন কর্মসূচী", labelEn: "The factory's existing testing and inspection programme" },
+  { key: "fee_discussion", labelBn: "ক) বাৎসরিক লাইসেন্স ফি সম্পর্কিত আলোচনা", labelEn: "Discussion of the annual licence fee" },
+  { key: "mark_method", labelBn: "খ) গুণগত মান চিহ্ন সংযোজন পদ্ধতি সম্পর্কে আলোচনা", labelEn: "How the quality mark is to be applied" },
+  { key: "recommendation", labelBn: "গ) পণ্যের গুণগত মান উন্নয়ন / সংরক্ষণ বিষয়ে পরামর্শ / সুপারিশ", labelEn: "Advice and recommendations on quality" },
+] as const;

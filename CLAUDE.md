@@ -1190,6 +1190,34 @@ can reuse them.
   `toBengaliDigits()`. It appears on the board row and in the desk flow, so
   every desk sees it. **An approved plan cannot be edited or sent back** —
   changing the date means a fresh order, not an edited one.
+- **The inspection report is the wing's own form, improved where our data
+  allows** (D86). `lib/cm/inspection-report.ts`; the catalogues
+  (`INSPECTION_CONDITIONS` ×5, `INSPECTION_MARKINGS` ×9,
+  `INSPECTION_NARRATIVE` ×11) are in `policy.ts`, taken from
+  `utils/inspectionReport.html`. Three deliberate differences from the paper:
+  - **Production as *found*, beside production as *declared*.** The paper form
+    has one capacity box; we already hold what the applicant claimed in
+    `ApplicationProduction`, so the report records what the officer saw next to
+    it. "Did they under-declare" is the question an inspection exists to answer,
+    and one box cannot ask it.
+  - **Nothing is re-typed that the file already holds** — product, BDS numbers,
+    company and factory are printed as context, not asked for. The paper asks
+    because paper cannot look them up.
+  - **The checks are rows, not columns.** Five conditions, nine marking items,
+    eleven narrative sections: a column each means a migration every time the
+    wing adds one, the same reasoning as the shortfall points.
+- **The attachments the paper form wants are text.** There is no document store,
+  so recording a file nobody can reopen would be worse than asking for the
+  substance in words.
+- **`reportGaps()` returns every gap at once**, so an officer fixes them in one
+  sitting rather than meeting the next one after each save — the shape
+  `missingForSubmission()` uses on the applicant's side. Sending is refused
+  while any remain.
+- **The report follows the same path as the plan**: written by the holder, sent
+  to whoever handed the file down (D84), approved by him, numbered
+  `বিএসটিআই/<office>/পরিদর্শন-প্রতিবেদন/<serial>/<year>` at approval. It is
+  readable and downloadable **once sent up**, not only once approved — the
+  senior approving it has to read it as a document.
 - **[ASSUMPTION] The letter's Bengali wording is drafted, not supplied.** It
   follows the bank advice's register, which is the only other official letter
   the system issues. The facts in it are real; the sentences need a CM Wing
