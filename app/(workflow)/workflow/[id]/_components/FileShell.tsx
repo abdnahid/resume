@@ -1,18 +1,16 @@
 import Link from "next/link";
-import { ArrowLeft, Eye, ListChecks } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 /**
- * The heading every view of a file shares, and the two tabs beneath it.
+ * The heading every view of a file shares.
  *
  * **Reading the file and working it are different jobs**, so they are different
- * pages rather than one long column. An officer checking a declared capacity
- * against the questionnaire scrolls past the panel that issues an office order;
- * an officer approving a visit scrolls past six cards of sub-products to reach
- * it. Splitting them also means each side gets its own `loading.tsx` and the
- * URL says which one you are on.
+ * pages reached by their own buttons on the board — not two tabs on one screen,
+ * which reads as "the process lives inside the preview" when it does not. Each
+ * side gets its own `loading.tsx`, and the URL says which you are on.
  *
- * The header stays on both because "which file, at what stage, with whom" is
- * the question you carry from one to the other.
+ * The header is shared because "which file, at what stage, with whom" is the
+ * question you carry into either of them.
  */
 export function FileHeader({
   applicationId,
@@ -23,7 +21,6 @@ export function FileHeader({
   holderName,
   holderDesignation,
   officeName,
-  tab,
 }: {
   applicationId: number;
   applicationNo: string | null;
@@ -32,7 +29,6 @@ export function FileHeader({
   holderName: string | null;
   holderDesignation: string | null;
   officeName: string | null;
-  tab: "preview" | "process";
 }) {
   return (
     <>
@@ -71,42 +67,7 @@ export function FileHeader({
         {officeName && <> · {officeName}</>}
       </p>
 
-      <nav className="mt-6 flex gap-1 border-b border-border">
-        <Tab href={`/workflow/${applicationId}`} on={tab === "preview"} icon="eye">
-          Preview
-        </Tab>
-        <Tab href={`/workflow/${applicationId}/process`} on={tab === "process"} icon="list">
-          Process
-        </Tab>
-      </nav>
     </>
-  );
-}
-
-function Tab({
-  href,
-  on,
-  icon,
-  children,
-}: {
-  href: string;
-  on: boolean;
-  icon: "eye" | "list";
-  children: React.ReactNode;
-}) {
-  const Icon = icon === "eye" ? Eye : ListChecks;
-  return (
-    <Link
-      href={href}
-      className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-        on
-          ? "border-primary text-primary"
-          : "border-transparent text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      <Icon className="h-3.5 w-3.5" strokeWidth={1.8} />
-      {children}
-    </Link>
   );
 }
 

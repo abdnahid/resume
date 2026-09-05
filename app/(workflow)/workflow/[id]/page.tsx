@@ -73,7 +73,6 @@ export default async function WorkflowFilePage({
           holderName={app.holder?.nameEn ?? null}
           holderDesignation={app.holder?.designationEn ?? null}
           officeName={app.bstiOffice?.nameEn ?? null}
-          tab="preview"
         />
 
         <div className="mt-8 grid gap-5 lg:grid-cols-3">

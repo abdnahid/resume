@@ -7,7 +7,6 @@ export default function Loading() {
       <SkeletonLine className="h-4 w-20" />
       <SkeletonLine className="mt-4 h-9 w-72" />
       <SkeletonLine className="mt-2 h-4 w-96" />
-      <SkeletonLine className="mt-6 h-8 w-48" />
 
       <div className="mt-8 grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">

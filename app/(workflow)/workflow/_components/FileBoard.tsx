@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, CalendarCheck, ChevronDown, Eye, FileText, Inbox, MapPin } from "lucide-react";
+import {
+  Building2, CalendarCheck, ChevronDown, Eye, FileText, Inbox, ListChecks, MapPin,
+} from "lucide-react";
 import { ReceiveButton, PassPanel } from "./FileActions";
 import { describeMovement, type Desk } from "@/lib/workflow/chain";
 
@@ -37,6 +39,8 @@ export type BoardRow = {
   /** The approved office order, once one has issued. */
   orderNo: string | null;
   inspectionOn: string | null;
+  /** What the process page offers this file next, for the holder's button. */
+  processLabel: string;
   holderName: string | null;
   holderDesignation: string | null;
   /** Which list this row belongs to from the viewer's point of view. */
@@ -190,16 +194,30 @@ export default function FileBoard({
               </div>
 
               <div className="flex shrink-0 items-start gap-2 sm:justify-end">
-                {/* The whole file — preview, attachments and fees (D80).
-                    Read-only, so it sits beside the actions rather than
-                    hiding under the application number, which read as a
-                    label and not as a way in. */}
+                {/* Two ways in, because they are two jobs. Reading what was
+                    filed (D80) and working the file — corrections, the
+                    inspection plan, the office order — are reached from here
+                    rather than one being a tab inside the other. */}
                 <Link
                   href={`/workflow/${a.id}`}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
                 >
                   <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
                   Preview
+                </Link>
+
+                <Link
+                  href={`/workflow/${a.id}/process`}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    a.bucket === "mine"
+                      ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+                      : "border-border text-foreground hover:border-primary/40 hover:text-primary"
+                  }`}
+                >
+                  <ListChecks className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  {/* Named for the work waiting there, so the holder is not
+                      asked to guess which button plans an inspection. */}
+                  {a.bucket === "mine" ? a.processLabel : "Process"}
                 </Link>
 
                 <div className="sm:text-right">

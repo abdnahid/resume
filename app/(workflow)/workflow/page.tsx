@@ -111,6 +111,16 @@ export default async function WorkflowPage() {
     // The office order is the visit's authority, so it belongs on the row
     // rather than one click inside the file (D82).
     orderNo: planOf.get(a.id)?.orderNo ?? null,
+    // The button says what is actually waiting, so the holder does not have to
+    // learn which page plans an inspection.
+    processLabel: (() => {
+      const p = planOf.get(a.id);
+      if (p?.approvedAt) return "Office order";
+      if (p) return "Inspection plan";
+      if (a.state === "review_passed") return "Plan inspection";
+      if (a.state === "shortfall_issued") return "Awaiting corrections";
+      return "Review";
+    })(),
     inspectionOn: (() => {
       const p = planOf.get(a.id);
       return p ? day(p.scheduledOn) : null;

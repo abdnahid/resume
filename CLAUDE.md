@@ -1124,15 +1124,19 @@ can reuse them.
   every desk that held it, and `fromEmployeeId` adds the office head who
   received and passed down in one sitting. Deliberately **not** office-scoped: a
   person who handled a file and has since transferred still handled it.
-- **Reading a file and working it are two pages.** `/workflow/[id]` is the
-  preview — what the applicant filed, its attachments and its fees, server
-  rendered with no client JS to speak of. `/workflow/[id]/process` is the work:
-  corrections, the inspection plan, the office order, and where the file has
-  been. An officer approving a visit should not scroll past six cards of
-  sub-products to reach the button, and one checking a declared capacity should
-  not scroll past the control that issues an office order. Each gets its own
-  `loading.tsx`, and `FileShell.tsx` holds the header, the tabs and the shared
-  `Card`/`Row`/`Empty` so the two cannot drift apart.
+- **Reading a file and working it are two pages, each with its own button on
+  the board.** `/workflow/[id]` is the preview — what the applicant filed, its
+  attachments and its fees, server rendered with almost no client JS.
+  `/workflow/[id]/process` is the work: corrections, the inspection plan, the
+  office order, and where the file has been. An officer approving a visit should
+  not scroll past six cards of sub-products to reach the button, and one
+  checking a declared capacity should not scroll past the control that issues an
+  office order. **Not tabs** — a tab bar on the preview reads as "the process
+  lives inside the preview" when it does not. The board's Process button is
+  **named for the work waiting there** (*Plan inspection*, *Inspection plan*,
+  *Office order*, *Review*) for whoever holds the file, so nobody has to learn
+  which page plans a visit. `FileShell.tsx` holds the shared header and the
+  `Card`/`Row`/`Empty` helpers so the two pages cannot drift apart.
 - **`/workflow/[id]` is the whole file, read-only** (D80) — the application
   preview, the attachments and the fees, for every officer on its flow.
   `canViewApplication()` is the named rule and it is the same standing that puts
