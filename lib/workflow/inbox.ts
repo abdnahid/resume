@@ -117,31 +117,53 @@ const gradeOf = (g: string | null | undefined): number | null => {
  * employee on grade 9 may sit on a post graded 11. Seniority between officers
  * follows the officer, so `Employee.grade` wins and the post's grade is only a
  * fallback for someone whose own grade is not recorded.
+ *
+ * **Additional charge inverts that, and only that.** An officer given the
+ * charge of a vacant senior post acts with *its* authority rather than their
+ * own — that is what the charge is — so where `actingOrgPostId` is set the
+ * acting post supplies both the section and the grade. The CM wing runs this
+ * way today: its Director post is vacant and a Deputy Director holds the
+ * charge, and by his own grade 6 he could not pass a file to the wing's other
+ * Deputy Directors at all. See `Employee.actingOrgPostId`.
  */
 const EMPLOYEE_DESK_SELECT = {
   id: true,
+  status: true,
   nameEn: true,
   designationEn: true,
+  designationBn: true,
   grade: true,
   orgPost: { select: { grade: true, unitId: true } },
+  actingOrgPost: { select: { grade: true, unitId: true, nameEn: true } },
 } satisfies Prisma.EmployeeSelect;
 
 type EmployeeDeskRow = {
   id: string;
+  status: string;
   nameEn: string;
   designationEn: string | null;
+  designationBn: string | null;
   grade: string | null;
   orgPost: { grade: string | null; unitId: number } | null;
+  actingOrgPost: { grade: string | null; unitId: number; nameEn: string } | null;
 };
 
 function toDesk(e: EmployeeDeskRow, roots: Map<number, number>): Desk {
-  const unitId = e.orgPost?.unitId ?? null;
+  const acting = e.actingOrgPost;
+  const unitId = acting?.unitId ?? e.orgPost?.unitId ?? null;
+  // The designation is what the picker groups by, and 42 desked employees carry
+  // only the Bangla — 3 Deputy Directors and 15 Assistant Directors among them.
+  // Reading `designationEn` alone filed every one of them under "Other" while
+  // `RANK_TABLE` already held the Bangla pattern that matches them.
+  const designation = e.designationEn ?? e.designationBn;
   return {
     employeeId: e.id,
     name: e.nameEn,
-    designation: e.designationEn,
-    grade: gradeOf(e.grade ?? e.orgPost?.grade),
+    designation: acting ? acting.nameEn : designation,
+    actingAs: acting?.nameEn ?? null,
+    grade: gradeOf(acting?.grade ?? e.grade ?? e.orgPost?.grade),
     sectionUnitId: unitId === null ? null : (roots.get(unitId) ?? unitId),
+    isActive: e.status === "active",
   };
 }
 
@@ -195,6 +217,7 @@ export async function candidates(
       .filter(
         (d) =>
           d.employeeId !== sender.employeeId &&
+          d.isActive &&
           d.sectionUnitId !== null &&
           d.sectionUnitId === sender.sectionUnitId,
       )

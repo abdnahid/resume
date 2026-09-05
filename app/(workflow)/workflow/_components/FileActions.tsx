@@ -152,6 +152,9 @@ export function PassPanel({
                   <option key={d.employeeId} value={d.employeeId}>
                     {d.name}
                     {d.grade ? ` — grade ${d.grade}` : ""}
+                    {/* Said out loud: this officer ranks here because of a
+                        charge, not because it is their own post. */}
+                    {d.actingAs ? ` — ${d.actingAs}, additional charge` : ""}
                   </option>
                 ))}
               </optgroup>

@@ -187,6 +187,94 @@ Committed as `d5e574d`.
 - Roster 731; desked 479; without a desk 252.
 - Office heads: 23 of 23 assigned, 23 of 23 now desked.
 
+### User
+
+> at BSTI head office sometimes a wing doesn't have a full director. At that
+> time a Deputy director is given additional charge of Director. For example the
+> deputy director currently assigned to CM wing is actually Director(additional
+> Charge). How to handle it. And why current deputy director is unable to see
+> 20063010031-KAWSER AHMED KHAN in the forward application dropdown menu?
+
+### Assistant
+
+**Kawser Ahmed Khan holds no `orgPostId` at all**, so `sectionUnitId` is null and
+`canPassTo` refuses at `chain.ts:52` before grade is considered. Nothing to do
+with the section or grade rule.
+
+Why he has no desk is a matching flaw worth remembering. `import:desks` matches
+his recorded wing **সিএম বিভাগ** by Bengali edit distance, and that matches
+**CM Dhaka** (সিএম ঢাকা) — a *leaf section* — not the `Certification Marks Wing`
+root. It then searches only that subtree, found CM Dhaka's one DD seat taken,
+and reported *"every post at that grade is full"* while a vacant DD (CM) seat
+sat in the sibling **Training** unit, out of scope. The same flaw hit
+মোহাম্মদ আরাফাত হোসেন সরকার at grade 6 and মোঃ আলাউদ্দিন হুসাইন at grade 4,
+whose Director post is in the sibling **Executive** unit.
+
+### User
+
+> id=19953010019 has already retired. Forgot about that. id=19953010017 is
+> deputy director (CM) with grade 6 and acting director of CM
+
+### Assistant
+
+Both corrections mattered more than they looked.
+
+**Md. Golam Rabbani (19953010019) was `status: active` and still in the HR
+export** as a serving উপপরিচালক — so `import:retire`, which only removes people
+the export does *not* contain, would never have caught him. He held both
+`office_head` for Head Office and the DD (CM) desk, so an office's files were
+arriving at somebody who had left.
+
+**Md. Alauddin Hussain (19953010017) carried grade 4 and পরিচালক** — the *acting*
+designation showing through, not his substantive rank. That is precisely the
+confusion the new column exists to end. His `nameEn` also held the Bangla name,
+because the HR detail API returned 500 for his record and the row fell back to
+the preview; the export's own `conflicts` array records the scraped `name_en`.
+
+**What was built.**
+
+`Employee.actingOrgPostId` — a second, nullable link to a post (D74). The
+officer keeps their own desk and holds the vacant senior post in charge, so
+ending the charge is nulling one field rather than putting a moved link back.
+
+**The acting post's grade wins over the officer's own**, and that is the whole
+point. Everywhere else the employee's grade decides seniority — an officer on
+grade 9 may sit on a post graded 11 and it is the officer who is senior.
+Additional charge is the one case that inverts it. `toDesk()` therefore reads
+section *and* grade from the acting post.
+
+**Verified, and the proof is specific:** Alauddin's **plain** pass-down list —
+with the `asHead` exemption switched off — is the same 19 desks as with it, and
+includes S M ABU SAYED, a Deputy Director on grade 6. By his own grade 6
+`canPassTo` refused that hand-off outright. He now ranks grade 4 inside section
+212 by the ordinary rule, so the exemption is no longer what carries him.
+
+`Desk.isActive` (D75) — a retired officer may never be handed a file, checked on
+the candidate and **never on the sender**, because a file already in a retired
+officer's hands must still be movable out of them. Office scoping is
+`employeesOfOffice()`, which asks where somebody works and not whether they still
+do, so without this a retiree holding a desk stayed in the picker. Found only
+because the client mentioned the retirement in passing.
+
+The picker also now falls back to `designationBn`, which fixes the 42 desked
+employees who were being filed under **Other**.
+
+`npm run import:hr-corrections` applies both record changes. It exists as a
+script rather than a hand-edit because the export is re-imported and will
+re-assert what it says, so a correction that contradicts it has to be written
+down somewhere that survives — with the reason and who decided.
+
+### Still unresolved at the end of this session
+
+**The CM wing has two DD (CM) seats and three serving DDs.** Post #672 (CM
+Dhaka) is Alauddin's; post #666 sits in **Training** and is vacant; Kawser Ahmed
+Khan and মোহাম্মদ আরাফাত হোসেন সরকার both have no desk. One of them can take
+#666 — putting them in *Training*, which may not be where they actually sit —
+and the other cannot be seated at all without raising the sanctioned count. This
+is the organogram-shape problem again and needs the client, not a rule.
+
+---
+
 ### Resume here
 
 **State.** Typecheck clean, tree clean, committed and pushed. Not verified in a
@@ -202,10 +290,8 @@ browser — the dev server was running, so no build was made.
    section, and movement stays within that section afterwards. Now that every
    head holds a desk, this is the only thing between here and a file moving end
    to end.
-2. **Bangla-only designations land under "Other" in the picker.** 42 desked
-   employees, including 3 DDs and 15 ADs. Select `designationBn` in
-   `EMPLOYEE_DESK_SELECT` and fall back to it in `toDesk()`; `RANK_TABLE`
-   already matches the Bangla. Two lines.
+2. ~~**Bangla-only designations land under "Other" in the picker.**~~ **Fixed**
+   later in this session — `toDesk()` falls back to `designationBn`.
 3. **Three Directors still mis-seated or unseated.** Head office Chemical and CM
    are in the "no post at that grade in that unit" bucket — their Director posts
    exist and are graded 4 but sit in the `Executive (<wing>)` child unit rather
@@ -214,6 +300,14 @@ browser — the dev server was running, so no build was made.
    original seeding; `import:desks` only ever fills a null `orgPostId`, so
    moving him is a decision rather than a repair.
 
+4. **Two CM Deputy Directors and one vacant seat** — see "Still unresolved"
+   above. Needs the client.
+
 **Also carried forward:** `/hr/listing` was reported erroring and the cause was
 never confirmed — see session 1 above. And 15 offices still have no local
 payroll admin, needing nomination at `/hr/listing/roles`.
+
+**One thing to watch.** The HR export records the *acting* designation, not the
+substantive one — that is how a DD arrived as a grade-4 পরিচালক. Other grade-4
+Directors in the roster may be acting DDs the same way, which would mean the
+seniority column is not always what it appears. Worth asking the wing.

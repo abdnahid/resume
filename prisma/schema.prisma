@@ -264,6 +264,11 @@ model OrgPost {
   unit      OrgUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   employees Employee[]
   postings  Posting[]
+
+  /// Officers holding this post in addition to their own — see
+  /// `Employee.actingOrgPostId`. Not counted against `sanctionedCount`: the
+  /// post is still vacant, which is why someone is acting in it.
+  actingHolders Employee[] @relation("ActingCharge")
 }
 
 model Posting {
@@ -515,6 +520,31 @@ model Employee {
   orgPostId Int?
   orgPost   OrgPost?  @relation(fields: [orgPostId], references: [id])
   postings  Posting[]
+
+  /// The post this employee holds **in addition to their own**, when its
+  /// substantive holder is absent and they are given its charge.
+  ///
+  /// At head office a wing whose Director post is vacant runs on a Deputy
+  /// Director holding additional charge — the CM wing does today. That officer
+  /// keeps their own desk (`orgPostId`) and exercises the senior post's
+  /// authority, so the two are separate columns rather than one moving link:
+  /// when the charge ends, this goes back to null and nothing else has to be
+  /// put back.
+  ///
+  /// **The acting post's grade wins over the officer's own.** Everywhere else
+  /// the employee's grade decides seniority, because an officer on grade 9 may
+  /// sit on a post graded 11 and it is the officer who is senior. Additional
+  /// charge is the one case that inverts: the whole point is that they act with
+  /// the post's authority, not their own, so `toDesk()` reads section and grade
+  /// from here when it is set. A DD acting as Director (CM) therefore ranks
+  /// grade 4 inside the CM wing and can pass a file to every DD, AD and FO in
+  /// it — which by their own grade 6 they could not.
+  ///
+  /// No history is kept. If "who was acting on the day this file moved" ever
+  /// needs answering, this becomes a table with a date range and an office
+  /// order number; nothing outside `toDesk()` reads it, so that is one place.
+  actingOrgPostId Int?
+  actingOrgPost   OrgPost? @relation("ActingCharge", fields: [actingOrgPostId], references: [id])
 
   officeId Int
   office   Office @relation(fields: [officeId], references: [id])

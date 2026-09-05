@@ -23,6 +23,7 @@
     "import:desks": "tsx prisma/import/desks.ts",
     "import:office-heads": "tsx prisma/import/office-heads.ts",
     "import:office-head-desks": "tsx prisma/import/office-head-desks.ts",
+    "import:hr-corrections": "tsx prisma/import/hr-corrections.ts",
     "seed:labs": "tsx prisma/seed-labs.ts"
   },
   "dependencies": {

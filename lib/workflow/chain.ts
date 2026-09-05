@@ -18,11 +18,29 @@
 export type Desk = {
   employeeId: string;
   name: string;
+  /**
+   * What this desk ranks as. Where an officer holds additional charge of a
+   * vacant senior post this is that post's title, not their own — the charge is
+   * what decides where they sit in the chain. `actingAs` carries it separately
+   * so a picker can say so out loud rather than silently promoting somebody.
+   */
   designation: string | null;
+  /** The post held in additional charge, if any. Display only. */
+  actingAs?: string | null;
   /** National pay grade of the post held. Lower is more senior. */
   grade: number | null;
   /** The wing or branch subtree this desk sits in. */
   sectionUnitId: number | null;
+  /**
+   * Still serving. A retired or inactive officer may not be handed a file.
+   *
+   * Office scoping is `employeesOfOffice()`, which asks where somebody works and
+   * not whether they still do — it is payroll's rule, borrowed. So without this
+   * a retiree who still held a desk stayed in the picker. It is checked on the
+   * *candidate* only, never the sender: if a file is already in a retired
+   * officer's hands it still has to be possible to move it out of them.
+   */
+  isActive: boolean;
 };
 
 export type Direction = "down" | "up";
@@ -49,6 +67,7 @@ export function rank(grade: number | null): number {
  */
 export function canPassTo(sender: Desk, candidate: Desk, direction: Direction): boolean {
   if (candidate.employeeId === sender.employeeId) return false;
+  if (!candidate.isActive) return false;
   if (sender.sectionUnitId === null || candidate.sectionUnitId === null) return false;
   if (candidate.sectionUnitId !== sender.sectionUnitId) return false;
 

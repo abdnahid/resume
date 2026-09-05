@@ -253,13 +253,11 @@ the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
 `utils/desk-assignment-report.txt` listing every assignment it makes.
 
-**The picker reads `designationEn` only, and 42 desked employees have none.**
-`EMPLOYEE_DESK_SELECT` in `lib/workflow/inbox.ts` selects the English
-designation and `toDesk()` hands it to `deskRank()`, so 3 Deputy Directors, 15
-Assistant Directors and 11 Field Officers who carry only the Bangla fall into
-the picker's **Other** group instead of their own rank. `RANK_TABLE` already
-holds every Bangla pattern that would match them — the field is simply never
-read. Select `designationBn` too and fall back to it.
+**The picker falls back to `designationBn`.** `EMPLOYEE_DESK_SELECT` used to
+select the English designation alone, and 42 desked employees carry only the
+Bangla — 3 Deputy Directors, 15 Assistant Directors and 11 Field Officers — so
+`deskRank()` filed every one of them under **Other** while `RANK_TABLE` already
+held the Bangla pattern that matches them. Fixed 2026-09-05.
 
 **Matching is office → wing → grade → title.** The last two both matter:
 সিএম ঢাকা has Field Officer (CM) and Assistant Director (CM) *both at grade 9*,
@@ -298,6 +296,17 @@ not move him.
 **All 23 offices now have an `office_head`**, assigned 2026-09-05 by
 `npm run import:office-heads`. One thing still blocks the flow — see the
 cross-section note below.
+
+**Head Office's is the CM wing's acting Director** — Md. Alauddin Hussain
+(19953010017), a Deputy Director (CM) on grade 6 holding the vacant Director
+post in additional charge. The HR export recorded him as পরিচালক on grade 4,
+which is the charge showing through rather than his substantive rank; that is
+the confusion D74 exists to end. It had also put his Bangla name in `nameEn`,
+because the detail API returned 500 for his record. Corrected 2026-09-05 by
+`npm run import:hr-corrections`, which also **retired Md. Golam Rabbani**
+(19953010019) — he held `office_head` and the DD (CM) desk while no longer
+serving, and the export still lists him, so `import:retire` would never have
+caught him.
 
 **Who holds it.** A designated *Head of Office* where one exists (three people
 are, and all three have no grade at all, so ranking by seniority would have
@@ -1018,6 +1027,23 @@ Decisions D57–D59, spec §4.2. `lib/workflow/chain.ts` is Prisma-free (D9),
 `ApplicationMovement` are generic, so the next service that needs a file to move
 can reuse them.
 
+- **Additional charge is `Employee.actingOrgPostId`, and the acting post's
+  grade wins** (D74). A wing whose Director post is vacant runs on a Deputy
+  Director holding its charge — the CM wing does today. Everywhere else the
+  *employee's* grade decides seniority; this is the one case that inverts,
+  because acting means exercising the post's authority and not your own. So
+  `toDesk()` takes section and grade from the acting post, and a DD acting as
+  Director (CM) ranks grade 4 inside the wing and passes to the wing's other DD
+  by the ordinary rule — which by his own grade 6 `canPassTo` refused. He keeps
+  his own desk: two columns, so ending the charge is nulling one field. The
+  picker says *"— Director, additional charge"* rather than silently promoting
+  him. No history is kept; `toDesk()` is the only reader, so making it a dated
+  table later is one place.
+- **A retired officer may never be handed a file** (D75). `Desk.isActive`,
+  checked on the candidate and **never on the sender** — a file already in a
+  retired officer's hands must still be movable out of them. Office scoping is
+  `employeesOfOffice()`, which asks where somebody works and not whether they
+  still do, so without this a retiree holding a desk stayed in the picker.
 - **`office_head` is its own role.** It receives an office's submitted
   applications; `officeadmin` does not. Payroll authority and file-routing
   authority are different jobs. `User.role` is one enum, so nobody is both —
