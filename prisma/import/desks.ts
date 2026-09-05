@@ -33,8 +33,10 @@
  * sanctioned strength — there is no post for them to hold — and giving them one
  * would overstate the establishment.
  *
- * Idempotent: only ever fills a null `orgPostId`, and never moves someone who
- * already has a desk.
+ * Idempotent: only ever fills a null `orgPostId`. The one exception is a desk
+ * in the **wrong office** — the original seeding produced 15 of those, and a
+ * file routed to an office would arrive at a desk in another one — so those are
+ * released first and re-matched in the same run.
  */
 import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/client";
@@ -131,6 +133,30 @@ async function main() {
   // earlier seeding that did not check — those simply offer nothing here.
   const free = new Map(posts.map((q) => [q.id, q.sanctionedCount - q._count.employees]));
 
+  // ── Release desks that point at another office ────────────────────────────
+  // A post belongs to exactly one office's subtree. Someone sitting outside
+  // their own is unreachable by their office's routing, so the desk is worse
+  // than none.
+  const rootOfUnit = (id: number): number => {
+    let c = id;
+    while (byId.get(c)!.parentId != null) c = byId.get(c)!.parentId!;
+    return c;
+  };
+  const placed = await prisma.employee.findMany({
+    where: { orgPostId: { not: null } },
+    select: { id: true, nameEn: true, officeId: true, orgPost: { select: { unitId: true } } },
+  });
+  const misplaced: string[] = [];
+  for (const e of placed) {
+    const want = officeRoot.get(e.officeId);
+    const got = rootOfUnit(e.orgPost!.unitId);
+    const ok = want === null ? byId.get(got)!.category === "wing" : got === want;
+    if (!ok) misplaced.push(e.id);
+  }
+  if (misplaced.length && !DRY) {
+    await prisma.employee.updateMany({ where: { id: { in: misplaced } }, data: { orgPostId: null } });
+  }
+
   const deskless = await prisma.employee.findMany({
     where: { orgPostId: null },
     select: {
@@ -205,6 +231,7 @@ async function main() {
   say(`desk assignment — ${new Date().toISOString()}`);
   say(DRY ? "NOTHING WAS WRITTEN TO THE DATABASE." : "");
   rule();
+  say(`  desks released as wrong-office ${misplaced.length}`);
   say(`  employees without a desk   ${deskless.length}`);
   say(`  exact wing match           ${exact.length}`);
   say(`  close wing match           ${close.length}  ← read these`);
