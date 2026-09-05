@@ -51,7 +51,9 @@ export default async function ProcessPage({
     roundsFor(applicationId),
     artworkTargetsFor(applicationId),
     planFor(applicationId),
-    app.bstiOfficeId ? teamCandidates(app.bstiOfficeId) : Promise.resolve([]),
+    app.bstiOfficeId
+      ? teamCandidates(app.bstiOfficeId, actor.employeeId)
+      : Promise.resolve({ scopedToSection: false, candidates: [] }),
   ]);
 
   const stage = stageInfo(app.state);
@@ -198,12 +200,8 @@ export default async function ProcessPage({
                       }
                     : null
                 }
-                candidates={team.map((c) => ({
-                  id: c.id,
-                  nameEn: c.nameEn,
-                  designation: c.designationEn ?? c.designationBn,
-                  grade: c.grade,
-                }))}
+                candidates={team.candidates}
+                candidatesAreSectionOnly={team.scopedToSection}
                 canEdit={isHolder && !plan?.approvedAt}
                 canApprove={
                   isHolder &&
@@ -213,6 +211,14 @@ export default async function ProcessPage({
               />
             )}
 
+            {/* ── The application ─────────────────────────────────────── */}
+          </div>
+
+          {/* The record of what has happened, beside the controls rather than
+              among them: once the review has closed the correction rounds are
+              history, and reading them next to the inspection plan made them
+              look like part of it. */}
+          <div className="space-y-5">
             {rounds.length > 0 && (
               <Card title={`Corrections asked for (${rounds.length})`}>
                 <ol className="space-y-4">
@@ -259,10 +265,6 @@ export default async function ProcessPage({
                 </ol>
               </Card>
             )}
-            {/* ── The application ─────────────────────────────────────── */}
-          </div>
-
-          <div className="space-y-5">
             <Card title={`Desk flow (${flow.length})`}>
               {flow.length === 0 ? (
                 <Empty>Not yet received.</Empty>

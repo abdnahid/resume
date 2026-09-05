@@ -266,12 +266,40 @@ export async function plansForMany(applicationIds: number[]) {
   });
 }
 
-/** Officers who could be put on a team — the file's office, serving, with a desk. */
-export async function teamCandidates(officeId: number) {
-  const { employeesOfOffice } = await import("@/lib/salary/payroll");
-  return prisma.employee.findMany({
-    where: { ...employeesOfOffice(officeId), status: "active", category: { not: "daily_basis" } },
-    select: { id: true, nameEn: true, designationEn: true, designationBn: true, grade: true },
-    orderBy: [{ grade: "asc" }, { nameEn: "asc" }],
-  });
+/**
+ * Officers who could be put on a team — **the proposer's own section**.
+ *
+ * Not the whole office. Head office has 282 serving staff and an inspection team
+ * is drawn from the wing that owns the file, so offering the building turns a
+ * short choice into a search and invites a Metrology inspector onto a CM visit.
+ * The section is the one the workflow chain already uses (`Desk.sectionUnitId`),
+ * so "who is in my wing" has one answer across the module.
+ *
+ * **Falls back to the office when the proposer has no desk.** 249 of 731 hold no
+ * organogram post, and an officer who cannot name a team cannot plan a visit at
+ * all — a worse failure than a long list. The caller is told which it got so the
+ * screen can say so.
+ */
+export async function teamCandidates(officeId: number, employeeId: string | null) {
+  const { desksOfOffice } = await import("@/lib/workflow/inbox");
+  const desks = (await desksOfOffice(officeId)).filter((d) => d.isActive);
+
+  const mine = employeeId ? desks.find((d) => d.employeeId === employeeId) : undefined;
+  const section = mine?.sectionUnitId ?? null;
+  const inScope = section === null ? desks : desks.filter((d) => d.sectionUnitId === section);
+
+  return {
+    scopedToSection: section !== null,
+    candidates: inScope
+      .map((d) => ({
+        id: d.employeeId,
+        nameEn: d.name,
+        designation: d.designation,
+        grade: d.grade,
+      }))
+      .sort(
+        (a, b) =>
+          (a.grade ?? 99) - (b.grade ?? 99) || a.nameEn.localeCompare(b.nameEn),
+      ),
+  };
 }

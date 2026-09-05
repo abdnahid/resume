@@ -1163,6 +1163,15 @@ can reuse them.
   It appears on the board row and in the desk flow, so every desk sees it.
   **An approved plan cannot be edited or sent back** — changing the date means a
   fresh order, not an edited one.
+- **The team is chosen from the proposer's own section, not the office.** Head
+  office has 392 desks and an inspection team is drawn from the wing that owns
+  the file, so offering the building turns a short choice into a search and
+  invites a Metrology inspector onto a CM visit. The section is
+  `Desk.sectionUnitId`, the one the workflow chain already uses, so "who is in
+  my wing" has one answer across the module. It **falls back to the office when
+  the proposer holds no desk** — 249 of 731 do not, and an officer who cannot
+  name a team cannot plan a visit at all — and the panel says so rather than
+  silently widening the list.
 - **Team members are rows, and replaced rather than merged.** A list diffed on
   save leaves somebody on the visit because nobody remembered to remove them.
   Each named officer is checked against the serving roster: a plan is an

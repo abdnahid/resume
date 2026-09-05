@@ -22,7 +22,7 @@ export type Candidate = {
   id: string;
   nameEn: string;
   designation: string | null;
-  grade: string | null;
+  grade: number | null;
 };
 
 export type PlanView = {
@@ -40,6 +40,7 @@ export default function InspectionPanel({
   applicationId,
   plan,
   candidates,
+  candidatesAreSectionOnly,
   canEdit,
   canApprove,
   officeName,
@@ -47,6 +48,8 @@ export default function InspectionPanel({
   applicationId: number;
   plan: PlanView | null;
   candidates: Candidate[];
+  /** False when the proposer holds no desk, so the whole office is offered. */
+  candidatesAreSectionOnly: boolean;
   /** True for whoever is holding the file while the plan is unapproved. */
   canEdit: boolean;
   /** True for the office head holding the file. */
@@ -183,6 +186,15 @@ export default function InspectionPanel({
             {picking ? "Done choosing" : "Add or remove officers"}
           </button>
         </div>
+
+        {picking && !candidatesAreSectionOnly && (
+          // Said out loud rather than silently widening the list: you hold no
+          // organogram post, so there is no section to narrow it to.
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            You hold no desk in the organogram, so every officer in the office is
+            listed rather than just your section.
+          </p>
+        )}
 
         {chosen.length > 0 && (
           <ul className="mt-2 space-y-1.5">
