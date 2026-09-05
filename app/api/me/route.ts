@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { roleLabel } from "@/lib/roles";
+import { displayDesignation } from "@/lib/workflow/chain";
 
 /**
  * Who the viewer is, for the navbar's account block.
@@ -77,14 +78,23 @@ export async function GET() {
       : []),
   ];
 
+  // The desk is the job, so its title is what to show — but only where it agrees
+  // in rank with what HR recorded, because most seats were inferred by grade.
+  // See `displayDesignation`. The Bangla fallback is the picker's: 42 desked
+  // employees carry only it, and a blank designation reads as missing data.
+  const post = e.actingOrgPost ?? e.orgPost;
+  const isActing = e.actingOrgPost !== null;
+  const recordedEn = e.designationEn ?? e.designationBn;
+  const recordedBn = e.designationBn ?? e.designationEn;
+
   return NextResponse.json({
     employeeId: e.id,
     nameEn: e.nameEn,
     nameBn: e.nameBn,
-    // The Bangla fallback the desk picker needed: 42 desked employees carry only
-    // it, and a blank designation in the navbar reads as missing data.
-    designationEn: e.designationEn ?? e.designationBn,
-    designationBn: e.designationBn ?? e.designationEn,
+    designationEn: displayDesignation(recordedEn, post?.nameEn ?? null, isActing),
+    designationBn: displayDesignation(recordedBn, post?.nameBn ?? null, isActing),
+    /** What HR recorded, kept so the two can be told apart where they differ. */
+    recordedDesignationEn: recordedEn,
     officeEn: e.office?.nameEn ?? null,
     officeBn: e.office?.nameBn ?? null,
     role: viewer.role,

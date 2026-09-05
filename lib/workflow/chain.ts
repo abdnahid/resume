@@ -190,6 +190,47 @@ export function deskRank(designation: string | null): DeskRank {
 }
 
 /**
+ * The job title to show for a person: their desk's, where the desk is credible.
+ *
+ * **The post is the job** — a Deputy Director (CM) moved onto the Deputy
+ * Director (Halal Certification) desk is doing the Halal job, and the roster's
+ * `designation` column still says CM. So the desk's title wins, and that is
+ * what this returns for the 43 people in exactly that position.
+ *
+ * **But two thirds of desks were inferred, not recorded.** `import:desks`
+ * matches office → wing → grade → title and seats people on whatever post at
+ * their grade is free when the title does not match, so 325 of 481 desked staff
+ * sit on a post of a different *rank* from their recorded designation — 248
+ * apparently promoted (a Field Officer on an Assistant Director desk, an Office
+ * Assistant on a Security Guard desk) and 77 apparently demoted. Showing those
+ * people the desk's title would tell them their job is something it is not, on
+ * their own screen.
+ *
+ * So the rule is: **take the desk's title when it agrees in rank with what HR
+ * recorded, and fall back to the recorded designation when it does not.** A
+ * disagreement in rank is the signal that the seat was a guess. When the
+ * organogram placement is corrected the fallback stops firing by itself.
+ *
+ * **A post held in additional charge is exempt**, and has to be. There the rank
+ * difference *is* the fact — a Deputy Director acting as Director differs by a
+ * rank on purpose — and the charge was recorded by hand rather than matched, so
+ * there is nothing to distrust. Applying the fallback there would show the
+ * officer running a wing the title he holds when he is not running it.
+ *
+ * This is display only. Seniority still follows the *person* — see
+ * `seniority()` — for the same reason the pay grade does.
+ */
+export function displayDesignation(
+  recorded: string | null,
+  postTitle: string | null,
+  isActing = false,
+): string | null {
+  if (!postTitle) return recorded;
+  if (!recorded || isActing) return postTitle;
+  return deskRank(recorded).label === deskRank(postTitle).label ? postTitle : recorded;
+}
+
+/**
  * Desks grouped by rank for a picker, seniority first, and by grade then name
  * within each group. Prisma-free so the panel can call it.
  */

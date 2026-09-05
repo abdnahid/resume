@@ -402,6 +402,63 @@ Verified the payload for four people — the acting Director (one desk, marked
 superadmin, and a plain Deputy Director. `/store` renders 200 through the
 rewritten navbar.
 
+### User
+
+> Actually the designation's title comes from desk's title. There maybe some
+> cases where a Deputy Director (CM) can be assigned to Deputy Director(Halal
+> certification) but these are rare cases.
+
+### Assistant
+
+The principle is right and I had it wrong — the post is the job. But checking
+the roster before applying it turned up something that changes the decision.
+
+```
+desked and active                                  481
+  designation and desk are the same job            113
+  same rank, different specialisation (your case)   43
+  DIFFERENT RANK                                   325
+     recorded rank junior to the desk              248
+     recorded rank senior to the desk               77
+```
+
+**Two thirds sit on a post of a different rank from their recorded
+designation** — because `import:desks` matches office → wing → grade → title and
+seats people on whatever post at their grade is free when the title does not
+match. `CLAUDE.md` already recorded the symptom: "grade alone put an Assistant
+Director on a Field Officer's desk." Examples: a Field Officer on an Assistant
+Director (CM) desk, an **Office Assistant on a Security Guard desk**, Afsana
+Hossain — সহকারী পরিচালক — on a Field Officer (CM) desk.
+
+Taking the desk title unconditionally would tell 325 people their job is
+something it is not, on their own screen. That is the same class of error as
+guessing somebody's gender and showing it back to them.
+
+**So `displayDesignation()` takes the desk's title when it agrees in rank with
+HR's record, and falls back to the record when it does not** — a rank
+disagreement being the signal that the seat was a guess. Your case is served
+exactly: মোহাম্মদ আরাফাত হোসেন সরকার, recorded "Deputy Director", desk "Deputy
+Director (CM)", now reads **Deputy Director (CM)**. As the organogram is
+corrected the fallback stops firing by itself.
+
+**A post held in additional charge is exempt**, and has to be — there the rank
+difference *is* the fact, and the charge was set by hand rather than matched.
+Without the exemption Md. Alauddin Hussain read "Deputy Director" while running
+the CM wing; he now reads **Director**.
+
+```
+মোহাম্মদ আরাফাত হোসেন সরকার  Deputy Director   + desk Deputy Director (CM)  → Deputy Director (CM)
+Md. Alauddin Hussain         Deputy Director   + charge Director            → Director
+AFSANA HOSSAIN               সহকারী পরিচালক    + desk Field Officer (CM)    → সহকারী পরিচালক
+ABDULLAH AL NAHID            Inspector         + desk Assistant Director    → Inspector
+
+157 titles now come from the desk; 324 fall back to HR's record.
+```
+
+**Left for the client:** whether to take the desk title unconditionally anyway.
+That is defensible if the organogram placement is going to be corrected soon,
+and wrong until it is.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

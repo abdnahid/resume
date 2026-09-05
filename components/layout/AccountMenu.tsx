@@ -32,6 +32,8 @@ export type Me = {
   nameBn: string;
   designationEn: string | null;
   designationBn: string | null;
+  /** What HR recorded, where that differs from the desk's title. */
+  recordedDesignationEn: string | null;
   officeEn: string | null;
   officeBn: string | null;
   role: string;

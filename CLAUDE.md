@@ -148,6 +148,22 @@ and a theme class in `app/globals.css`.
   `components/layout/AccountMenu.tsx` holds it, and both navbars use it:
   `ModuleNavbar` renders it directly, `Navbar` (the /hr one) shares its `useMe()`
   hook.
+- **The title shown is the desk's, where the desk is credible.**
+  `displayDesignation()` in `lib/workflow/chain.ts`. The post *is* the job — a
+  Deputy Director (CM) moved onto the Deputy Director (Halal Certification) desk
+  is doing the Halal job while the roster still says CM — so the desk's title
+  wins. **But two thirds of desks were inferred, not recorded:**
+  `import:desks` seats people on whatever post at their grade is free when the
+  title does not match, so **325 of 481** desked staff sit on a post of a
+  different *rank* from their recorded designation — 248 apparently promoted (an
+  Office Assistant on a Security Guard desk) and 77 apparently demoted. So the
+  rule is: take the desk's title when it **agrees in rank** with HR's record,
+  and fall back to the record when it does not, because a rank disagreement is
+  the signal that the seat was a guess. 157 titles come from the desk today; the
+  fallback stops firing by itself as the organogram is corrected.
+  **A post held in additional charge is exempt** — there the rank difference
+  *is* the fact, and the charge was recorded by hand, so a DD acting as Director
+  reads "Director". Display only: seniority still follows the person.
 - **`GET /api/me` supplies what the session does not** — designation, office and
   the desks held. `ModuleNavbar` reads the session client-side on purpose (the
   store is ISR and awaiting a session server-side would opt every catalogue page
