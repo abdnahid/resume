@@ -513,6 +513,16 @@ files he handled. That follows from D77 and is arguably right, but the real
 answer is that a retired employee's account should not authenticate at all —
 which is an auth concern rather than a per-file one, and nobody has asked for it.
 
+### User
+
+> Clicking the id gets me to the page. Do it as preview button instead of this.
+
+### Assistant
+
+Done. The application number is a label again, and each row carries a **Preview**
+button beside its action — the number read as an identifier rather than as a way
+in, so the link was hiding the feature.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

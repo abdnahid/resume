@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Building2, ChevronDown, FileText, Inbox, MapPin } from "lucide-react";
+import { Building2, ChevronDown, Eye, FileText, Inbox, MapPin } from "lucide-react";
 import { ReceiveButton, PassPanel } from "./FileActions";
 import { describeMovement, type Desk } from "@/lib/workflow/chain";
 
@@ -139,15 +139,9 @@ export default function FileBoard({
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* The whole file, for anyone on its flow — preview,
-                      attachments and fees (D80). Read-only; the actions stay
-                      on this board, keyed off holding it. */}
-                  <Link
-                    href={`/workflow/${a.id}`}
-                    className="font-mono text-sm font-semibold text-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
-                  >
+                  <span className="font-mono text-sm font-semibold text-foreground">
                     {a.applicationNo ?? `#${a.id}`}
-                  </Link>
+                  </span>
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground">
                     {a.stateLabel}
                   </span>
@@ -174,13 +168,28 @@ export default function FileBoard({
                 </p>
               </div>
 
-              <div className="shrink-0 sm:text-right">
+              <div className="flex shrink-0 items-start gap-2 sm:justify-end">
+                {/* The whole file — preview, attachments and fees (D80).
+                    Read-only, so it sits beside the actions rather than
+                    hiding under the application number, which read as a
+                    label and not as a way in. */}
+                <Link
+                  href={`/workflow/${a.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
+                  Preview
+                </Link>
+
+                <div className="sm:text-right">
                 {a.bucket === "mine" ? (
                   <PassPanel applicationId={a.id} down={down} up={up} />
                 ) : a.bucket === "unclaimed" && canReceive ? (
                   <ReceiveButton applicationId={a.id} />
                 ) : a.holderName ? (
-                  <p className="text-sm">
+                  // py-2 so the holder line sits on the Preview button's
+                  // baseline rather than a few pixels above it.
+                  <p className="py-2 text-sm">
                     <span className="text-muted-foreground">with</span>{" "}
                     <span className="font-medium text-foreground">{a.holderName}</span>
                     {a.holderDesignation && (
@@ -190,11 +199,12 @@ export default function FileBoard({
                     )}
                   </p>
                 ) : (
-                  <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <p className="inline-flex items-center gap-1.5 py-2 text-sm text-muted-foreground">
                     <Inbox className="h-3.5 w-3.5" strokeWidth={1.8} />
                     unclaimed
                   </p>
                 )}
+                </div>
               </div>
               </div>
 
