@@ -13,6 +13,8 @@ import { canEditAnyDocument, canEditTarget, stageInfo } from "@/lib/cm/states";
 import { editScopeFor, openRound } from "@/lib/cm/shortfall";
 import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import ShortfallNotice from "./_components/ShortfallNotice";
+import ArtworkFix from "./_components/ArtworkFix";
+import { artworkSkuIdOf } from "@/lib/cm/policy";
 import Footer from "@/components/layout/Footer";
 import StageTracker from "./_components/StageTracker";
 import FormProgress, { StepGaps, StepNav } from "./_components/FormProgress";
@@ -99,6 +101,29 @@ export default async function ApplicationPage({
   const [rawScope, round] = await Promise.all([editScopeFor(app.id), openRound(app.id)]);
   const scope = membership.role === "viewer" ? ({ kind: "none" } as const) : rawScope;
   const can = (target: string) => canEditTarget(scope, target);
+
+  /**
+   * The variants whose artwork BSTI asked to be replaced, with the officer's
+   * comment beside each. Resolved here because only the page holds the SKUs.
+   */
+  const artworkFixes = (round?.items ?? []).flatMap((i) => {
+    const skuId = artworkSkuIdOf(i.target);
+    if (skuId === null || !can(i.target)) return [];
+    const sku = app.subProducts.flatMap((sp) => sp.skus).find((k) => k.id === skuId);
+    if (!sku) return [];
+    return [{
+      skuId,
+      comment: i.comment,
+      currentName: sku.labelImageName,
+      label: [
+        sku.brandName,
+        sku.variant,
+        sku.sizeValue !== null ? `${sku.sizeValue} ${sku.sizeUnit.code}` : sku.sizeUnit.code,
+        sku.packaging,
+        sku.grade,
+      ].filter(Boolean).join(" · "),
+    }];
+  });
   /** True while the whole form is open — before submission. */
   const editable = scope.kind === "all";
   const info = stageInfo(app.state);
@@ -176,6 +201,27 @@ export default async function ApplicationPage({
                 thing that can be edited, so they are the page (D81). There is
                 no notification channel yet — no mail, no SMS — so this panel is
                 the notice. */}
+            {/* Artwork is marked per variant (D53), and replacing one is a
+                narrower permission than editing the article — so it gets its
+                own control rather than reopening the variant editor. */}
+            {artworkFixes.length > 0 && (
+              <section className="space-y-2 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-5">
+                <h2 className="font-display text-lg font-medium text-foreground">
+                  Packaging artwork to replace
+                </h2>
+                {artworkFixes.map((a) => (
+                  <ArtworkFix
+                    key={a.skuId}
+                    applicationId={app.id}
+                    skuId={a.skuId}
+                    label={a.label}
+                    comment={a.comment}
+                    currentName={a.currentName}
+                  />
+                ))}
+              </section>
+            )}
+
             {round && (
               <ShortfallNotice
                 applicationId={app.id}
@@ -187,12 +233,16 @@ export default async function ApplicationPage({
                 })}
                 raisedBy={round.raisedBy.nameEn}
                 note={round.note}
-                items={round.items.map((i) => ({
-                  id: i.id,
-                  label: shortfallLabel(i.target),
-                  comment: i.comment,
-                  step: allShortfallTargets().find((t) => t.target === i.target)?.step ?? 2,
-                }))}
+                items={round.items.map((i) => {
+                  // Artwork points name a jar, so say which one.
+                  const art = artworkFixes.find((a) => `artwork:${a.skuId}` === i.target);
+                  return {
+                    id: i.id,
+                    label: art ? `Packaging artwork — ${art.label}` : shortfallLabel(i.target),
+                    comment: i.comment,
+                    step: allShortfallTargets().find((t) => t.target === i.target)?.step ?? 2,
+                  };
+                })}
                 canRespond={membership.role !== "viewer"}
               />
             )}

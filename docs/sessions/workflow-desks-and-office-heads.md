@@ -589,6 +589,46 @@ mail — client addresses are often `@mobile.bsti.invalid` placeholders — and 
 is not enabled. The panel on the applicant's page *is* the notice. The file
 should not be described as "the client is notified" until a channel exists.
 
+### User
+
+> Each variant should have a packaging artwork uploaded. So there might be an
+> option to mark which artwork needs to be corrected
+
+### Assistant
+
+Added `artwork:<applicationSkuId>` as a shortfall target. A licence covers every
+brand, size and flavour separately and each is sold in its own wrapper (D53), so
+"the artwork is wrong" is a statement about one jar — reopening every variant's
+artwork because one label is wrong would invite the applicant to replace
+wrappers nobody questioned.
+
+These targets are **dynamic**, unlike the sections and the document checklist: a
+variant is a row the applicant created, so the list only exists per application.
+`raiseShortfall` therefore checks the SKU belongs to that application before
+storing the point — otherwise a marked point could name somebody else's jar.
+
+**An artwork-only permission writes only the artwork, and the server enforces
+it.** The variant editor posts the whole article, so comparing what changed
+would let a resubmitted brand name through on a technicality. `updateSku`
+instead branches: with `skus` open it writes everything as before; with only
+`artwork:<id>` open it writes the label columns and ignores the rest of the
+payload. The applicant gets a narrow "replace artwork" control rather than the
+editor.
+
+**Verified with a deliberately hostile payload** — a brand of "HACKED BRAND"
+sent alongside the new label:
+
+```
+6 variants offered to the officer, each named by brand · variant · size
+a target naming a SKU on another application → dropped
+scope = targets [artwork:22]
+
+artwork:   the-batman-….jpg  →  new-label.pdf   ✓
+brand:     rich kids         →  rich kids       ✓ payload ignored
+packaging: —                 →  —               ✓
+a variant whose artwork was not marked → refused
+```
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was

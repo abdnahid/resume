@@ -1137,6 +1137,18 @@ can reuse them.
   from `/workflow/[id]` and answered on the applicant's own application page.
   `lib/cm/shortfall.ts` is the server half; the rules are Prisma-free in
   `states.ts` (`editScope`) and `policy.ts` (`SHORTFALL_SECTIONS`).
+- **Packaging artwork is marked per variant** — `artwork:<applicationSkuId>`.
+  A licence covers every brand, size and flavour separately and each is sold in
+  its own wrapper (D53), so "the artwork is wrong" is a statement about one jar;
+  reopening every variant's artwork because one label is wrong invites the
+  applicant to replace wrappers nobody questioned. The targets are **dynamic**,
+  unlike the sections and the document checklist, so `raiseShortfall` checks the
+  SKU belongs to that application before storing the point.
+  **An artwork-only permission writes only the artwork**, enforced in
+  `updateSku` and not in the form: the variant editor posts the whole article,
+  so comparing what changed would let a resubmitted brand name through on a
+  technicality. Everything but the label columns is simply not written, and the
+  applicant gets a narrow "replace artwork" control rather than the editor.
 - **A shortfall is an edit permission, not a note.** The officer ticks points
   from a closed list and each becomes a `ShortfallItem` row naming what
   reopens — a section like `production`, or `document:<kind>` for one paper.

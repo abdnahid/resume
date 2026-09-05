@@ -7,7 +7,9 @@
  * that a licence gains over its life, not a paragraph written once.
  */
 import { prisma } from "@/lib/prisma";
-import { assertEditable } from "./shortfall";
+import { canEditTarget } from "./states";
+import { artworkTarget } from "./policy";
+import { assertEditable, editScopeFor } from "./shortfall";
 import { validateSku, validateLabelImage, type SkuInput } from "./policy";
 
 /** The size vocabulary the form offers — 12 types, 43 units. */
@@ -69,10 +71,16 @@ async function subProductOf(applicationId: number, applicationSubProductId: numb
  * "litre" and store a size nothing can read.
  */
 async function guard(applicationId: number, userId: string) {
-  const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
+  const app = await standing(applicationId, userId);
   // A correction round can reopen the articles alone (D81), so this asks about
   // the target rather than about the state.
   await assertEditable(applicationId, "skus");
+  return app;
+}
+
+/** Membership only — who may act on the file, saying nothing about what is open. */
+async function standing(applicationId: number, userId: string) {
+  const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
   const membership = await prisma.organizationMembership.findUnique({
     where: { userId_organizationId: { userId, organizationId: app.organizationId } },
   });
@@ -184,7 +192,7 @@ export async function updateSku(
   input: SkuInput,
   userId: string,
 ) {
-  await guard(applicationId, userId);
+  await standing(applicationId, userId);
 
   const existing = await prisma.applicationSku.findUnique({
     where: { id: skuId },
@@ -192,6 +200,29 @@ export async function updateSku(
   });
   if (!existing || existing.applicationSubProduct.applicationId !== applicationId) {
     throw new Error("That variant is not on this application.");
+  }
+
+  /**
+   * Artwork is marked per variant (D53, D81), so "replace the label on the 2 L
+   * bottle" is a narrower permission than "the articles are wrong".
+   *
+   * **An artwork-only permission writes only the artwork**, and the server is
+   * what enforces that rather than the form: the edit form posts the whole
+   * variant, so comparing what changed would let a resubmitted brand name
+   * through on a technicality. Everything but the label columns is simply not
+   * written.
+   */
+  const scope = await editScopeFor(applicationId);
+  if (!canEditTarget(scope, "skus")) {
+    if (!canEditTarget(scope, artworkTarget(skuId))) {
+      // Reuse the one gate so the message is the same everywhere.
+      await assertEditable(applicationId, "skus");
+    }
+    return prisma.applicationSku.update({
+      where: { id: skuId },
+      data: labelFields(input),
+      include: SKU_INCLUDE,
+    });
   }
 
   const size = await resolveSize(input);

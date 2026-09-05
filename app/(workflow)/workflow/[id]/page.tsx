@@ -9,7 +9,7 @@ import { getApplication } from "@/lib/cm/applications";
 import { testFeeFor } from "@/lib/cm/sub-products";
 import { stageInfo } from "@/lib/cm/states";
 import { CM_DOCUMENTS, CM_QUESTIONS, allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
-import { roundsFor } from "@/lib/cm/shortfall";
+import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
 import ReviewPanel from "./_components/ReviewPanel";
 import { formatPoisha, takaToPoisha } from "@/lib/payments/money";
 import { salePricePolicy } from "@/lib/store/bds-catalog";
@@ -47,10 +47,11 @@ export default async function WorkflowFilePage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, testFee, rounds] = await Promise.all([
+  const [movements, testFee, rounds, artworkTargets] = await Promise.all([
     movementsFor(applicationId),
     testFeeFor(applicationId).catch(() => null),
     roundsFor(applicationId),
+    artworkTargetsFor(applicationId),
   ]);
 
   // The correction loop is between whoever holds the file and the applicant
@@ -164,7 +165,17 @@ export default async function WorkflowFilePage({
             {isHolder && (
               <ReviewPanel
                 applicationId={app.id}
-                targets={allShortfallTargets().map((t) => ({ ...t, step: t.step }))}
+                targets={[
+                  ...allShortfallTargets().map((t) => ({ ...t, step: t.step })),
+                  // Artwork is per variant (D53), so the officer picks the jar
+                  // rather than reopening every wrapper on the licence.
+                  ...artworkTargets.map((a) => ({
+                    target: a.target,
+                    label: `Artwork — ${a.label}`,
+                    hint: `${a.subProduct}. ${a.hasArtwork ? "A label is on file." : "No label has been provided."}`,
+                    step: 2 as const,
+                  })),
+                ]}
                 openRound={
                   open
                     ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
@@ -200,7 +211,9 @@ export default async function WorkflowFilePage({
                         {r.items.map((i) => (
                           <li key={i.id} className="text-sm">
                             <span className="font-medium text-foreground">
-                              {shortfallLabel(i.target)}
+                              {artworkTargets.find((a) => a.target === i.target)
+                                ? `Artwork — ${artworkTargets.find((a) => a.target === i.target)!.label}`
+                                : shortfallLabel(i.target)}
                             </span>
                             <span className="block text-xs text-muted-foreground">{i.comment}</span>
                           </li>

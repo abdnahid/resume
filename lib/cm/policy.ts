@@ -759,7 +759,33 @@ export function allShortfallTargets(): ShortfallSection[] {
   ];
 }
 
-/** A target's label, for showing back what was asked for. */
+/**
+ * A target's label, for showing back what was asked for.
+ *
+ * Artwork targets name a variant that only the caller can resolve, so they get
+ * a generic label here; pages holding the SKU add the brand and size.
+ */
 export function shortfallLabel(target: string): string {
+  if (target.startsWith("artwork:")) return "Packaging artwork";
   return allShortfallTargets().find((t) => t.target === target)?.label ?? target;
+}
+
+/**
+ * Packaging artwork is marked per variant, not per application.
+ *
+ * A licence covers every brand, size and flavour separately and each is sold in
+ * its own wrapper (D53), so "the artwork is wrong" is a statement about one jar.
+ * Reopening every variant's artwork because one label is wrong would invite the
+ * applicant to replace wrappers nobody questioned.
+ *
+ * The id is the `ApplicationSku`'s, so the target is only meaningful on the
+ * application that owns it — `raiseShortfall` checks that before storing it.
+ */
+export const ARTWORK_TARGET_PREFIX = "artwork:";
+export const artworkTarget = (skuId: number) => `${ARTWORK_TARGET_PREFIX}${skuId}`;
+export const isArtworkTarget = (t: string) => t.startsWith(ARTWORK_TARGET_PREFIX);
+export function artworkSkuIdOf(target: string): number | null {
+  if (!isArtworkTarget(target)) return null;
+  const n = Number(target.slice(ARTWORK_TARGET_PREFIX.length));
+  return Number.isInteger(n) ? n : null;
 }

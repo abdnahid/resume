@@ -21,7 +21,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { canEditTarget, editScope, type EditScope } from "./states";
-import { allShortfallTargets } from "./policy";
+import { allShortfallTargets, artworkSkuIdOf, artworkTarget, isArtworkTarget } from "./policy";
 
 /** The round awaiting an answer, if there is one. */
 export async function openRound(applicationId: number) {
@@ -45,6 +45,40 @@ export async function roundsFor(applicationId: number) {
     },
     orderBy: { roundNo: "desc" },
   });
+}
+
+/**
+ * The variants on this application, as artwork targets the officer can mark.
+ *
+ * Dynamic, unlike the sections and the document checklist: a variant is a row
+ * the applicant created, so the list only exists per application (D53).
+ */
+export async function artworkTargetsFor(applicationId: number) {
+  const skus = await prisma.applicationSku.findMany({
+    where: { applicationSubProduct: { applicationId } },
+    select: {
+      id: true, brandName: true, variant: true, packaging: true, grade: true,
+      sizeValue: true, labelImageName: true,
+      sizeUnit: { select: { code: true } },
+      applicationSubProduct: { select: { subProduct: { select: { nameEn: true } } } },
+    },
+    orderBy: [{ applicationSubProductId: "asc" }, { sortOrder: "asc" }, { id: "asc" }],
+  });
+  return skus.map((s) => ({
+    target: artworkTarget(s.id),
+    skuId: s.id,
+    label: [
+      s.brandName,
+      s.variant,
+      s.sizeValue !== null ? `${s.sizeValue} ${s.sizeUnit.code}` : s.sizeUnit.code,
+      s.packaging,
+      s.grade,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+    subProduct: s.applicationSubProduct.subProduct.nameEn,
+    hasArtwork: s.labelImageName !== null,
+  }));
 }
 
 /** Rounds for several files at once — one query for the whole board. */
@@ -116,8 +150,24 @@ export async function raiseShortfall(args: {
   items: { target: string; comment: string }[];
 }) {
   const known = new Set(allShortfallTargets().map((t) => t.target));
+  // An artwork target names a variant, so it is only valid on the application
+  // that owns it — otherwise a marked point could reopen somebody else's jar.
+  const ownSkuIds = new Set(
+    (
+      await prisma.applicationSku.findMany({
+        where: { applicationSubProduct: { applicationId: args.applicationId } },
+        select: { id: true },
+      })
+    ).map((s) => s.id),
+  );
   const items = args.items
-    .filter((i) => known.has(i.target))
+    .filter((i) => {
+      if (isArtworkTarget(i.target)) {
+        const id = artworkSkuIdOf(i.target);
+        return id !== null && ownSkuIds.has(id);
+      }
+      return known.has(i.target);
+    })
     .map((i) => ({ target: i.target, comment: i.comment.trim() }))
     .filter((i) => i.comment.length > 0);
   if (items.length === 0) {
