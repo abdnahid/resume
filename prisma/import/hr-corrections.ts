@@ -32,6 +32,19 @@
  *    His `nameEn` also held the Bangla name: the HR detail API returned 500 for
  *    his record, so the row fell back to the preview, and the export's own
  *    `conflicts` array records the scraped `name_en` as "Md. Alauddin Hussain".
+ *
+ * 3. **The CM wing's two Deputy Director seats go to the other two DDs** —
+ *    Kawser Ahmed Khan to CM Dhaka, Mohammad Arafat Hossain Sarker to Training.
+ *    Client's instruction, 2026-09-05.
+ *
+ *    **So Md. Alauddin Hussain gives up his substantive desk and holds only the
+ *    Director post in charge.** Three serving Deputy Directors against two
+ *    sanctioned DD seats is one too many, and the third seat he actually
+ *    occupies is the Director's — which is what the charge means. That keeps
+ *    every post inside its sanctioned count instead of over-allocating one, the
+ *    discipline `import:desks` follows. It costs him nothing in the workflow:
+ *    `toDesk()` reads the acting post first, so he keeps section 212 and grade
+ *    4. If the charge ends, he needs a DD seat back.
  */
 import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/client";
@@ -44,15 +57,23 @@ const DRY = process.argv.includes("--dry");
 
 /** Deputy Director (CM), unit "CM Dhaka" — the CM section's own DD desk. */
 const DD_CM_POST = 672;
+/** Deputy Director (CM), unit "Training". The wing's other DD seat. */
+const DD_CM_TRAINING_POST = 666;
 /** Director, unit "Executive (Certification Marks Wing)" — vacant, held in charge. */
 const DIR_CM_POST = 662;
 
 const RETIRED = "19953010019";
 const ACTING = "19953010017";
+/** Kawser Ahmed Khan → the CM Dhaka DD seat. */
+const DD_CM_DHAKA = "20063010031";
+/** Mohammad Arafat Hossain Sarker → the Training DD seat. */
+const DD_TRAINING = "20063010035";
+
+const EVERYONE = [RETIRED, ACTING, DD_CM_DHAKA, DD_TRAINING];
 
 async function main() {
   const before = await prisma.employee.findMany({
-    where: { id: { in: [RETIRED, ACTING] } },
+    where: { id: { in: EVERYONE } },
     select: {
       id: true, nameEn: true, grade: true, designationEn: true, status: true,
       orgPostId: true, actingOrgPostId: true, user: { select: { role: true } },
@@ -65,13 +86,17 @@ async function main() {
   // Guard: the desks named here must be the ones intended, so a renumbered
   // organogram fails loudly instead of seating somebody on a stranger's post.
   const posts = await prisma.orgPost.findMany({
-    where: { id: { in: [DD_CM_POST, DIR_CM_POST] } },
+    where: { id: { in: [DD_CM_POST, DD_CM_TRAINING_POST, DIR_CM_POST] } },
     select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } },
   });
   const dd = posts.find((p) => p.id === DD_CM_POST);
+  const training = posts.find((p) => p.id === DD_CM_TRAINING_POST);
   const dir = posts.find((p) => p.id === DIR_CM_POST);
   if (dd?.nameEn !== "Deputy Director (CM)" || dd.unit.nameEn !== "CM Dhaka") {
     throw new Error(`post ${DD_CM_POST} is not Deputy Director (CM) in CM Dhaka: ${JSON.stringify(dd)}`);
+  }
+  if (training?.nameEn !== "Deputy Director (CM)" || training.unit.nameEn !== "Training") {
+    throw new Error(`post ${DD_CM_TRAINING_POST} is not Deputy Director (CM) in Training: ${JSON.stringify(training)}`);
   }
   if (dir?.nameEn !== "Director" || !dir.unit.nameEn.includes("Certification Marks")) {
     throw new Error(`post ${DIR_CM_POST} is not the CM wing Director post: ${JSON.stringify(dir)}`);
@@ -80,7 +105,9 @@ async function main() {
   if (DRY) {
     console.log("\n--dry: nothing written.");
     console.log(`  ${RETIRED} → status retired, desk released, role employee`);
-    console.log(`  ${ACTING}  → grade 6, Deputy Director, desk ${DD_CM_POST}, acting ${DIR_CM_POST}, role office_head`);
+    console.log(`  ${ACTING}  → grade 6, Deputy Director, no substantive desk, acting ${DIR_CM_POST}, role office_head`);
+    console.log(`  ${DD_CM_DHAKA} → desk ${DD_CM_POST} (Deputy Director (CM), CM Dhaka)`);
+    console.log(`  ${DD_TRAINING} → desk ${DD_CM_TRAINING_POST} (Deputy Director (CM), Training)`);
     return;
   }
 
@@ -97,18 +124,23 @@ async function main() {
         designationEn: "Deputy Director",
         designationBn: "উপপরিচালক",
         grade: "6",
-        orgPostId: DD_CM_POST,
+        // The seat he would hold goes to Kawser Ahmed Khan; the post he actually
+        // occupies is the Director's, in charge. See note 3 above.
+        orgPostId: null,
         actingOrgPostId: DIR_CM_POST,
       },
     }),
     prisma.user.update({ where: { id: `user_${ACTING}` }, data: { role: "office_head" } }),
+
+    prisma.employee.update({ where: { id: DD_CM_DHAKA }, data: { orgPostId: DD_CM_POST } }),
+    prisma.employee.update({ where: { id: DD_TRAINING }, data: { orgPostId: DD_CM_TRAINING_POST } }),
   ]);
 
   const after = await prisma.employee.findMany({
-    where: { id: { in: [RETIRED, ACTING] } },
+    where: { id: { in: EVERYONE } },
     select: {
       id: true, nameEn: true, grade: true, designationEn: true, status: true,
-      orgPost: { select: { id: true, nameEn: true, grade: true } },
+      orgPost: { select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } } },
       actingOrgPost: { select: { id: true, nameEn: true, grade: true } },
       user: { select: { role: true } },
     },

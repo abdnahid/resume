@@ -158,7 +158,12 @@ async function main() {
   }
 
   const deskless = await prisma.employee.findMany({
-    where: { orgPostId: null },
+    // Someone holding a post in additional charge is not deskless — the post
+    // they occupy is the one they are acting in, and it is deliberately the
+    // *senior* one. Seating them on a junior seat that happens to fall vacant
+    // would silently demote the officer running the wing. Retired and inactive
+    // staff are likewise not candidates for a desk.
+    where: { orgPostId: null, actingOrgPostId: null, status: "active" },
     select: {
       id: true, nameEn: true, officeId: true, wing: true, grade: true, category: true,
       designationEn: true, designationBn: true,

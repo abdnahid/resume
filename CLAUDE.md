@@ -245,10 +245,17 @@ real future use (retirement), and it is *not* computed today —
 
 ### Desks
 
-**479 of 731 now hold an `orgPostId`** — 288 from the original seeding, 182
+**480 of 731 now hold an `orgPostId`** — 288 from the original seeding, 182
 placed by `npm run import:desks` on 2026-09-05, then 5 office heads seated by
-`npm run import:office-head-desks` and 4 head-office Directors by a second
-`import:desks` run once Directors were graded 4, both the same day. The importer does *not* set it:
+`npm run import:office-head-desks`, 4 head-office Directors by a second
+`import:desks` run once Directors were graded 4, and the CM wing's two Deputy
+Directors by `npm run import:hr-corrections`, all the same day.
+
+Of the 251 who hold none, **one is holding a post in additional charge** and so
+has a section anyway (`actingOrgPostId`, D74), and **one is retired**.
+`import:desks` skips both: someone acting in a senior post must not be seated on
+a junior seat that falls vacant, which would silently demote the officer running
+the wing. The importer does *not* set it:
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
 `utils/desk-assignment-report.txt` listing every assignment it makes.
@@ -272,24 +279,29 @@ distance and anything inexact is reported separately for a human to read. The
 organogram also writes **Barisal** where the office register writes
 **Barishal** — the same alias the labs needed.
 
-**252 still have no desk, and every reason is an organogram gap rather than a
-matching failure:**
+**249 are seatable and still have no desk, and every reason is an organogram gap
+rather than a matching failure:**
 
 | Reason | Count |
 |---|---|
 | daily basis — not on the sanctioned strength, so there is no post to hold | 114 |
-| every post at that grade is already full | 62 |
-| no post at that grade in that unit | 53 |
+| every post at that grade is already full | 60 |
+| no post at that grade in that unit | 52 |
 | wing matches no unit in that office — branch offices have one flat lab where head office has sections | 20 |
 | no grade | 3 |
 
-**Two Directors are still among them** — Chemical Testing and CM at head office,
-both in "no post at that grade in that unit". Their wings' Director posts exist
-and are now graded 4, but they sit in the `Executive (<wing>)` child unit rather
-than the wing the employee's own wing name resolves to. A third, MOBIN UL ISLAM,
-is a grade-4 Director sitting on a Deputy Director (Textile) post from the
-original seeding; `import:desks` only ever fills a null `orgPostId`, so it does
-not move him.
+**One Director is still among them** — Gazi Md. Nurul Islam of Chemical Testing,
+in "no post at that grade in that unit". His wing's Director post exists and is
+graded 4, but it sits in the `Executive (<wing>)` child unit rather than the
+wing his own wing name resolves to. **That is a matching flaw worth knowing**:
+the Bengali wing name matches the closest *leaf* section, so the sibling
+`Executive` and `Training` units fall out of scope. It is what hid the CM wing's
+free Deputy Director seat and reported "every post at that grade is full" while
+a seat stood empty one unit over.
+
+**MOBIN UL ISLAM is a grade-4 Director sitting on a Deputy Director (Textile)
+post** from the original seeding; `import:desks` only ever fills a null
+`orgPostId`, so it does not move him.
 
 ### Can a CM application be worked in every office?
 

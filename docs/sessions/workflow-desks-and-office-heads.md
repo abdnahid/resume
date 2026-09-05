@@ -264,14 +264,30 @@ script rather than a hand-edit because the export is re-imported and will
 re-assert what it says, so a correction that contradicts it has to be written
 down somewhere that survives — with the reason and who decided.
 
-### Still unresolved at the end of this session
+### User
 
-**The CM wing has two DD (CM) seats and three serving DDs.** Post #672 (CM
-Dhaka) is Alauddin's; post #666 sits in **Training** and is vacant; Kawser Ahmed
-Khan and মোহাম্মদ আরাফাত হোসেন সরকার both have no desk. One of them can take
-#666 — putting them in *Training*, which may not be where they actually sit —
-and the other cannot be seated at all without raising the sanctioned count. This
-is the organogram-shape problem again and needs the client, not a rule.
+> assaign 20063010031 to Deputy director(CM) of CM Dhaka seciton and
+> মোহাম্মদ আরাফাত হোসেন সরকার to Deputy Director (CM) of Training
+
+### Assistant
+
+Both seated, and **Md. Alauddin Hussain gives up his substantive desk** as a
+consequence — three serving DDs against two sanctioned DD seats is one too many,
+and the third seat he actually occupies is the Director's, which is what the
+charge means. That keeps every post inside its sanctioned count instead of
+over-allocating one. It costs him nothing: `toDesk()` reads the acting post
+first, so he keeps section 212 and grade 4. If the charge ends he needs a DD
+seat back.
+
+`import:desks` now skips anyone holding a charge, and anyone not `active`.
+Without that, a DD seat falling vacant later would silently seat the officer
+running the wing on a junior desk and demote him.
+
+**Verified.** Alauddin's pass-down list is 21 and its Deputy Director group now
+reads Kawser Ahmed Khan, S M Abu Sayed and মোহাম্মদ আরাফাত হোসেন সরকার. Kawser
+passes down to 18 and sends up to exactly one desk — Alauddin — so the round
+trip closes. Every DD (CM) post is 1/1, none over-allocated. 480 of 731 desked;
+249 seatable and unseated, down from 252.
 
 ---
 
@@ -292,16 +308,17 @@ browser — the dev server was running, so no build was made.
    to end.
 2. ~~**Bangla-only designations land under "Other" in the picker.**~~ **Fixed**
    later in this session — `toDesk()` falls back to `designationBn`.
-3. **Three Directors still mis-seated or unseated.** Head office Chemical and CM
-   are in the "no post at that grade in that unit" bucket — their Director posts
-   exist and are graded 4 but sit in the `Executive (<wing>)` child unit rather
-   than the wing their recorded wing name resolves to. Mobin Ul Islam is a
-   grade-4 Director sitting on a Deputy Director (Textile) post from the
-   original seeding; `import:desks` only ever fills a null `orgPostId`, so
-   moving him is a decision rather than a repair.
-
-4. **Two CM Deputy Directors and one vacant seat** — see "Still unresolved"
-   above. Needs the client.
+3. **The wing name matches a leaf section, not the wing root.** This is the
+   flaw behind most of what went wrong this session: `import:desks` resolves the
+   Bengali wing name to the closest *leaf* unit, so sibling `Executive` and
+   `Training` units fall out of scope and it reports "every post at that grade
+   is full" while a seat stands empty one unit over. Gazi Md. Nurul Islam
+   (Chemical Testing, grade 4) is still unseated for exactly this reason. Fixing
+   it means scoring the wing root as well as its children and preferring the
+   root when the title matches a post under it — worth doing before the next
+   wing's data arrives. Mobin Ul Islam is separate: a grade-4 Director on a
+   Deputy Director (Textile) post from the original seeding, and `import:desks`
+   only fills a null `orgPostId`, so moving him is a decision, not a repair.
 
 **Also carried forward:** `/hr/listing` was reported erroring and the cause was
 never confirmed — see session 1 above. And 15 offices still have no local
