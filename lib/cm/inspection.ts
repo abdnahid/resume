@@ -25,6 +25,17 @@ import type { ApplicationState } from "@/generated/prisma/client";
 /** The states an inspection plan may be proposed from. */
 const PROPOSABLE: ApplicationState[] = ["review_passed", "inspection_revision_requested"];
 
+/** Every state in which a plan exists and is not yet approved. */
+const PLAN_OPEN: ApplicationState[] = [
+  "inspection_proposed",
+  "inspection_pending_approval",
+  "inspection_revision_requested",
+];
+
+export function planIsOpen(state: ApplicationState): boolean {
+  return PLAN_OPEN.includes(state);
+}
+
 /** Has the desk review finished, closing the correction loop? */
 export function reviewIsClosed(state: ApplicationState): boolean {
   return !["submitted", "received_by_director", "in_channel_descending", "assigned_to_fdo",
@@ -130,6 +141,43 @@ export async function proposeInspection(args: {
   });
 
   return planFor(args.applicationId);
+}
+
+/**
+ * Send the plan up for approval — which is what actually moves the file.
+ *
+ * **Proposing and sending are two acts.** Writing the date and the team leaves
+ * the file where it is, so the officer can come back to it; sending hands it to
+ * a senior, and *that* is what makes it his to approve and no longer the
+ * proposer's to edit. Without this the plan sat saved on the proposer's desk:
+ * he could still change it and the senior never received anything to approve.
+ *
+ * The hand-off goes through `pass()` rather than writing the holder here, so a
+ * plan travels on exactly the chain everything else does (D58/D78/D79) and lands
+ * in the movement log like any other hand-off. The target must be senior — the
+ * ordinary "up" rule — so this cannot be used to push a plan sideways.
+ */
+export async function sendPlanForApproval(args: {
+  applicationId: number;
+  toEmployeeId: string;
+  note: string | null;
+  actor: { userId: string; role: string; employeeId: string | null; officeId: number | null };
+}) {
+  const plan = await planFor(args.applicationId);
+  if (!plan) throw new Error("Write the plan before sending it for approval.");
+  if (plan.approvedAt) throw new Error("This plan is already approved.");
+  if (args.toEmployeeId === args.actor.employeeId) {
+    throw new Error("Send the plan to your senior, not to yourself.");
+  }
+
+  const { pass } = await import("@/lib/workflow/inbox");
+  await pass(args.applicationId, args.toEmployeeId, "up", args.note, args.actor);
+
+  return prisma.application.update({
+    where: { id: args.applicationId },
+    data: { state: "inspection_pending_approval" },
+    select: { id: true, state: true, holderEmployeeId: true },
+  });
 }
 
 /**

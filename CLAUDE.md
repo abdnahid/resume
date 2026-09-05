@@ -1153,6 +1153,14 @@ can reuse them.
   Whoever holds the file proposes a date and a team; every desk above may
   **correct** it, because a senior officer who cannot change a plan he is
   accountable for has to send it back instead — a round trip for a typed date.
+- **Proposing and sending are two acts, and the sending is what moves the
+  file.** Saving the plan leaves it on the proposer's desk so he can come back
+  to it; **Send for approval** hands the file to a chosen immediate senior
+  through `pass()` — so it travels the ordinary chain and lands in the movement
+  log — and sets `inspection_pending_approval`. Without that step the plan sat
+  saved on the proposer's desk: he could still edit it and his senior had
+  nothing to approve. The editability and the approval both key off *holding*
+  the file, so the hand-off is the only thing that has to be right.
 - **The approver is the proposer's immediate senior** (D83), not the office
   head: "is this plan sound" is answered by whoever the officer reports to, and
   sending it to a Director is asking him to read a date — the higher authority

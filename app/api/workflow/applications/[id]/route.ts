@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, receive, pass, canViewApplication } from "@/lib/workflow/inbox";
 import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
-import { proposeInspection, approveInspection, requestPlanRevision } from "@/lib/cm/inspection";
+import {
+  proposeInspection, approveInspection, requestPlanRevision, sendPlanForApproval,
+} from "@/lib/cm/inspection";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -88,7 +90,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // ── The inspection plan (D82) ─────────────────────────────────────────
-    if (body.action === "plan" || body.action === "approve-plan" || body.action === "revise-plan") {
+    if (
+      body.action === "plan" ||
+      body.action === "send-plan" ||
+      body.action === "approve-plan" ||
+      body.action === "revise-plan"
+    ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
@@ -114,6 +121,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           members,
         });
         return NextResponse.json({ plan });
+      }
+
+      if (body.action === "send-plan") {
+        const to = typeof body.toEmployeeId === "string" ? body.toEmployeeId : "";
+        if (!to) return NextResponse.json({ error: "Choose who to send it to." }, { status: 400 });
+        const app = await sendPlanForApproval({
+          applicationId,
+          toEmployeeId: to,
+          note: typeof body.note === "string" ? body.note : null,
+          actor,
+        });
+        return NextResponse.json({ application: app });
       }
 
       if (body.action === "approve-plan") {

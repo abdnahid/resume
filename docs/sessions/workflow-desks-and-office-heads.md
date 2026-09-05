@@ -737,6 +737,46 @@ picker: 22 in section under 6 rank headings, proposer present
 plan unchanged: true
 ```
 
+### User
+
+> Are your context got overloaded and you are hallucinating? Cause I still cannot
+> approve at AD's desk. Also after sending the plan it is still editable at the
+> FDO's desk
+
+### Assistant
+
+A real gap, and one omission caused both symptoms. `proposeInspection` never
+touched `holderEmployeeId` and never wrote a movement — so **the plan was saved
+but never sent**. The FDO kept the file, which is why he could still edit it;
+the AD never received it, which is why `isHolder` was false and no approve
+button was drawn. The original instruction said "the plan will be sent through
+process chain"; the plan and the approval rule were built and the sending was
+not.
+
+`sendPlanForApproval()` is that step. Saving and sending are deliberately two
+acts — an officer writing a plan should be able to come back to it before it
+goes — and the hand-off runs through `pass()` rather than writing the holder
+directly, so a plan travels the ordinary chain (D58/D78/D79) and lands in the
+movement log like anything else.
+
+**Why the earlier verification missed it, which is the lesson.** The probe that
+"verified approval" set `holderEmployeeId` directly to put the file on the
+senior's desk. That is exactly the step the application had no way to perform,
+so writing it by hand made the test pass over the hole it should have found. A
+check that reaches its starting state by a route the product does not have is
+not a check.
+
+```
+before          state=inspection_proposed  holder=BORHAN UDDIN (the proposer)
+send            state=inspection_pending_approval  holder=MD. JAHIDUR RAHMAN
+FDO edits       refused — only whoever is holding this file can plan it
+AD approves     state=inspection_approved  order 6/INS/2026/0001
+movement        up  BORHAN UDDIN → MD. JAHIDUR RAHMAN  "For your approval."
+```
+
+The client's plan was kept: only the approval and the hand-off this run made
+were undone.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was
