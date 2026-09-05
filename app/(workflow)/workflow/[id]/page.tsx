@@ -1,18 +1,13 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, FileWarning, Paperclip } from "lucide-react";
+import { FileWarning, Paperclip } from "lucide-react";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { requireInternal } from "@/lib/auth-guard";
-import { actorFor, canViewApplication, movementsFor } from "@/lib/workflow/inbox";
-import { describeMovement } from "@/lib/workflow/chain";
+import { actorFor, canViewApplication } from "@/lib/workflow/inbox";
 import { getApplication } from "@/lib/cm/applications";
 import { testFeeFor } from "@/lib/cm/sub-products";
 import { stageInfo } from "@/lib/cm/states";
-import { CM_DOCUMENTS, CM_QUESTIONS, allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
-import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
-import { planFor, teamCandidates, reviewIsClosed } from "@/lib/cm/inspection";
-import ReviewPanel from "./_components/ReviewPanel";
-import InspectionPanel from "./_components/InspectionPanel";
+import { CM_DOCUMENTS, CM_QUESTIONS } from "@/lib/cm/policy";
+import { FileHeader, Card, Row, Empty } from "./_components/FileShell";
 import { formatPoisha, takaToPoisha } from "@/lib/payments/money";
 import { salePricePolicy } from "@/lib/store/bds-catalog";
 
@@ -21,7 +16,12 @@ export const dynamic = "force-dynamic";
 const navItems = [{ label: "Files", href: "/workflow" }];
 
 /**
- * One file, as the officers working it need to see it.
+ * What the applicant filed: the application, its attachments and its fees.
+ *
+ * **Reading only.** Working the file — corrections, the inspection plan, the
+ * office order, where it has been — is the sibling `/process` page, because an
+ * officer checking a declared capacity should not scroll past the control that
+ * issues an office order, and vice versa.
  *
  * **Read-only, and that is the point.** Every officer on the flow can open the
  * application, its attachments and what has been paid — spec §8 puts most of the
@@ -49,69 +49,7 @@ export default async function WorkflowFilePage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, testFee, rounds, artworkTargets, plan, team] = await Promise.all([
-    movementsFor(applicationId),
-    testFeeFor(applicationId).catch(() => null),
-    roundsFor(applicationId),
-    artworkTargetsFor(applicationId),
-    planFor(applicationId),
-    app.bstiOfficeId ? teamCandidates(app.bstiOfficeId) : Promise.resolve([]),
-  ]);
-
-  // The correction loop is between whoever holds the file and the applicant
-  // (D81), so the panel only appears for the holder. The service re-checks.
-  const isHolder = !!actor.employeeId && app.holderEmployeeId === actor.employeeId;
-  const open = rounds.find((r) => r.respondedAt === null) ?? null;
-  const stamp = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-
-  /**
-   * The journey, hand-offs and correction rounds together.
-   *
-   * A round is a leg but not a desk-to-desk move — `ApplicationMovement`
-   * requires an employee on the receiving end and the applicant is not one — so
-   * the two are merged here rather than in the table.
-   */
-  const flow = [
-    ...movements.map((m) => ({
-      key: `m${m.id}`,
-      at: stamp(m.createdAt),
-      when: m.createdAt.getTime(),
-      seq: 0,
-      external: false,
-      text: describeMovement({
-        direction: m.direction,
-        fromName: m.fromEmployee?.nameEn ?? null,
-        toName: m.toEmployee.nameEn,
-      }),
-      sub: m.toEmployee.designationEn ?? m.toEmployee.designationBn ?? "",
-      note: m.note,
-    })),
-    ...rounds.flatMap((r) => [
-      {
-        key: `s${r.id}`,
-        at: stamp(r.raisedAt),
-        when: r.raisedAt.getTime(),
-        seq: 1,
-        external: true,
-        text: `Sent to the applicant for correction — round ${r.roundNo}, ${r.items.length} ${r.items.length === 1 ? "point" : "points"}`,
-        sub: r.raisedBy.nameEn,
-        note: r.note,
-      },
-      ...(r.respondedAt
-        ? [{
-            key: `r${r.id}`,
-            at: stamp(r.respondedAt),
-            when: r.respondedAt.getTime(),
-            seq: 2,
-            external: true,
-            text: `Applicant returned it — round ${r.roundNo}`,
-            sub: "",
-            note: r.response,
-          }]
-        : []),
-    ]),
-  ].sort((a, b) => a.when - b.when || a.seq - b.seq);
+  const testFee = await testFeeFor(applicationId).catch(() => null);
 
   const stage = stageInfo(app.state);
   const heldDocs = new Map(app.documents.map((d) => [d.kind, d]));
@@ -127,155 +65,19 @@ export default async function WorkflowFilePage({
     <>
       <ModuleNavbar moduleName="Workflow" moduleSubtitle="BSTI e-Services" navItems={navItems} />
       <main className="mx-auto w-full max-w-[1440px] px-5 py-12 lg:px-10">
-        <Link
-          href="/workflow"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.8} />
-          All files
-        </Link>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-medium text-foreground">
-            {app.applicationNo ?? `Application #${app.id}`}
-          </h1>
-          <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-            {stage.label}
-          </span>
-        </div>
-        {/* While a round is open the file is nominally with the applicant even
-            though the officer keeps the desk (D81), and saying "with <officer>"
-            there is the thing that reads as wrong. */}
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          {stage.holder === "applicant" && app.holder ? (
-            <>
-              with <span className="font-medium text-foreground">the applicant</span>
-              {" — "}
-              {app.holder.nameEn} is waiting on it
-            </>
-          ) : app.holder ? (
-            <>
-              with <span className="font-medium text-foreground">{app.holder.nameEn}</span>
-              {app.holder.designationEn ? `, ${app.holder.designationEn}` : ""}
-            </>
-          ) : (
-            "Held by nobody — waiting to be received."
-          )}
-          {app.bstiOffice && <> · {app.bstiOffice.nameEn}</>}
-        </p>
+        <FileHeader
+          applicationId={app.id}
+          applicationNo={app.applicationNo}
+          stageLabel={stage.label}
+          withApplicant={stage.holder === "applicant"}
+          holderName={app.holder?.nameEn ?? null}
+          holderDesignation={app.holder?.designationEn ?? null}
+          officeName={app.bstiOffice?.nameEn ?? null}
+          tab="preview"
+        />
 
         <div className="mt-8 grid gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
-            {/* The review closes when the file is marked ready: no shortfall
-                may follow, so the panel that raises one goes away rather than
-                offering a button the service would refuse (D82). */}
-            {isHolder && !reviewIsClosed(app.state) && (
-              <ReviewPanel
-                applicationId={app.id}
-                targets={[
-                  ...allShortfallTargets().map((t) => ({ ...t, step: t.step })),
-                  // Artwork is per variant (D53), so the officer picks the jar
-                  // rather than reopening every wrapper on the licence.
-                  ...artworkTargets.map((a) => ({
-                    target: a.target,
-                    label: `Artwork — ${a.label}`,
-                    hint: `${a.subProduct}. ${a.hasArtwork ? "A label is on file." : "No label has been provided."}`,
-                    step: 2 as const,
-                  })),
-                ]}
-                openRound={
-                  open
-                    ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
-                    : null
-                }
-              />
-            )}
-
-            {reviewIsClosed(app.state) && (
-              <InspectionPanel
-                applicationId={app.id}
-                officeName={app.bstiOffice?.nameEn ?? null}
-                plan={
-                  plan
-                    ? {
-                        scheduledOn: plan.scheduledOn.toISOString().slice(0, 10),
-                        note: plan.note,
-                        proposedBy: plan.proposedBy.nameEn,
-                        proposedAt: stamp(plan.proposedAt),
-                        approvedBy: plan.approvedBy?.nameEn ?? null,
-                        approvedAt: plan.approvedAt ? stamp(plan.approvedAt) : null,
-                        orderNo: plan.orderNo,
-                        members: plan.members.map((m) => ({
-                          employeeId: m.employeeId,
-                          name: m.employee.nameEn,
-                          designation: m.employee.designationEn ?? m.employee.designationBn,
-                          role: m.role,
-                        })),
-                      }
-                    : null
-                }
-                candidates={team.map((c) => ({
-                  id: c.id,
-                  nameEn: c.nameEn,
-                  designation: c.designationEn ?? c.designationBn,
-                  grade: c.grade,
-                }))}
-                canEdit={isHolder && !plan?.approvedAt}
-                canApprove={
-                  isHolder &&
-                  !plan?.approvedAt &&
-                  (actor.role === "office_head" || actor.role === "superadmin")
-                }
-              />
-            )}
-
-            {rounds.length > 0 && (
-              <Card title={`Corrections asked for (${rounds.length})`}>
-                <ol className="space-y-4">
-                  {rounds.map((r) => (
-                    <li key={r.id} className="rounded-xl border border-border p-3">
-                      <p className="text-sm font-medium text-foreground">
-                        Round {r.roundNo}
-                        <span className="ml-2 text-xs font-normal text-muted-foreground">
-                          {r.raisedBy.nameEn} · {stamp(r.raisedAt)}
-                        </span>
-                        <span
-                          className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            r.respondedAt
-                              ? "bg-secondary text-muted-foreground"
-                              : "bg-primary/10 text-primary"
-                          }`}
-                        >
-                          {r.respondedAt ? `answered ${stamp(r.respondedAt)}` : "awaiting the applicant"}
-                        </span>
-                      </p>
-                      {r.note && (
-                        <p className="mt-1 text-xs italic text-muted-foreground">“{r.note}”</p>
-                      )}
-                      <ul className="mt-2 space-y-1.5">
-                        {r.items.map((i) => (
-                          <li key={i.id} className="text-sm">
-                            <span className="font-medium text-foreground">
-                              {artworkTargets.find((a) => a.target === i.target)
-                                ? `Artwork — ${artworkTargets.find((a) => a.target === i.target)!.label}`
-                                : shortfallLabel(i.target)}
-                            </span>
-                            <span className="block text-xs text-muted-foreground">{i.comment}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {r.response && (
-                        <p className="mt-2 rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">Applicant: </span>
-                          {r.response}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ol>
-              </Card>
-            )}
-            {/* ── The application ─────────────────────────────────────── */}
             <Card title="Applicant">
               <Row label="Company" value={app.organization.nameEn} bn={app.organization.nameBn} />
               <Row
@@ -530,79 +332,9 @@ export default async function WorkflowFilePage({
               </div>
             </Card>
 
-            <Card title={`Desk flow (${flow.length})`}>
-              {flow.length === 0 ? (
-                <Empty>Not yet received.</Empty>
-              ) : (
-                <ol className="space-y-3">
-                  {flow.map((f, i) => (
-                    <li key={f.key} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <span
-                          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-                            f.external
-                              ? "bg-amber-500"
-                              : i === flow.length - 1
-                                ? "bg-primary"
-                                : "bg-border"
-                          }`}
-                        />
-                        {i < flow.length - 1 && <span className="mt-1 w-px flex-1 bg-border" />}
-                      </div>
-                      <div className="min-w-0 pb-1">
-                        <p className="text-sm text-foreground">{f.text}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {f.sub ? `${f.sub} · ` : ""}
-                          {f.at}
-                        </p>
-                        {f.note && (
-                          <p className="mt-1 text-xs italic text-muted-foreground">“{f.note}”</p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </Card>
           </div>
         </div>
       </main>
     </>
   );
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-border bg-card p-5">
-      <h2 className="mb-3 font-display text-lg font-medium text-foreground">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Row({
-  label,
-  value,
-  bn,
-}: {
-  label: string;
-  value: string | null;
-  bn?: string | null;
-}) {
-  if (!value) return null;
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1">
-      <span className="w-36 shrink-0 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-        {label}
-      </span>
-      <span className="min-w-0 text-sm text-foreground">
-        {value}
-        {bn && <span className="ml-2 font-bn-serif text-sm text-muted-foreground">{bn}</span>}
-      </span>
-    </div>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm text-muted-foreground">{children}</p>;
 }

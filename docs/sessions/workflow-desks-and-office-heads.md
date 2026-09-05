@@ -629,6 +629,68 @@ packaging: —                 →  —               ✓
 a variant whose artwork was not marked → refused
 ```
 
+### User
+
+> when the FDO marks it ready for processing the review option will be closed as
+> no shortfall should be sent after that step. Now FDO should be able to prepare
+> an inspection plan with date and team members. the plan will be sent through
+> process chain and the director will approve it. […] After being approved the a
+> office order will be issued and will be shown to each desk of the flow. The FDO
+> will be able estimate the sample collection according to the labs demand. FDO
+> will generate unique tokens and take those to the factory. FDO will visit the
+> factory according to the plan and seal the sample as needed. after coming back
+> he will prepare sampling report.
+
+### Assistant
+
+Eight things. Built four — the review closing, the inspection plan, the approval
+chain and the office order (D82) — and stopped rather than half-building the
+rest, because the plan chain is coherent on its own and everything downstream
+waits on it existing.
+
+**The plan travels with the file, and no queue of its own.** It moves up the
+ordinary chain (D58/D78/D79) and a senior desk holding it may rewrite the date
+or the team rather than sending it back — a round trip for a typed date is what
+makes people work around a system. **The office head approves**, which is the
+wing's Director or the officer acting in that post (D57, D74), so nothing needs
+to name an approver; he must also hold the file and belong to its office.
+
+**Approval issues the office order**, `<office>/INS/<year>/<serial>`, numbered
+then and not at proposal — a number quoted to a factory should mean a visit that
+is going to happen. Shown on the board row and in the desk flow.
+
+Verified against the live file: shortfall after ready refused, proposal before
+review refused, 282 officers offered, a senior edit replacing date and team, a
+non-head refused, a head not holding it refused, approval producing
+`6/INS/2026/0001`, and an approved plan refusing both edit and send-back.
+
+**Still not built:** the FDO's sampling screen (the services exist in
+`lib/samples/` — `buildPlanFor`, `setRequirement`, `commitSampling`, the
+three-identifier scheme — but no screen), and the sampling report, which has no
+model at all.
+
+---
+
+### User
+
+> The process should be a different section, not inside the preview.
+
+### Assistant
+
+Split into two pages. `/workflow/[id]` is the preview — what was filed, the
+attachments, the fees. `/workflow/[id]/process` is the work — corrections, the
+inspection plan, the office order, and the desk flow.
+
+Reading a file and working it are different jobs: an officer approving a visit
+should not scroll past six cards of sub-products to reach the button, and one
+checking a declared capacity should not scroll past the control that issues an
+office order.
+
+`FileShell.tsx` holds the header, the tabs and the shared `Card`/`Row`/`Empty`,
+so the two views cannot drift apart. Each has its own `loading.tsx`. The preview
+went from **3.89 kB of client JavaScript to 210 B** — every interactive panel
+now lives on the page that needs it.
+
 ### Facts established this session
 
 - **Directors are grade 4**, client-confirmed. The organogram's grade 5 was
