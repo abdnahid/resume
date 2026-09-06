@@ -1363,3 +1363,165 @@ needed before anyone can use this —
 - From earlier: whether a CM application may have its parameter list trimmed;
   turnaround for a partial selection; who assembles a report across labs;
   whether one failed parameter fails the licence; and BDS 1221's edition.
+
+---
+
+## Session 4 — 2026-09-06 (Windows machine)
+
+No new file arrived. The client asked a question about the one we already have,
+and the answer needed measuring rather than guessing. **Nothing in the database
+changed this session** — it is entirely analysis, and the two conclusions are
+recorded in `CLAUDE.md` under "Test parameters, fees and lab routing".
+
+### User
+
+> I have got the full parameter file placed in the utils folder named
+> textile-parameter-list-sanitized.xslx. You seeded the database taking data
+> from this file. So you are aware of this file. This file is only the products
+> from textile lab of physical wing. I will have data of different labs in
+> future and I will provide them to you. But for now, can you mention any
+> product from textile file where a chemical testing might be involved?
+
+### Assistant — first answer, which answered the wrong question
+
+Read as "which parameters in the file are chemical in nature", and answered with
+the 77 rows whose method designations are unmistakably chemistry:
+
+| Group | Method on record | Rows | Products |
+|---|---|---|---|
+| Fibre composition | `BDS ISO 1833` -7 / -11 / -24 | 33 | Sewing Threads, Woven Shirtings, Woven Suitings |
+| pH of aqueous extract | `BDS ISO 3071:2006` | 14 | Cotton Canvas, Umbrella Cloth, Shirtings, Suitings |
+| pH value | `BDS 2006:2022`, `BDS 2017:2023`, `BDS 1261:2019` | 11 | Disposable Diapers (all 8 sizes), Nonwoven Wipes, Sanitary Napkins |
+| Oil content on dry de-oiled material | `BDS 949`, `BDS 1767:2014` | 7 | all four jute-bag products |
+| Purity of silk fibres | `BDS 1467:2021` | 10 | Silk Fabrics |
+| Water-soluble extract, ash content, pH of fibre | `BDS 1260:2016` | 3 | Absorbent Cotton |
+
+77 of 713 rows, 64 of 104 sub-products, 14 of the 17 products, and ৳75,047 of
+the file's ৳425,803. **Colour fastness to perspiration was deliberately
+excluded** from the count — it uses acid and alkaline artificial perspiration
+solutions, so there is chemistry in the preparation, but it is rated visually on
+a grey scale and is conventionally the fastness bench. 41 rows hang on that
+judgement and the wing may put it the other way.
+
+**No sub-product is wholly chemical.** Every one of the 64 mixes both, which is
+the case per-parameter routing (D64) exists for. Absorbent Cotton is the
+sharpest illustration — 4 of its 7 parameters are chemical:
+
+```
+CHEM  Material composition of fibre — % cellulose (cotton)   ৳1234
+phys  Absorbency in seconds                                   ৳200
+phys  Resistance to heat                                      ৳200
+CHEM  Water soluble extract %                                 ৳260
+CHEM  Ash content %                                           ৳400
+CHEM  pH of fibre (aqueous extract)                           ৳741
+phys  Moisture regain %                                       ৳200
+```
+
+### User
+
+> I was asking for a possibility of any product from textile file, have chemical
+> parameters which will be inside chemical file.
+
+### Assistant — the question actually asked
+
+Not "which of these parameters are chemical" but "which of these **products**
+will appear again in the chemistry wing's file, carrying its own parameters" —
+the merge case D62 anticipates.
+
+**BSTI's own categorisation does not answer it.** All 17 textile-file products
+sit in পাট ও বস্ত্র পণ্য (Jute and Textile Products). The published list splits
+the 315 five ways by product family, not by which lab tests them, so the
+category column is no help here. Checked before answering.
+
+**What can be measured is where the file's list is too short to be the whole
+standard.** Parameters per sub-product, against a file norm of 9–12:
+
+| Product | Standard | Sub-products | Params each |
+|---|---|---|---|
+| Nonwoven Wipes | BDS 2017:2023 | 1 | **3** — length, width, pH |
+| Sanitary Napkins | BDS 1261:2019 | 1 | **4** |
+| Disposable Diapers | BDS 2006:2022 | 8 | **4** |
+| Absorbent Cotton | BDS 1260:2016 | 1 | **7** |
+| *(for comparison)* Umbrella Cloth | BDS 1125:2020 | 4 | 12 |
+| *(for comparison)* Woven Shirtings | BDS 1148:2021 | 4 | 9.5 |
+
+A nonwoven wipe tested on its length, its width and its pH cannot be the whole
+of BDS 2017:2023 — a wet wipe carries a lotion and a preservative system, and
+that is where its conformity lives. The same argument holds for the other three:
+hygiene and absorbent products whose standards carry chemical and
+microbiological requirements no textile bench performs. **Absorbent Cotton is
+the strongest** — BDS 1260:2016 follows the pharmacopoeial pattern and the four
+chemical parameters already present read as the beginning of that list.
+
+A second class, on different grounds: the **dyed and coloured textiles** —
+Cotton Sharee, Cotton Canvas, Umbrella Cloth, the polyester shirtings and
+suitings. They carry fastness ratings but nothing on the dye chemistry itself:
+no formaldehyde, no azo colourants or restricted aromatic amines, no extractable
+heavy metals. All standard chemical-lab tests on coloured fabric, all absent.
+
+### The reading that cuts the other way
+
+The textile file **already carries pH** for Diapers, Napkins and Wipes, and ash
+and water-soluble extract for Absorbent Cotton. That is evidence the textile
+section runs the chemical tests it is equipped for — which would mean the split
+between the wings' files is by **lab capability, not by discipline**, and the
+chemistry file may not re-list these products at all.
+
+Both readings are live. Neither can be settled from the file we have.
+
+### The check that settles it, and why it is not cosmetic
+
+**When the chemistry file arrives, look for Disposable Diapers.**
+
+- Lists pH again → the wings overlap *by parameter*; the split is by capability.
+- Lists diapers with different parameters → the split is by discipline, and the
+  merge is what D62 expects.
+- No diapers at all → the textile file was complete for them.
+
+The three outcomes behave differently in the importer, which is why it is worth
+knowing before the file is loaded rather than after:
+
+- **Different parameters, same sub-product → a clean merge.** `(productId,
+  nameEn)` on `SubProduct` joins them, the chemistry parameters attach to the
+  sub-product the textile file created, and the fee becomes the sum over both
+  labs. No change needed.
+- **Same parameter name, same sub-product → a silent overwrite.**
+  `TestParameter` is upserted on `(subProductId, nameEn)` and **`sourceSection`
+  is not in the key**, so the chemistry row updates the textile one — flipping
+  `discipline` and `sourceSection`, replacing `feePoisha` — rather than sitting
+  beside it. D62 says the applicant pays the sum over every lab; an overwritten
+  row is counted once, at whichever file was imported last. The fix, if it comes
+  to that, is `(subProductId, nameEn, sourceSection)`.
+
+This sharpens an open question already on the Session 3 list — *"whether one
+parameter name may appear under two labs for one sub-product"* — from a design
+question into a named failure mode with a one-query test.
+
+### Facts established this session
+
+- **77 of 713 textile parameters are chemistry by method**, across 14 of the 17
+  products and 64 of the 104 sub-products; ৳75,047 of ৳425,803.
+- **All 713 are stamped `discipline: physical`**, correctly per D63 — it records
+  the file, not the test. It is a per-file default and not a claim, and the two
+  places it matters are third-party supervision (D65) and `LabCapability`.
+- **No sub-product is wholly chemical.** Per-parameter routing is not a
+  refinement here; it is the only shape that works.
+- **The published category cannot predict the lab.** All 17 textile-file
+  products are Jute and Textile Products.
+- **`TestParameter`'s upsert key omits `sourceSection`.** Found by reading
+  `prisma/import/test-parameters.ts` against the schema, not by a failure.
+
+### Resume here
+
+**State.** No code and no data changed by this analysis. The catalogue is as
+Session 3 left it — 104 sub-products / 713 parameters / 16,399 routing rows, all
+still `isPlaceholder`.
+
+**Carry forward from Session 3:** the one-stop counter and the lab bench screens
+(the FDO's sampling screen and the header-resolved importer columns have since
+been built), the two letters, encrypting the link at rest, and the
+`lab-format-setup.xlsx` questions.
+
+**Added by this session:** when the chemistry wing's file arrives, run the
+Disposable Diapers check *before* importing it, and decide whether these 77 rows
+should be re-stamped as chemical now or left for the chemistry file to claim.

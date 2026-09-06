@@ -958,6 +958,34 @@ Product (one of the mandatory 315)
   `SECTION_FOR_SOURCE` entry in `prisma/seed-labs.ts`; the seed **refuses to
   write** if a parameter arrives from a section not listed there.
 
+  **But `TestParameter` is upserted on `(subProductId, nameEn)`, and
+  `sourceSection` is not in that key.** So a merge only happens where the two
+  wings name *different* tests on the same sub-product. If the chemistry file
+  lists a parameter the textile file already carries for that sub-product — and
+  the textile file does carry pH, ash content and fibre composition — the second
+  import **updates the first row rather than sitting beside it**, flipping its
+  `discipline` and `sourceSection` and replacing its fee. D62 says an applicant
+  pays the sum over every lab; an overwritten row is counted once, at whichever
+  file was imported last. Nothing is wrong today — one file, one discipline,
+  nothing to collide with — and the fix, if the wings do overlap, is to put
+  `sourceSection` in the key. **Check this the moment a second wing's file
+  arrives**; see the session log for the one query that settles it.
+
+- **`discipline` is a per-file default, not a claim about the test** (D63).
+  All 713 textile rows are stamped `physical` because that is the file they came
+  from, and **77 of them are chemistry by their own method designation** — fibre
+  composition under `BDS ISO 1833` (quantitative *chemical* analysis: dissolve
+  one component, weigh the residue), pH of aqueous extract under
+  `BDS ISO 3071:2006`, oil content on the four jute-bag products, and ash
+  content and water-soluble extract on Absorbent Cotton. That is ৳75,047 of the
+  file's ৳425,803. It costs nothing today, and it matters in two places:
+  discipline decides which wing supervises a sample sent to a third-party lab
+  (D65), and `LabCapability` is checked per parameter. **No sub-product is
+  wholly chemical** — all 64 that carry such a parameter mix both — which is
+  exactly the case per-parameter routing exists for: Absorbent Cotton's ash
+  content can be sealed for a chemistry lab and its absorbency for the physical
+  lab, off one inspection.
+
 - **The source is `utils/textile-parameter-list-sanitized.xlsx`**, with `Main
   Product` rewritten to the mandatory-315 name — 50 "main products" collapse to
   17 with no collision, because the sub-product name already carried what
