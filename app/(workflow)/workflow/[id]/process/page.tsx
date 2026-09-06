@@ -345,7 +345,11 @@ export default async function ProcessPage({
               />
             )}
 
-            {sampling && seesInspectionWork && (
+            {/* The sampling *screen* is the officer's working tool — estimating
+                counts, generating tokens, sealing boxes. A senior desk reads
+                the sampling *report* instead (D96); leaving the tool on every
+                desk was what made it look like everyone's job. */}
+            {sampling && isVisitingOfficer && (
               <SamplingPanel
                 applicationId={app.id}
                 cells={sampling.cells}
@@ -417,6 +421,7 @@ export default async function ProcessPage({
                   report.preparedByEmployeeId !== actor.employeeId
                 }
                 approverName={approver?.name ?? null}
+                hasSamples={!!sampling?.committed?.consignments.length}
               />
             )}
 

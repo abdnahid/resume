@@ -1332,6 +1332,23 @@ can reuse them.
     building. The visit and its samples stay exactly as recorded, because a
     re-inspection is a *second visit* and rewriting the first would lose the
     finding that caused it.
+- **The visit produces two documents, and one of them has no state** (D96).
+  `/workflow/[id]/sampling-report` prints what was drawn — the sealed boxes,
+  their seal numbers, the specimens with their brand, variant and size, the
+  destination laboratory and how many parameters each order carries — under the
+  **inspection report's number**, not one of its own. No submitted flag, no
+  approver, no serial: one visit, one approval (D92), and a separate serial
+  would imply the two could be decided apart. `samplingBoxesFor()` in
+  `lib/cm/sampling-report.ts` reads the rows; the officer types only
+  `samplingRemarks`, the part no row holds — quantity drawn, condition of the
+  goods. Both documents are linked together wherever either is offered, so
+  nobody approves one having read the other.
+- **The sampling *screen* is the officer's; the sampling *report* is the
+  chain's** (D97). `SamplingPanel` estimates counts, generates tokens and seals
+  boxes, so it renders for the visiting officer alone — it stayed on every desk
+  after approval because D90 widens the audience for the *work*, and a
+  supervising desk was handed a tool for a job it does not do. It reads the
+  document instead.
 - **The letters after an approved visit are derived, then issued by the
   officer** (D95). Which letters are needed comes from the sealed boxes — one to
   each laboratory's wing head, one to the applicant, one to each One Stop

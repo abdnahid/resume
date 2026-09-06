@@ -64,6 +64,7 @@ export default function ReportPanel({
   canEdit,
   canApprove,
   approverName,
+  hasSamples,
 }: {
   applicationId: number;
   context: ReportContext;
@@ -76,6 +77,8 @@ export default function ReportPanel({
   canEdit: boolean;
   canApprove: boolean;
   approverName: string | null;
+  /** Sealed boxes exist, so the sampling report is a document too (D96). */
+  hasSamples: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -163,13 +166,7 @@ export default function ReportPanel({
         <p className="mt-1 text-sm text-muted-foreground">
           Written by {report.preparedBy}, approved {report.approvedAt}.
         </p>
-        <a
-          href={`/workflow/${applicationId}/inspection-report`}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
-        >
-          <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
-          Open the report
-        </a>
+        <DocumentLinks applicationId={applicationId} hasSamples={hasSamples} />
       </section>
     );
   }
@@ -182,6 +179,9 @@ export default function ReportPanel({
           Written by {report.preparedBy}
           {report.submittedAt ? `, sent for approval ${report.submittedAt}` : ", still being written"}.
         </p>
+        {report.submittedAt && (
+          <DocumentLinks applicationId={applicationId} hasSamples={hasSamples} />
+        )}
       </section>
     ) : null;
   }
@@ -201,6 +201,12 @@ export default function ReportPanel({
           ? "Only what you learned at the factory. The product, the standards, the company and the factory are printed from the file — you do not retype them."
           : "Written by the officer who made the visit. You are reading it to approve it."}
       </p>
+
+      {/* Sent up: the approver decides on the two documents, not on the form.
+          The form below is what they are made of. */}
+      {report?.submittedAt && (
+        <DocumentLinks applicationId={applicationId} hasSamples={hasSamples} />
+      )}
 
       {/* Disabled rather than hidden for a reader: the approver needs to see
           what was written, and a field he can type into but not save is a
@@ -544,5 +550,35 @@ function Radio({
       />
       {label}
     </label>
+  );
+}
+
+/**
+ * The visit's two papers (D96). One approval covers both, so they are shown
+ * together — a link to only the inspection report would suggest the sampling
+ * side could be decided apart from it.
+ */
+function DocumentLinks({
+  applicationId,
+  hasSamples,
+}: {
+  applicationId: number;
+  hasSamples: boolean;
+}) {
+  const cls =
+    "inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5";
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <a href={`/workflow/${applicationId}/inspection-report`} className={cls}>
+        <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
+        পরিদর্শন প্রতিবেদন
+      </a>
+      {hasSamples && (
+        <a href={`/workflow/${applicationId}/sampling-report`} className={cls}>
+          <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
+          নমুনা সংগ্রহ প্রতিবেদন
+        </a>
+      )}
+    </div>
   );
 }
