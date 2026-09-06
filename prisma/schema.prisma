@@ -418,6 +418,7 @@ model Office {
   labs         Lab[]
   labRoutings  LabRouting[]
   applications Application[]
+  sampleLetters SampleLetter[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -607,6 +608,8 @@ model Employee {
   inspectionsApproved   InspectionPlan[]        @relation("InspectionApprovedBy")
   reportsPrepared       InspectionReport[]      @relation("ReportPreparedBy")
   developmentNotices    FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRaisedBy")
+  lettersIssued         SampleLetter[]             @relation("LetterIssuedBy")
+  lettersAddressed      SampleLetter[]             @relation("LetterAddressedTo")
   reportsApproved       InspectionReport[]      @relation("ReportApprovedBy")
   inspectionTeams       InspectionTeamMember[]
   testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
@@ -2031,6 +2034,7 @@ model Application {
   inspection       InspectionPlan?
   inspectionReport InspectionReport?
   developmentNotices FactoryDevelopmentNotice[]
+  letters            SampleLetter[]
 
   @@index([organizationId])
   @@index([factoryId])
@@ -2722,6 +2726,7 @@ model Lab {
   consignments       Consignment[]
   testOrders         LabTestOrder[]
   sampleRequirements SampleRequirement[]
+  sampleLetters      SampleLetter[]
   labRequirements    LabSampleRequirement[]
 
   createdAt DateTime @default(now())
@@ -3497,4 +3502,62 @@ model FactoryDevelopmentNotice {
 
   @@unique([applicationId, roundNo])
   @@index([applicationId])
+}
+
+/// A letter issued after an approved visit (D95).
+///
+/// Three kinds go out together: one to each destination laboratory's wing head,
+/// one to the applicant telling them where to carry each sealed box, and one to
+/// each One Stop counter that will receive one.
+///
+/// **Derived, then issued.** Which letters are needed is worked out from the
+/// sealed consignments, so the officer cannot forget a laboratory — the same
+/// reason destinations are derived and not typed (D69). But they are *issued*
+/// by him in one act, because a letter is an outward statement with a name on
+/// it and the moment of approval belongs to the approving desk, not to the
+/// officer whose samples they describe.
+///
+/// **All or none.** A partial dispatch means a laboratory expecting a box the
+/// applicant was never told to carry.
+model SampleLetter {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  kind SampleLetterKind
+
+  /// The laboratory this letter is about, for the wing-head and counter kinds.
+  /// Null on the applicant's letter, which covers every box at once.
+  labId Int?
+  lab   Lab? @relation(fields: [labId], references: [id])
+
+  /// The officer it is addressed to. Null for the applicant's letter, and null
+  /// for a counter letter, which is addressed to a desk rather than a person.
+  addressedToEmployeeId String?
+  addressedTo           Employee? @relation("LetterAddressedTo", fields: [addressedToEmployeeId], references: [id])
+
+  /// The office whose One Stop counter receives it, for the counter kind.
+  officeId Int?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  /// `বিএসটিআই/<office>/নমুনা/<serial>/<year>`, assigned at issue like every
+  /// other number in this system.
+  letterNo String @unique
+
+  issuedByEmployeeId String
+  issuedBy           Employee @relation("LetterIssuedBy", fields: [issuedByEmployeeId], references: [id])
+  issuedAt           DateTime @default(now())
+
+  @@index([applicationId])
+  @@index([labId])
+}
+
+enum SampleLetterKind {
+  /// To the testing wing's Director, or a branch office's head (D94).
+  wing_head
+  /// To the applicant: which sealed box goes to which counter.
+  applicant
+  /// To an office's One Stop counter: a box is coming.
+  one_stop
 }

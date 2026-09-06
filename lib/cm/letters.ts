@@ -25,6 +25,7 @@
  * a letter addressed to the wrong officer is one nobody notices.
  */
 import { prisma } from "@/lib/prisma";
+import { memoOfficeLabel } from "@/lib/bengali";
 
 export type WingHead =
   | {
@@ -214,4 +215,169 @@ export async function letterRecipientsFor(applicationId: number) {
     });
   }
   return out;
+}
+
+// ─── Issuing (D95) ──────────────────────────────────────────────────────────
+
+/**
+ * The letters this file needs, worked out from the sealed boxes.
+ *
+ * Derived rather than composed: one to each destination laboratory's wing head,
+ * one to the applicant covering every box, and one to each office whose One Stop
+ * counter will receive one. The officer cannot forget a laboratory, for the same
+ * reason he cannot forget a destination (D69).
+ *
+ * `blockedBy` names anything that stops the set being issued. It is a list
+ * rather than a throw so he sees every obstacle at once — an unaddressed wing is
+ * fixed by an administrator, and finding that out one letter at a time is two
+ * days instead of one.
+ */
+export async function plannedLettersFor(applicationId: number) {
+  const recipients = await letterRecipientsFor(applicationId);
+  const issued = await prisma.sampleLetter.findMany({
+    where: { applicationId },
+    select: { id: true, kind: true, labId: true, letterNo: true, issuedAt: true,
+              addressedTo: { select: { nameEn: true } }, office: { select: { nameEn: true } },
+              lab: { select: { nameEn: true } } },
+    orderBy: { id: "asc" },
+  });
+
+  const offices = [...new Set(recipients.map((r) => r.officeId))];
+  const officeRows = await prisma.office.findMany({
+    where: { id: { in: offices } },
+    select: { id: true, nameEn: true },
+  });
+  const officeName = new Map(officeRows.map((o) => [o.id, o.nameEn]));
+
+  const blockedBy: string[] = [];
+  if (recipients.length === 0) blockedBy.push("No samples have been sealed for this visit.");
+  for (const r of recipients) {
+    if (!r.recipient || r.recipient.kind === "vacant") {
+      blockedBy.push(
+        `${r.labName} has no one to address: ${
+          r.recipient && r.recipient.kind === "vacant"
+            ? `${r.recipient.postTitle ?? "the Director post"} in ${r.recipient.wingName} is vacant and nobody holds its charge`
+            : "no wing head and no office head"
+        }.`,
+      );
+    }
+  }
+
+  return {
+    issued,
+    blockedBy,
+    planned: [
+      ...recipients.map((r) => ({
+        kind: "wing_head" as const,
+        labId: r.labId,
+        labName: r.labName,
+        officeId: r.officeId,
+        to:
+          r.recipient && r.recipient.kind !== "vacant"
+            ? `${r.recipient.name}${r.recipient.designation ? `, ${r.recipient.designation}` : ""}`
+            : null,
+      })),
+      {
+        kind: "applicant" as const,
+        labId: null,
+        labName: null,
+        officeId: null,
+        to: "the applicant — where to carry each sealed box",
+      },
+      ...offices.map((id) => ({
+        kind: "one_stop" as const,
+        labId: null,
+        labName: null,
+        officeId: id,
+        to: `One Stop counter, ${officeName.get(id) ?? `office ${id}`}`,
+      })),
+    ],
+  };
+}
+
+/**
+ * Issue them — all of them, in one act.
+ *
+ * **All or none**, because a partial dispatch means a laboratory expecting a box
+ * the applicant was never told to carry. Refused if anything is unaddressed, and
+ * refused a second time: a letter already sent cannot be sent again, and a
+ * corrected one is a fresh letter with its own number.
+ *
+ * The visiting officer issues, not the approving desk: approval says the visit
+ * is sound, and these letters describe *his* samples, in his name. He is holding
+ * the file when they go out, because approval hands it straight back to him
+ * (D92).
+ */
+export async function issueSampleLetters(args: {
+  applicationId: number;
+  employeeId: string;
+}) {
+  const app = await prisma.application.findUniqueOrThrow({
+    where: { id: args.applicationId },
+    select: { holderEmployeeId: true, bstiOfficeId: true, inspectionReport: { select: { approvedAt: true } } },
+  });
+  if (app.holderEmployeeId !== args.employeeId) {
+    throw new Error("Only whoever is holding this file can issue its letters.");
+  }
+  if (!app.inspectionReport?.approvedAt) {
+    throw new Error("The visit has to be approved before its letters can go out.");
+  }
+
+  const existing = await prisma.sampleLetter.count({ where: { applicationId: args.applicationId } });
+  if (existing > 0) throw new Error("The letters for this visit have already been issued.");
+
+  const { planned, blockedBy } = await plannedLettersFor(args.applicationId);
+  if (blockedBy.length) throw new Error(blockedBy.join(" "));
+
+  const recipients = await letterRecipientsFor(args.applicationId);
+  const byLab = new Map(recipients.map((r) => [r.labId, r]));
+
+  // One serial run for the whole set, so a single dispatch's numbers are
+  // consecutive and a gap means a letter that was never issued.
+  const { prefix, suffix, from } = await nextLetterSerial(app.bstiOfficeId);
+  let n = from;
+  const rows = planned.map((p) => {
+    const r = p.labId !== null ? byLab.get(p.labId) : null;
+    return {
+      applicationId: args.applicationId,
+      kind: p.kind,
+      labId: p.labId,
+      officeId: p.kind === "one_stop" ? p.officeId : null,
+      addressedToEmployeeId:
+        p.kind === "wing_head" && r?.recipient && r.recipient.kind !== "vacant"
+          ? r.recipient.employeeId
+          : null,
+      letterNo: `${prefix}${String(n++).padStart(4, "0")}${suffix}`,
+      issuedByEmployeeId: args.employeeId,
+    };
+  });
+
+  await prisma.sampleLetter.createMany({ data: rows });
+  return rows.length;
+}
+
+/**
+ * Where this office's letter numbers continue from.
+ *
+ * Returns the memo's two halves and the next serial, so the caller can number a
+ * whole dispatch consecutively rather than asking once per letter and racing
+ * itself. ASCII digits stored, Bengali at render, as everywhere else (D85).
+ */
+async function nextLetterSerial(officeId: number | null) {
+  const year = new Date().getFullYear();
+  const office = officeId
+    ? await prisma.office.findUnique({ where: { id: officeId }, select: { nameBn: true } })
+    : null;
+  const label = office?.nameBn ? memoOfficeLabel(office.nameBn) : "ঢাকা";
+  const prefix = `বিএসটিআই/${label}/নমুনা/`;
+  const suffix = `/${year}`;
+  const rows = await prisma.sampleLetter.findMany({
+    where: { letterNo: { startsWith: prefix, endsWith: suffix } },
+    select: { letterNo: true },
+  });
+  const highest = rows.reduce((max, r) => {
+    const n = Number(r.letterNo.slice(prefix.length, r.letterNo.length - suffix.length));
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  return { prefix, suffix, from: highest + 1 };
 }

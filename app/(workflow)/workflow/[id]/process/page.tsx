@@ -16,6 +16,8 @@ import ReviewPanel from "../_components/ReviewPanel";
 import InspectionPanel from "../_components/InspectionPanel";
 import ReportPanel from "../_components/ReportPanel";
 import SamplingPanel from "../_components/SamplingPanel";
+import LettersPanel from "../_components/LettersPanel";
+import { plannedLettersFor } from "@/lib/cm/letters";
 import FoundAtFactoryPanel from "../_components/FoundAtFactoryPanel";
 import { choicesFor } from "@/lib/cm/sub-products";
 import { samplingView } from "@/lib/samples/screen";
@@ -76,6 +78,10 @@ export default async function ProcessPage({
    * rather than in the batch above, because it needs the plan's answer first.
    */
   const sampling = plan?.approvedAt ? await samplingView(applicationId) : null;
+
+  // The letters only exist once the visit is approved (D95); before that there
+  // is nothing to tell a laboratory about.
+  const letters = report?.approvedAt ? await plannedLettersFor(applicationId) : null;
 
   // The sub-products of this product not yet on the file — what the officer can
   // add if he finds the factory making them (D89).
@@ -315,6 +321,27 @@ export default async function ProcessPage({
                   kind: String(t.kind),
                   units: t.units,
                 }))}
+              />
+            )}
+
+            {letters && seesInspectionWork && (
+              <LettersPanel
+                applicationId={app.id}
+                planned={letters.planned.map((p) => ({
+                  kind: p.kind,
+                  labName: p.labName,
+                  to: p.to,
+                }))}
+                issued={letters.issued.map((l) => ({
+                  id: l.id,
+                  kind: String(l.kind),
+                  letterNo: l.letterNo,
+                  labName: l.lab?.nameEn ?? null,
+                  to: l.addressedTo?.nameEn ?? l.office?.nameEn ?? null,
+                  at: stamp(l.issuedAt),
+                }))}
+                blockedBy={letters.blockedBy}
+                canIssue={isHolder && isVisitingOfficer}
               />
             )}
 

@@ -33,6 +33,19 @@
  *    his record, so the row fell back to the preview, and the export's own
  *    `conflicts` array records the scraped `name_en` as "Md. Alauddin Hussain".
  *
+ * 4. **The two testing wings' Directors**, given 2026-09-06. Md Shahadat Hossain
+ *    has retired from Director (Physics); Mobin Ul Islam holds it now and his
+ *    designation is Director (Physical). Gazi Md. Nurul Islam is the Chemical
+ *    wing's Director and was never seated — `import:desks` matched his recorded
+ *    wing to a leaf section rather than to the wing root where the Director post
+ *    sits, so the post read vacant while the man was on the roster.
+ *
+ *    This is why `wingHeadForLab()` (D94) reads the *post*: with the data as it
+ *    was, the Physical wing held two grade-4 Directors — one retired, one on a
+ *    Deputy Director (Textile) desk — and no seniority rule could have told
+ *    which was the Director. Asking the post did not resolve it either; it
+ *    made the wrong answer *visible*, which is what let it be corrected.
+ *
  * 3. **The CM wing's two Deputy Director seats go to the other two DDs** —
  *    Kawser Ahmed Khan to CM Dhaka, Mohammad Arafat Hossain Sarker to Training.
  *    Client's instruction, 2026-09-05.
@@ -64,12 +77,24 @@ const DIR_CM_POST = 662;
 
 const RETIRED = "19953010019";
 const ACTING = "19953010017";
+
+/** Director (Physics), Executive (Physical Testing Wing). */
+const DIR_PHYSICS_POST = 682;
+/** Director (Chemistry), Executive (Chemical Testing Wing). */
+const DIR_CHEMISTRY_POST = 728;
+
+const PHYSICS_RETIRED = "19984010027"; // Md Shahadat Hossain
+const PHYSICS_DIRECTOR = "19984010029"; // Mobin Ul Islam
+const CHEMISTRY_DIRECTOR = "19945010033"; // Gazi Md. Nurul Islam
 /** Kawser Ahmed Khan → the CM Dhaka DD seat. */
 const DD_CM_DHAKA = "20063010031";
 /** Mohammad Arafat Hossain Sarker → the Training DD seat. */
 const DD_TRAINING = "20063010035";
 
-const EVERYONE = [RETIRED, ACTING, DD_CM_DHAKA, DD_TRAINING];
+const EVERYONE = [
+  RETIRED, ACTING, DD_CM_DHAKA, DD_TRAINING,
+  PHYSICS_RETIRED, PHYSICS_DIRECTOR, CHEMISTRY_DIRECTOR,
+];
 
 async function main() {
   const before = await prisma.employee.findMany({
@@ -102,12 +127,27 @@ async function main() {
     throw new Error(`post ${DIR_CM_POST} is not the CM wing Director post: ${JSON.stringify(dir)}`);
   }
 
+  const wingPosts = await prisma.orgPost.findMany({
+    where: { id: { in: [DIR_PHYSICS_POST, DIR_CHEMISTRY_POST] } },
+    select: { id: true, nameEn: true },
+  });
+  const phys = wingPosts.find((p) => p.id === DIR_PHYSICS_POST);
+  const chem = wingPosts.find((p) => p.id === DIR_CHEMISTRY_POST);
+  if (phys?.nameEn !== "Director (Physics)" || chem?.nameEn !== "Director (Chemistry)") {
+    throw new Error(
+      `posts ${DIR_PHYSICS_POST}/${DIR_CHEMISTRY_POST} are not the testing wing Director posts`,
+    );
+  }
+
   if (DRY) {
     console.log("\n--dry: nothing written.");
     console.log(`  ${RETIRED} → status retired, desk released, role employee`);
     console.log(`  ${ACTING}  → grade 6, Deputy Director, no substantive desk, acting ${DIR_CM_POST}, role office_head`);
     console.log(`  ${DD_CM_DHAKA} → desk ${DD_CM_POST} (Deputy Director (CM), CM Dhaka)`);
     console.log(`  ${DD_TRAINING} → desk ${DD_CM_TRAINING_POST} (Deputy Director (CM), Training)`);
+    console.log(`  ${PHYSICS_RETIRED} → status retired, desk released`);
+    console.log(`  ${PHYSICS_DIRECTOR} → desk ${DIR_PHYSICS_POST}, designation Director (Physical)`);
+    console.log(`  ${CHEMISTRY_DIRECTOR} → desk ${DIR_CHEMISTRY_POST}`);
     return;
   }
 
@@ -134,6 +174,27 @@ async function main() {
 
     prisma.employee.update({ where: { id: DD_CM_DHAKA }, data: { orgPostId: DD_CM_POST } }),
     prisma.employee.update({ where: { id: DD_TRAINING }, data: { orgPostId: DD_CM_TRAINING_POST } }),
+
+    // The Physics desk is vacated before it is refilled: one seat, one holder,
+    // and `sanctionedCount` is 1.
+    prisma.employee.update({
+      where: { id: PHYSICS_RETIRED },
+      data: { status: "retired", orgPostId: null, actingOrgPostId: null },
+    }),
+    prisma.employee.update({
+      where: { id: PHYSICS_DIRECTOR },
+      data: {
+        orgPostId: DIR_PHYSICS_POST,
+        designationEn: "Director (Physical)",
+        designationBn: "পরিচালক (পদার্থ)",
+      },
+    }),
+    // Never seated: his wing name matched a leaf section, not the wing root
+    // where the Director post lives.
+    prisma.employee.update({
+      where: { id: CHEMISTRY_DIRECTOR },
+      data: { orgPostId: DIR_CHEMISTRY_POST },
+    }),
   ]);
 
   const after = await prisma.employee.findMany({

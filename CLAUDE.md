@@ -1332,6 +1332,19 @@ can reuse them.
     building. The visit and its samples stay exactly as recorded, because a
     re-inspection is a *second visit* and rewriting the first would lose the
     finding that caused it.
+- **The letters after an approved visit are derived, then issued by the
+  officer** (D95). Which letters are needed comes from the sealed boxes — one to
+  each laboratory's wing head, one to the applicant, one to each One Stop
+  counter — so a laboratory cannot be forgotten, the same reason destinations
+  are derived and not typed (D69). But he *issues* them, in his own name:
+  approval says the visit is sound, and these letters describe his samples.
+  Approval hands the file straight back to him (D92), so there is no extra hop.
+  **All at once** — a partial dispatch means a laboratory expecting a box the
+  applicant was never told to carry — and **refused while anything is
+  unaddressed**, with every obstacle listed at once so an administrator fixes
+  them in one go. Issuing twice is refused; a corrected letter is a fresh letter
+  with its own number, `বিএসটিআই/<office>/নমুনা/<serial>/<year>`, consecutive
+  across one dispatch so a gap means a letter that never went.
 - **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
   so the counter keeps working when the officer on it changes, and
   `/workflow/counter` lists what is coming to their office.

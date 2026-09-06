@@ -11,6 +11,7 @@ import {
   returnVisitToOfficer, demandFactoryDevelopment,
 } from "@/lib/cm/inspection-report";
 import { setRequirement, commitSampling } from "@/lib/samples/service";
+import { issueSampleLetters } from "@/lib/cm/letters";
 import { addSubProduct, removeSubProduct, setSubProductInProduction } from "@/lib/cm/sub-products";
 import { addSku, removeSku, setSkuInProduction } from "@/lib/cm/skus";
 import { planFor } from "@/lib/cm/inspection";
@@ -353,6 +354,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         });
       }
       return NextResponse.json({ ok: true });
+    }
+
+    // ── Issuing the letters after an approved visit (D95) ─────────────────
+    if (body.action === "issue-letters") {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+      const count = await issueSampleLetters({ applicationId, employeeId: actor.employeeId });
+      return NextResponse.json({ issued: count });
     }
 
     // ── Sampling (D87) ────────────────────────────────────────────────────
