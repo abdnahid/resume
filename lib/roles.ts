@@ -16,6 +16,7 @@ export const ASSIGNABLE_ROLES = [
   "officeadmin",
   "office_head",
   "case_officer",
+  "one_stop",
   "data_entry",
   "employee",
 ] as const;
@@ -35,6 +36,11 @@ export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }
     hint: "Receives their office's licence applications and passes them down",
   },
   { value: "case_officer", label: "Case officer", hint: "Court cases and verdicts, every office" },
+  {
+    value: "one_stop",
+    label: "One Stop counter",
+    hint: "Receives sealed samples at their office. Payment is read-only to them.",
+  },
   { value: "data_entry", label: "Data entry", hint: "Records only" },
   { value: "employee", label: "Employee", hint: "Their own profile" },
 ];

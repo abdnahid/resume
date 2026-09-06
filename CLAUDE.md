@@ -1296,6 +1296,35 @@ can reuse them.
   follow the same rule, so a link cannot outrun the panel that offers it.
   **A superadmin is not exempt**: the point is not access control against
   administrators, it is that unfinished work is not somebody else's to read.
+- **The inspection report and the sampling record go up together** (D92) —
+  they are one visit. Splitting them would let a senior approve a report about a
+  factory whose samples he has not seen, or clear a set of jars without the
+  findings that justify drawing them. Sending is refused until the jars are
+  sealed, for the same reason.
+- **The approving desk has three answers, because a visit is either sound, or
+  wrong on paper, or wrong in the factory:**
+  - **approve** — numbered, and the file goes **straight back to the officer**,
+    because the letters that follow are his to issue and a file parked on the
+    approver's desk is a day lost for nothing.
+  - **send back** — the paperwork is wrong. Down to the officer with a note,
+    `submittedAt` cleared; nothing on the application reopens and the samples
+    stand.
+  - **factory not ready** — a `FactoryDevelopmentNotice` goes to the applicant
+    and the file waits on **them** (`awaiting_factory_development`). **Not a
+    shortfall**: a shortfall reopens fields on a form, this asks for work in a
+    building. The visit and its samples stay exactly as recorded, because a
+    re-inspection is a *second visit* and rewriting the first would lose the
+    finding that caused it.
+- **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
+  so the counter keeps working when the officer on it changes, and
+  `/workflow/counter` lists what is coming to their office.
+  **Boxes are listed by the *laboratory's* office, not the file's** — the
+  applicant carries each box to the office of the lab that will test it, which is
+  often not the office the application belongs to, and a counter scoped to its
+  own office's files would miss exactly the boxes walking through its door.
+  It is scoped to `Consignment`, never to `Application`: the counter never holds
+  a file. **Payment is read-only to it and always will be** (spec §5.2) — a
+  counter that could mark a file paid is a counter that can be argued with.
 - **Sampling and the report are the visiting officer's work alone** (D88) —
   whoever proposed the inspection plan. A senior desk supervises and approves;
   it does not seal jars or write up a visit it did not make. **Holding the file

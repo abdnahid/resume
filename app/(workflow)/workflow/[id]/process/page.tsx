@@ -367,6 +367,7 @@ export default async function ProcessPage({
                         unitCostTaka:
                           report.unitCostPoisha === null ? null : String(report.unitCostPoisha / 100),
                         remarks: report.remarks,
+                        samplingRemarks: report.samplingRemarks,
                         conditions: Object.fromEntries(
                           report.conditions.map((c) => [c.key, { satisfactory: c.satisfactory, note: c.note }]),
                         ),

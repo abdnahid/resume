@@ -72,6 +72,47 @@ export async function inboxScope(actor: WorkflowActor): Promise<{
 }
 
 /**
+ * The One Stop counter's own list: boxes coming to this office (D93).
+ *
+ * **Not an application inbox.** The counter never holds a file — its whole part
+ * in the flow is receiving a sealed box and saying whether the seal was intact
+ * (spec §5.2). So it is scoped to `Consignment`, not to `Application`, and it
+ * is deliberately blind to everything an application carries beyond what a
+ * person at a counter needs: which company is handing in, which laboratory the
+ * box is for, how many specimens, and the seal to check against.
+ *
+ * A box is listed at the office of the **lab it is going to**, because that is
+ * where the applicant carries it — the file may belong to another office
+ * entirely, which is exactly the case a single-office inbox would miss.
+ */
+export async function consignmentsForCounter(officeId: number) {
+  return prisma.consignment.findMany({
+    where: { lab: { officeId } },
+    select: {
+      id: true,
+      code: true,
+      sealNo: true,
+      state: true,
+      submittedAt: true,
+      lab: { select: { nameEn: true, discipline: true } },
+      application: {
+        select: {
+          id: true,
+          applicationNo: true,
+          organization: { select: { nameEn: true } },
+          bstiOffice: { select: { nameEn: true } },
+          // Read-only, and only ever read: a counter cannot mark a file paid to
+          // accommodate a walk-in, and cannot receive against an unpaid one.
+          applicationFeePayment: { select: { status: true } },
+        },
+      },
+      _count: { select: { registry: true } },
+    },
+    orderBy: [{ state: "asc" }, { id: "asc" }],
+  });
+}
+
+/**
  * The section a desk belongs to — the wing or branch its unit hangs under.
  *
  * Walks up from the employee's unit to the nearest `wing`, `regional` or

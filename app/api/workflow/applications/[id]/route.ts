@@ -6,7 +6,10 @@ import { raiseShortfall, markReadyForProcessing } from "@/lib/cm/shortfall";
 import {
   proposeInspection, approveInspection, requestPlanRevision, sendPlanForApproval,
 } from "@/lib/cm/inspection";
-import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
+import {
+  saveReport, sendReportForApproval, approveReport,
+  returnVisitToOfficer, demandFactoryDevelopment,
+} from "@/lib/cm/inspection-report";
 import { setRequirement, commitSampling } from "@/lib/samples/service";
 import { addSubProduct, removeSubProduct, setSubProductInProduction } from "@/lib/cm/sub-products";
 import { addSku, removeSku, setSkuInProduction } from "@/lib/cm/skus";
@@ -163,7 +166,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (
       body.action === "report" ||
       body.action === "send-report" ||
-      body.action === "approve-report"
+      body.action === "approve-report" ||
+      body.action === "return-visit" ||
+      body.action === "demand-development"
     ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -197,6 +202,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             utilisationPercent: num(body.utilisationPercent),
             unitCostPoisha: num(body.unitCostPoisha),
             remarks: typeof body.remarks === "string" ? body.remarks : null,
+            samplingRemarks:
+              typeof body.samplingRemarks === "string" ? body.samplingRemarks : null,
             conditions: list(body.conditions, (x) =>
               typeof x.key === "string" && typeof x.satisfactory === "boolean"
                 ? { key: x.key, satisfactory: x.satisfactory, note: typeof x.note === "string" ? x.note : null }
@@ -227,10 +234,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ sentTo: to });
       }
 
+      if (body.action === "return-visit") {
+        const to = await returnVisitToOfficer({
+          applicationId,
+          employeeId: actor.employeeId,
+          role: actor.role,
+          note: typeof body.note === "string" ? body.note : "",
+          actorUserId: actor.userId,
+        });
+        return NextResponse.json({ returnedTo: to });
+      }
+
+      if (body.action === "demand-development") {
+        await demandFactoryDevelopment({
+          applicationId,
+          employeeId: actor.employeeId,
+          role: actor.role,
+          note: typeof body.note === "string" ? body.note : "",
+          actorUserId: actor.userId,
+        });
+        return NextResponse.json({ ok: true });
+      }
+
       const report = await approveReport({
         applicationId,
         employeeId: actor.employeeId,
         role: actor.role,
+        actorUserId: actor.userId,
       });
       return NextResponse.json({ report });
     }

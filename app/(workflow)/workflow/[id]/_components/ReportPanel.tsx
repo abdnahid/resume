@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ClipboardList, FileText, Loader2, SendHorizontal } from "lucide-react";
+import {
+  Ban, CheckCircle2, ClipboardList, FileText, Loader2, RotateCcw, SendHorizontal,
+} from "lucide-react";
 
 /**
  * The initial inspection report — প্রারম্ভিক পরিদর্শন প্রতিবেদন (D86).
@@ -40,6 +42,7 @@ export type ExistingReport = {
   utilisationPercent: string | null;
   unitCostTaka: string | null;
   remarks: string | null;
+  samplingRemarks: string | null;
   conditions: Record<string, { satisfactory: boolean; note: string | null }>;
   markings: Record<string, boolean>;
   answers: Record<string, string>;
@@ -77,6 +80,9 @@ export default function ReportPanel({
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The approver's note, for whichever of the two refusals he chooses. */
+  const [decision, setDecision] = useState<"return" | "develop" | null>(null);
+  const [note, setNote] = useState("");
 
   const [form, setForm] = useState({
     applicantName: report?.applicantName ?? "",
@@ -88,6 +94,7 @@ export default function ReportPanel({
     utilisationPercent: report?.utilisationPercent ?? "",
     unitCostTaka: report?.unitCostTaka ?? "",
     remarks: report?.remarks ?? "",
+    samplingRemarks: report?.samplingRemarks ?? "",
   });
   const [cond, setCond] = useState<Record<string, { satisfactory: boolean; note: string }>>(
     Object.fromEntries(
@@ -367,6 +374,20 @@ export default function ReportPanel({
               className={field}
             />
           </label>
+          {/* The sampling half of the visit. The specimens, seals and
+              destinations are already rows (D87); this is what only the officer
+              can say, and it is approved with the report because it is one
+              visit (D92). */}
+          <label className="block">
+            <span className={label}>নমুনা সংগ্রহ সংক্রান্ত মন্তব্য</span>
+            <textarea
+              value={form.samplingRemarks}
+              onChange={(e) => setForm((f) => ({ ...f, samplingRemarks: e.target.value }))}
+              rows={2}
+              placeholder="Quantity drawn, condition of the goods, anything the seal numbers do not say."
+              className={field}
+            />
+          </label>
         </div>
 
       </fieldset>
@@ -378,6 +399,35 @@ export default function ReportPanel({
           ))}
         </ul>
       )}
+      {canApprove && decision && (
+        <div className="mt-4 rounded-xl border border-border p-3">
+          <p className="text-sm text-foreground">
+            {decision === "return"
+              ? "What has to be corrected? The file goes back to the officer; nothing on the application reopens and the samples stand."
+              : "What must the factory put right? A development notice goes to the applicant and the file waits on them. The visit and its samples stay on the record — a re-inspection is a second visit."}
+          </p>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() =>
+              send(decision === "return" ? "return-visit" : "demand-development", { note })
+            }
+            disabled={busy !== null || !note.trim()}
+            className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy === "return-visit" || busy === "demand-development" ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+            ) : null}
+            {decision === "return" ? "Send it back" : "Issue the notice and hold the file"}
+          </button>
+        </div>
+      )}
+
       {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -410,24 +460,45 @@ export default function ReportPanel({
             ) : (
               <SendHorizontal className="h-3.5 w-3.5" strokeWidth={2} />
             )}
-            Send to {approverName} for approval
+            Send the visit to {approverName}
           </button>
         )}
 
+        {/* Three answers, because a visit is either sound, or wrong on paper,
+            or wrong in the factory — and each needs a different thing to happen
+            (D92). */}
         {canApprove && report && (
-          <button
-            type="button"
-            onClick={() => send("approve-report")}
-            disabled={busy !== null}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:opacity-50"
-          >
-            {busy === "approve-report" ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
-            ) : (
-              <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
-            )}
-            Approve the report
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => send("approve-report")}
+              disabled={busy !== null}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 px-3 py-2 text-sm font-medium text-primary transition hover:bg-primary/5 disabled:opacity-50"
+            >
+              {busy === "approve-report" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
+              )}
+              Approve — back to the officer
+            </button>
+            <button
+              type="button"
+              onClick={() => setDecision(decision === "return" ? null : "return")}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/40"
+            >
+              <RotateCcw className="h-3.5 w-3.5" strokeWidth={2} />
+              Send back for correction
+            </button>
+            <button
+              type="button"
+              onClick={() => setDecision(decision === "develop" ? null : "develop")}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-500/5 dark:text-amber-400"
+            >
+              <Ban className="h-3.5 w-3.5" strokeWidth={2} />
+              Factory not ready
+            </button>
+          </>
         )}
       </div>
     </section>

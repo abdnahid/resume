@@ -92,6 +92,7 @@ export type ReportInput = {
   utilisationPercent: number | null;
   unitCostPoisha: number | null;
   remarks: string | null;
+  samplingRemarks: string | null;
   conditions: { key: string; satisfactory: boolean; note: string | null }[];
   markings: { key: string; present: boolean }[];
   answers: { key: string; text: string }[];
@@ -140,6 +141,7 @@ export async function saveReport(args: {
     utilisationPercent: args.input.utilisationPercent,
     unitCostPoisha: args.input.unitCostPoisha,
     remarks: args.input.remarks?.trim() || null,
+    samplingRemarks: args.input.samplingRemarks?.trim() || null,
   };
 
   const report = existing
@@ -212,10 +214,15 @@ export function reportGaps(report: Awaited<ReturnType<typeof reportFor>>): strin
 }
 
 /**
- * Send the report up for approval — to whoever handed the file down (D84).
+ * Send the visit up for approval — to whoever handed the file down (D84).
  *
- * Refuses while anything is missing. A report that reaches a senior half filled
- * costs two hand-offs to fix what one check would have caught.
+ * **The inspection report and the sampling record go together**, because they
+ * are one visit (D92). Splitting them would let a senior approve a report about
+ * a factory whose samples he has not seen, or clear a set of jars without the
+ * findings that justify drawing them.
+ *
+ * Refuses while anything is missing, the samples included: a visit that reaches
+ * a senior half finished costs two hand-offs to fix what one check catches.
  */
 export async function sendReportForApproval(args: {
   applicationId: number;
@@ -233,7 +240,11 @@ export async function sendReportForApproval(args: {
 
   const report = await reportFor(args.applicationId);
   const gaps = reportGaps(report);
-  if (gaps.length) throw new Error(`The report is not finished: ${gaps.join(" ")}`);
+  // The jars have to be sealed before the visit can be signed off: the sampling
+  // record is half of what is being approved.
+  const sealed = await prisma.consignment.count({ where: { applicationId: args.applicationId } });
+  if (sealed === 0) gaps.push("No samples have been sealed for this visit.");
+  if (gaps.length) throw new Error(`The visit is not finished: ${gaps.join(" ")}`);
   if (report!.approvedAt) throw new Error("This report is already approved.");
 
   const { delegatorOf } = await import("@/lib/workflow/inbox");
@@ -265,40 +276,163 @@ export async function sendReportForApproval(args: {
   return to;
 }
 
+/**
+ * The approving desk's three answers (D92).
+ *
+ * A visit is either sound, or wrong on paper, or wrong in the factory, and each
+ * needs a different thing to happen:
+ *
+ * - **approve** — the report is numbered and the file goes straight back to the
+ *   officer, because the letters that follow are his to issue and a file parked
+ *   on the approver's desk is a day lost for nothing.
+ * - **return** — the paperwork is wrong. It goes back down to the officer with
+ *   a note and nothing else changes: the samples stand, the visit stands, and he
+ *   fixes what was written about it.
+ * - **redevelop** — the *factory* is not ready. A development notice goes to the
+ *   applicant, the file waits on **them**, and the visit stays on the record,
+ *   because a re-inspection is a second visit rather than an edit of the first.
+ *
+ * Deliberately one function: the three share every guard, and three entry points
+ * would be three places to forget that only a senior may answer.
+ */
+async function assertMayDecide(applicationId: number, employeeId: string, role: string) {
+  const app = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    select: { holderEmployeeId: true, bstiOfficeId: true },
+  });
+  if (app.holderEmployeeId !== employeeId) {
+    throw new Error("The file has to reach you before you can answer for it.");
+  }
+  const report = await reportFor(applicationId);
+  if (!report) throw new Error("There is no inspection report on this file.");
+  if (report.approvedAt) throw new Error("This report is already approved.");
+  if (!report.submittedAt) throw new Error("The officer has not sent this visit up yet.");
+
+  if (role !== "superadmin") {
+    if (report.preparedByEmployeeId === employeeId) {
+      throw new Error("A visit is answered for by your senior, not by you.");
+    }
+    if (!app.bstiOfficeId) throw new Error("This file has no office.");
+    const { desksOfOffice } = await import("@/lib/workflow/inbox");
+    const { canPassTo } = await import("@/lib/workflow/chain");
+    const desks = await desksOfOffice(app.bstiOfficeId);
+    const author = desks.find((d) => d.employeeId === report.preparedByEmployeeId);
+    const me = desks.find((d) => d.employeeId === employeeId);
+    if (!author || !me || !canPassTo(author, me, "up")) {
+      throw new Error("Only an officer senior to whoever made this visit can answer for it.");
+    }
+  }
+  return { app, report };
+}
+
+/**
+ * Send the visit back down for correction — the paperwork, not the factory.
+ *
+ * Nothing on the application reopens: this is an internal note between two
+ * desks, and the applicant is not involved. The report's `submittedAt` is
+ * cleared so the officer can edit it again and send it back.
+ */
+export async function returnVisitToOfficer(args: {
+  applicationId: number;
+  employeeId: string;
+  role: string;
+  note: string;
+  actorUserId: string;
+}) {
+  const { report } = await assertMayDecide(args.applicationId, args.employeeId, args.role);
+  if (!args.note.trim()) throw new Error("Say what has to be corrected.");
+
+  await prisma.$transaction([
+    prisma.inspectionReport.update({ where: { id: report.id }, data: { submittedAt: null } }),
+    prisma.application.update({
+      where: { id: args.applicationId },
+      data: {
+        holderEmployeeId: report.preparedByEmployeeId,
+        state: "inspection_completed",
+      },
+    }),
+    prisma.applicationMovement.create({
+      data: {
+        applicationId: args.applicationId,
+        fromEmployeeId: args.employeeId,
+        toEmployeeId: report.preparedByEmployeeId,
+        direction: "down",
+        note: args.note.trim(),
+        actorUserId: args.actorUserId,
+      },
+    }),
+  ]);
+  return report.preparedByEmployeeId;
+}
+
+/**
+ * Demand a re-inspection: the factory is not ready.
+ *
+ * The file goes on hold waiting on the **applicant**, not on BSTI, and the
+ * notice is what they see. The visit and its samples stay exactly as recorded —
+ * a re-inspection is a second visit, and rewriting the first would lose the
+ * finding that caused this.
+ */
+export async function demandFactoryDevelopment(args: {
+  applicationId: number;
+  employeeId: string;
+  role: string;
+  note: string;
+  actorUserId: string;
+}) {
+  const { report } = await assertMayDecide(args.applicationId, args.employeeId, args.role);
+  if (!args.note.trim()) throw new Error("Say what the factory has to put right.");
+
+  const last = await prisma.factoryDevelopmentNotice.findFirst({
+    where: { applicationId: args.applicationId },
+    orderBy: { roundNo: "desc" },
+    select: { roundNo: true },
+  });
+
+  await prisma.$transaction([
+    prisma.factoryDevelopmentNotice.create({
+      data: {
+        applicationId: args.applicationId,
+        roundNo: (last?.roundNo ?? 0) + 1,
+        raisedByEmployeeId: args.employeeId,
+        note: args.note.trim(),
+      },
+    }),
+    prisma.application.update({
+      where: { id: args.applicationId },
+      data: { state: "awaiting_factory_development" },
+    }),
+    prisma.applicationEvent.create({
+      data: {
+        applicationId: args.applicationId,
+        kind: "factory_development_demanded",
+        note: args.note.trim(),
+        actorUserId: args.actorUserId,
+      },
+    }),
+  ]);
+  return report.id;
+}
+
 /** The senior approves, and the report is numbered. */
 export async function approveReport(args: {
   applicationId: number;
   employeeId: string;
   role: string;
+  actorUserId: string;
 }) {
-  const app = await prisma.application.findUniqueOrThrow({
-    where: { id: args.applicationId },
-    select: { holderEmployeeId: true, bstiOfficeId: true },
-  });
-  if (app.holderEmployeeId !== args.employeeId) {
-    throw new Error("The file has to reach you before you can approve its report.");
-  }
-
-  const report = await reportFor(args.applicationId);
-  if (!report) throw new Error("There is no inspection report to approve.");
-  if (report.approvedAt) throw new Error("This report is already approved.");
-
-  if (args.role !== "superadmin") {
-    if (report.preparedByEmployeeId === args.employeeId) {
-      throw new Error("An inspection report is approved by your senior, not by you.");
-    }
-    const { desksOfOffice } = await import("@/lib/workflow/inbox");
-    const { canPassTo } = await import("@/lib/workflow/chain");
-    if (!app.bstiOfficeId) throw new Error("This file has no office.");
-    const desks = await desksOfOffice(app.bstiOfficeId);
-    const author = desks.find((d) => d.employeeId === report.preparedByEmployeeId);
-    const me = desks.find((d) => d.employeeId === args.employeeId);
-    if (!author || !me || !canPassTo(author, me, "up")) {
-      throw new Error("Only an officer senior to whoever wrote this report can approve it.");
-    }
-  }
+  const { app, report } = await assertMayDecide(args.applicationId, args.employeeId, args.role);
 
   const reportNo = await nextReportNo(app.bstiOfficeId);
+
+  /**
+   * Approval hands the file **straight back to the officer**.
+   *
+   * The letters that follow are his to issue — to the testing wings, to the
+   * applicant, to each One Stop counter — so a file parked on the approver's
+   * desk is a day lost for nothing. It is the same reasoning as the inspection
+   * plan (D82): the desk that does the next thing should be holding it.
+   */
   await prisma.$transaction([
     prisma.inspectionReport.update({
       where: { id: report.id },
@@ -306,7 +440,20 @@ export async function approveReport(args: {
     }),
     prisma.application.update({
       where: { id: args.applicationId },
-      data: { state: "inspection_completed" },
+      data: {
+        state: "inspection_completed",
+        holderEmployeeId: report.preparedByEmployeeId,
+      },
+    }),
+    prisma.applicationMovement.create({
+      data: {
+        applicationId: args.applicationId,
+        fromEmployeeId: args.employeeId,
+        toEmployeeId: report.preparedByEmployeeId,
+        direction: "down",
+        note: `Inspection report approved — ${reportNo}.`,
+        actorUserId: args.actorUserId,
+      },
     }),
   ]);
   return reportFor(args.applicationId);

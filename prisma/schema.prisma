@@ -46,6 +46,12 @@ enum Role {
   /// the only role besides superadmin that may record a verdict. Carries no
   /// other administrative power.
   case_officer
+  /// The One Stop Service Centre counter, one per office (D93). Receives the
+  /// sealed boxes an applicant carries in. Its **only** write in the whole flow
+  /// is "received / not received": payment is read-only to it, so a counter
+  /// cannot mark a file paid to accommodate a walk-in, and cannot receive a
+  /// sample against an unpaid one (spec §5.2).
+  one_stop
   employee
   /// Inert. Clients are gated by `accountType`, not by role — this exists so a
   /// client row never reads as `employee` and trips an internal role check.
@@ -337,6 +343,7 @@ model User {
   applicationConsents  Application[]         @relation("ApplicationConsent")
   applicationMovements ApplicationMovement[]
   shortfallResponses   ShortfallRound[]      @relation("ShortfallRespondedBy")
+  developmentResponses FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRespondedBy")
 
   // ─ Samples and lab testing ─
   consignmentsReceived Consignment[]      @relation("ConsignmentReceivedBy")
@@ -599,6 +606,7 @@ model Employee {
   inspectionsProposed   InspectionPlan[]        @relation("InspectionProposedBy")
   inspectionsApproved   InspectionPlan[]        @relation("InspectionApprovedBy")
   reportsPrepared       InspectionReport[]      @relation("ReportPreparedBy")
+  developmentNotices    FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRaisedBy")
   reportsApproved       InspectionReport[]      @relation("ReportApprovedBy")
   inspectionTeams       InspectionTeamMember[]
   testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
@@ -1620,6 +1628,9 @@ enum ApplicationState {
   inspection_in_progress
   inspection_completed
   inspection_report_submitted
+  /// The approving desk found the factory not ready. A development notice goes
+  /// to the applicant and the file waits on them, not on BSTI (D92).
+  awaiting_factory_development
   test_fee_demanded
   test_fee_paid
   /// The applicant visits every destination office, so a box arriving is not
@@ -2019,6 +2030,7 @@ model Application {
   shortfalls       ShortfallRound[]
   inspection       InspectionPlan?
   inspectionReport InspectionReport?
+  developmentNotices FactoryDevelopmentNotice[]
 
   @@index([organizationId])
   @@index([factoryId])
@@ -3388,6 +3400,12 @@ model InspectionReport {
 
   remarks String?
 
+  /// The sampling half of the visit — what was drawn, in the officer's words.
+  /// The specimens, seals and destinations are already rows (D87); this is what
+  /// only he can say, and it travels and is approved with the report because
+  /// they are one visit (D92).
+  samplingRemarks String?
+
   submittedAt DateTime?
 
   approvedByEmployeeId String?
@@ -3446,4 +3464,37 @@ model InspectionReportAnswer {
   text String
 
   @@unique([reportId, key])
+}
+
+/// The approving desk sends the file back to the applicant to put the factory
+/// right (D92).
+///
+/// Not a shortfall: a shortfall reopens fields on a form, and this asks for
+/// work in a building. Nothing on the application becomes editable, the file
+/// waits on the applicant rather than on BSTI, and the visit that produced it
+/// stays on the record — a re-inspection is a *second* visit, not an edit of
+/// the first.
+model FactoryDevelopmentNotice {
+  id Int @id @default(autoincrement())
+
+  applicationId Int
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// 1, 2, 3 … so a second notice can say something different from the first.
+  roundNo Int
+
+  raisedByEmployeeId String
+  raisedBy           Employee @relation("DevelopmentNoticeRaisedBy", fields: [raisedByEmployeeId], references: [id])
+  raisedAt           DateTime @default(now())
+
+  /// What the factory has to put right before it is worth visiting again.
+  note String
+
+  respondedAt       DateTime?
+  respondedByUserId String?
+  respondedBy       User?     @relation("DevelopmentNoticeRespondedBy", fields: [respondedByUserId], references: [id])
+  response          String?
+
+  @@unique([applicationId, roundNo])
+  @@index([applicationId])
 }
