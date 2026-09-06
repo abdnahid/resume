@@ -8,8 +8,8 @@ import {
 } from "@/lib/cm/inspection";
 import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
 import { setRequirement, commitSampling } from "@/lib/samples/service";
-import { addSubProduct, removeSubProduct } from "@/lib/cm/sub-products";
-import { addSku, removeSku } from "@/lib/cm/skus";
+import { addSubProduct, removeSubProduct, setSubProductInProduction } from "@/lib/cm/sub-products";
+import { addSku, removeSku, setSkuInProduction } from "@/lib/cm/skus";
 import { planFor } from "@/lib/cm/inspection";
 
 /**
@@ -240,7 +240,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       body.action === "found-sub-product" ||
       body.action === "found-sku" ||
       body.action === "unfound-sub-product" ||
-      body.action === "unfound-sku"
+      body.action === "unfound-sku" ||
+      body.action === "in-production"
     ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -292,9 +293,35 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ ok: true });
       }
 
-      await removeSku(applicationId, Number(body.skuId), actor.userId, {
-        employeeId: actor.employeeId,
-      });
+      if (body.action === "unfound-sku") {
+        await removeSku(applicationId, Number(body.skuId), actor.userId, {
+          employeeId: actor.employeeId,
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      // Striking out a line the applicant declared but was not making (D91).
+      const inProduction = body.inProduction === true;
+      const note = typeof body.note === "string" ? body.note : null;
+      if (body.skuId !== undefined) {
+        await setSkuInProduction({
+          applicationId,
+          skuId: Number(body.skuId),
+          inProduction,
+          employeeId: actor.employeeId,
+          userId: actor.userId,
+          note,
+        });
+      } else {
+        await setSubProductInProduction({
+          applicationId,
+          applicationSubProductId: Number(body.applicationSubProductId),
+          inProduction,
+          employeeId: actor.employeeId,
+          userId: actor.userId,
+          note,
+        });
+      }
       return NextResponse.json({ ok: true });
     }
 

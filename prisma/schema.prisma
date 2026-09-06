@@ -588,6 +588,8 @@ model Employee {
   // ─ Samples and lab testing ─
   subProductsDeclared   ApplicationSubProduct[] @relation("SubProductDeclaredBy")
   skusDeclared          ApplicationSku[]        @relation("SkuDeclaredBy")
+  subProductsStruckOut  ApplicationSubProduct[] @relation("SubProductStruckOut")
+  skusStruckOut         ApplicationSku[]        @relation("SkuStruckOut")
   sampleRequirementsSet LabSampleRequirement[]  @relation("SampleRequirementAgreedBy")
   consignmentsPacked    Consignment[]           @relation("ConsignmentPackedBy")
   consignmentsOpened    Consignment[]           @relation("ConsignmentOpenedBy")
@@ -2268,6 +2270,13 @@ model ApplicationSku {
   declaredByEmployeeId String?
   declaredByEmployee   Employee? @relation("SkuDeclaredBy", fields: [declaredByEmployeeId], references: [id])
 
+  /// Declared but not being made at the visit (D91). Struck out, not deleted,
+  /// for the reason the sub-product's is.
+  notInProductionAt         DateTime?
+  notInProductionByEmployeeId String?
+  notInProductionBy         Employee? @relation("SkuStruckOut", fields: [notInProductionByEmployeeId], references: [id])
+  notInProductionNote       String?
+
   /// The brand this article is sold under. Required: an unbranded SKU cannot be
   /// identified on a shelf or on a certificate. Most applications repeat one
   /// brand across every row, so the form carries the previous row's brand
@@ -2856,6 +2865,20 @@ model ApplicationSubProduct {
   /// The FDO who added it, when `declaredBy` is `fdo`.
   declaredByEmployeeId String?
   declaredByEmployee   Employee? @relation("SubProductDeclaredBy", fields: [declaredByEmployeeId], references: [id])
+
+  /// Declared by the applicant, but not being made when the officer visited —
+  /// a line discontinued between applying and inspection (D91).
+  ///
+  /// **Struck out, not deleted.** Everything downstream ignores it: no sampling
+  /// cell, no test fee, nothing on the letter, nothing licensed. But the
+  /// applicant's declaration stays on the file, because "what did they say they
+  /// made" is asked in disputes and a row that has been removed cannot answer
+  /// it. The same discipline as `declaredBy`: record the disagreement rather
+  /// than overwrite one side of it.
+  notInProductionAt         DateTime?
+  notInProductionByEmployeeId String?
+  notInProductionBy         Employee? @relation("SubProductStruckOut", fields: [notInProductionByEmployeeId], references: [id])
+  notInProductionNote       String?
 
   sortOrder Int @default(0)
 

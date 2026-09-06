@@ -278,6 +278,52 @@ export async function updateSku(
 }
 
 /**
+ * Strike out a variant the applicant declared but was not making (D91).
+ *
+ * The sub-product's rule, one level down: a brand or size discontinued between
+ * applying and the visit. Struck out rather than deleted, so their declaration
+ * stays readable, and reversible until the jars are sealed.
+ */
+export async function setSkuInProduction(args: {
+  applicationId: number;
+  skuId: number;
+  inProduction: boolean;
+  employeeId: string;
+  userId: string;
+  note?: string | null;
+}) {
+  await assertNotSealed(args.applicationId);
+
+  const existing = await prisma.applicationSku.findUnique({
+    where: { id: args.skuId },
+    include: { applicationSubProduct: { select: { applicationId: true } } },
+  });
+  if (!existing || existing.applicationSubProduct.applicationId !== args.applicationId)
+    throw new Error("That variant is not on this application.");
+  if (existing.declaredBy === "fdo")
+    throw new Error("This is your own finding — remove it rather than striking it out.");
+
+  await prisma.applicationSku.update({
+    where: { id: args.skuId },
+    data: args.inProduction
+      ? { notInProductionAt: null, notInProductionByEmployeeId: null, notInProductionNote: null }
+      : {
+          notInProductionAt: new Date(),
+          notInProductionByEmployeeId: args.employeeId,
+          notInProductionNote: args.note?.trim() || null,
+        },
+  });
+  await prisma.applicationEvent.create({
+    data: {
+      applicationId: args.applicationId,
+      kind: args.inProduction ? "sku_restored" : "sku_not_in_production",
+      note: `${existing.brandName}${existing.variant ? ` — ${existing.variant}` : ""}`,
+      actorUserId: args.userId,
+    },
+  });
+}
+
+/**
  * Take a variant off.
  *
  * `foundBy` is the inspecting officer undoing his own amendment (D89) — he

@@ -201,6 +201,64 @@ export async function removeSubProduct(args: {
 }
 
 /**
+ * Strike out a line the applicant declared but was not making (D91).
+ *
+ * A factory may discontinue a product between applying and the inspection, and
+ * the officer is the one who finds out. Everything downstream then ignores it:
+ * no sampling cell, no box, no test fee, nothing on the letter, nothing
+ * licensed.
+ *
+ * **Struck out, not deleted.** The applicant's declaration stays on the file,
+ * because "what did they say they made" is asked in disputes and a row that has
+ * been removed cannot answer it. The officer's own findings are deleted
+ * outright instead — there is no declaration to preserve, only his own note.
+ *
+ * Reversible until the jars are sealed: he looked again, or the line was
+ * running after all.
+ */
+export async function setSubProductInProduction(args: {
+  applicationId: number;
+  applicationSubProductId: number;
+  inProduction: boolean;
+  employeeId: string;
+  userId: string;
+  note?: string | null;
+}) {
+  const sealed = await prisma.consignment.count({ where: { applicationId: args.applicationId } });
+  if (sealed > 0) {
+    throw new Error("The samples are sealed. This application can no longer be amended.");
+  }
+
+  const row = await prisma.applicationSubProduct.findUnique({
+    where: { id: args.applicationSubProductId },
+    select: { applicationId: true, declaredBy: true, subProduct: { select: { nameEn: true } } },
+  });
+  if (!row || row.applicationId !== args.applicationId)
+    throw new Error("That sub-product is not on this application.");
+  if (row.declaredBy === "fdo")
+    throw new Error("This is your own finding — remove it rather than striking it out.");
+
+  await prisma.applicationSubProduct.update({
+    where: { id: args.applicationSubProductId },
+    data: args.inProduction
+      ? { notInProductionAt: null, notInProductionByEmployeeId: null, notInProductionNote: null }
+      : {
+          notInProductionAt: new Date(),
+          notInProductionByEmployeeId: args.employeeId,
+          notInProductionNote: args.note?.trim() || null,
+        },
+  });
+  await prisma.applicationEvent.create({
+    data: {
+      applicationId: args.applicationId,
+      kind: args.inProduction ? "sub_product_restored" : "sub_product_not_in_production",
+      note: row.subProduct.nameEn,
+      actorUserId: args.userId,
+    },
+  });
+}
+
+/**
  * The test fee for the file as it currently stands, in poisha.
  *
  * Provisional while the applicant is still editing and final once the FDO has
@@ -209,7 +267,8 @@ export async function removeSubProduct(args: {
  */
 export async function testFeeFor(applicationId: number) {
   const rows = await prisma.applicationSubProduct.findMany({
-    where: { applicationId },
+    // A struck-out line is not tested, so it is not charged for (D91).
+    where: { applicationId, notInProductionAt: null },
     select: {
       subProduct: {
         select: { nameEn: true, parameters: { select: { feePoisha: true, discipline: true } } },

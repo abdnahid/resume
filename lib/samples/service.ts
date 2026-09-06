@@ -96,12 +96,15 @@ export async function buildPlanFor(applicationId: number): Promise<{
     select: {
       bstiOfficeId: true,
       subProducts: {
+        // A line the applicant declared but was not making at the visit is
+        // struck out, not deleted (D91) — no cell, no box, nothing sealed.
+        where: { notInProductionAt: null },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
           subProductId: true,
           subProduct: { select: { nameEn: true } },
-          _count: { select: { skus: true } },
+          _count: { select: { skus: { where: { notInProductionAt: null } } } },
         },
       },
     },
@@ -211,7 +214,10 @@ export async function commitSampling(applicationId: number, employeeId?: string)
   if (all.length) throw new Error(`Sampling plan is not ready:\n- ${all.join("\n- ")}`);
 
   const skus = await prisma.applicationSku.findMany({
-    where: { applicationSubProduct: { applicationId } },
+    where: {
+      applicationSubProduct: { applicationId, notInProductionAt: null },
+      notInProductionAt: null,
+    },
     select: { id: true, applicationSubProductId: true },
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
   });

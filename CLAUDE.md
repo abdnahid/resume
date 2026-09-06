@@ -1269,6 +1269,14 @@ can reuse them.
   we find more" stays answerable (D67), and the applicant's declaration is never
   rewritten. Adding one changes the sampling grid and the test fee by itself,
   because both read `ApplicationSubProduct`.
+- **A line the applicant declared but is no longer making is struck out, not
+  deleted** (D91). A factory may discontinue a product between applying and the
+  inspection, and the officer is the one who finds out.
+  `notInProductionAt` on `ApplicationSubProduct` and `ApplicationSku`, and
+  everything downstream ignores it: no sampling cell, no box, no test fee,
+  nothing licensed. **The declaration stays on the file**, because "what did
+  they say they made" is asked in disputes and a deleted row cannot answer it —
+  the same discipline as `declaredBy`. Reversible until the jars are sealed.
 - **He may remove only what he added.** `removeSubProduct` and `removeSku`
   refuse a row whose `declaredBy` is `applicant`: deleting the applicant's
   declaration would erase it, and "did they under-declare, or did we find more"

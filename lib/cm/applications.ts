@@ -484,7 +484,12 @@ export async function gapsFor(applicationId: number) {
       attachedPurchases: { select: { bdsId: true } },
       production: { select: { annualCapacityValue: true, currentYearLabel: true } },
       answers: { select: { questionKey: true, answerText: true, answerNumber: true } },
-      subProducts: { select: { _count: { select: { skus: true } } } },
+      // A struck-out line counts for nothing (D91), including toward the
+      // "at least one article" gate a reopened file is re-checked against.
+      subProducts: {
+        where: { notInProductionAt: null },
+        select: { _count: { select: { skus: { where: { notInProductionAt: null } } } } },
+      },
     },
   });
   if (!app) return null;

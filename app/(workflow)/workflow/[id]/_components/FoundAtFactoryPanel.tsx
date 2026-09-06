@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PackagePlus, Plus, Search, Trash2, X } from "lucide-react";
+import { Ban, Loader2, PackagePlus, Plus, RotateCcw, Search, Trash2, X } from "lucide-react";
 
 /**
  * What the officer found on the factory floor that the applicant did not
@@ -30,7 +30,9 @@ export type Declared = {
   applicationSubProductId: number;
   name: string;
   byFdo: boolean;
-  skus: { id: number; label: string; byFdo: boolean }[];
+  /** Declared, but the factory was not making it at the visit (D91). */
+  struckOut: boolean;
+  skus: { id: number; label: string; byFdo: boolean; struckOut: boolean }[];
 };
 
 export default function FoundAtFactoryPanel({
@@ -124,8 +126,10 @@ export default function FoundAtFactoryPanel({
       <p className="mt-1 text-sm text-muted-foreground">
         Anything the applicant did not declare goes on the application, not just
         on the letter — otherwise it would be sampled and tested but not
-        licensed. What you add is marked as your finding; their declaration is
-        left as it stands.
+        licensed. What you add is marked as your finding. A line they declared
+        but are no longer making is <em>struck out</em>, not deleted: it stops
+        being sampled, charged for and licensed, and their declaration stays on
+        the file.
       </p>
 
       {/* What is on the file now, so he adds to it rather than beside it. */}
@@ -133,24 +137,63 @@ export default function FoundAtFactoryPanel({
         {declared.map((d) => (
           <li key={d.applicationSubProductId} className="rounded-xl border border-border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-medium text-foreground">
+              <span
+                className={`text-sm font-medium ${
+                  d.struckOut ? "text-muted-foreground line-through" : "text-foreground"
+                }`}
+              >
                 {d.name}
                 {d.byFdo && (
-                  <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary no-underline">
                     you found this
+                  </span>
+                )}
+                {d.struckOut && (
+                  <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground no-underline">
+                    not in production
                   </span>
                 )}
               </span>
               <span className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAddingTo(addingTo === d.applicationSubProductId ? null : d.applicationSubProductId)
-                  }
-                  className="cursor-pointer text-xs font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {addingTo === d.applicationSubProductId ? "Cancel" : "Add a variant"}
-                </button>
+                {!d.struckOut && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAddingTo(addingTo === d.applicationSubProductId ? null : d.applicationSubProductId)
+                    }
+                    className="cursor-pointer text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {addingTo === d.applicationSubProductId ? "Cancel" : "Add a variant"}
+                  </button>
+                )}
+                {/* Their declaration is struck out rather than deleted, and can
+                    be put back until the jars are sealed (D91). */}
+                {!d.byFdo && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      send(
+                        "in-production",
+                        {
+                          applicationSubProductId: d.applicationSubProductId,
+                          inProduction: d.struckOut,
+                        },
+                        `sx-sp-${d.applicationSubProductId}`,
+                      )
+                    }
+                    disabled={busy !== null}
+                    className="inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                  >
+                    {busy === `sx-sp-${d.applicationSubProductId}` ? (
+                      <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+                    ) : d.struckOut ? (
+                      <RotateCcw className="h-3 w-3" strokeWidth={2} />
+                    ) : (
+                      <Ban className="h-3 w-3" strokeWidth={2} />
+                    )}
+                    {d.struckOut ? "Still made" : "Not in production"}
+                  </button>
+                )}
                 {/* Only his own findings: removing what the applicant declared
                     would erase their declaration (D89). */}
                 {d.byFdo && (
@@ -182,7 +225,26 @@ export default function FoundAtFactoryPanel({
               <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                 {d.skus.map((k) => (
                   <li key={k.id} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    {k.label}
+                    <span className={k.struckOut ? "line-through" : ""}>{k.label}</span>
+                    {!k.byFdo && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          send("in-production", { skuId: k.id, inProduction: k.struckOut }, `sx-${k.id}`)
+                        }
+                        disabled={busy !== null}
+                        aria-label={k.struckOut ? `Restore ${k.label}` : `Mark ${k.label} not in production`}
+                        className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                      >
+                        {busy === `sx-${k.id}` ? (
+                          <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+                        ) : k.struckOut ? (
+                          <RotateCcw className="h-3 w-3" strokeWidth={2} />
+                        ) : (
+                          <Ban className="h-3 w-3" strokeWidth={2} />
+                        )}
+                      </button>
+                    )}
                     {k.byFdo && (
                       <>
                         <span className="text-primary">(found)</span>

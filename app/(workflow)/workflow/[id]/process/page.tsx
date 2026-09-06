@@ -289,6 +289,7 @@ export default async function ProcessPage({
                   applicationSubProductId: sp.id,
                   name: sp.subProduct.nameEn,
                   byFdo: sp.declaredBy === "fdo",
+                  struckOut: sp.notInProductionAt !== null,
                   skus: sp.skus.map((k) => ({
                     id: k.id,
                     label: [
@@ -299,6 +300,7 @@ export default async function ProcessPage({
                       .filter(Boolean)
                       .join(" · "),
                     byFdo: k.declaredBy === "fdo",
+                    struckOut: k.notInProductionAt !== null,
                   })),
                 }))}
                 choices={unclaimed.map((c) => ({
