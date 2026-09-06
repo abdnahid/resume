@@ -4,7 +4,6 @@ import { ArrowLeft, Network } from "lucide-react";
 import { requireClient } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { missingForSubmission } from "@/lib/client/organization";
-import Footer from "@/components/layout/Footer";
 import CompanyDetail from "../_components/CompanyDetail";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -42,40 +41,37 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const missing = missingForSubmission(organization);
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <main className="mx-auto w-full max-w-[1100px] flex-1 px-5 py-14 lg:px-10">
-        <Link
-          href="/public/companies"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
-          My companies
-        </Link>
+    <div className="mx-auto w-full max-w-[1100px] px-5 py-14 lg:px-10">
+      <Link
+        href="/public/companies"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+        My companies
+      </Link>
 
-        <h1 className="mt-4 font-display text-3xl font-medium text-foreground">
-          {organization.nameEn}
-        </h1>
-        {organization.nameBn && organization.nameBn !== organization.nameEn && (
-          <p className="font-bn text-lg text-muted-foreground">{organization.nameBn}</p>
-        )}
-        {organization.parent && (
-          <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Network className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
-            A company under{" "}
-            <Link
-              href={`/public/companies/${organization.parent.id}`}
-              className="font-medium text-primary hover:underline"
-            >
-              {organization.parent.nameEn}
-            </Link>
-          </p>
-        )}
+      <h1 className="mt-4 font-display text-3xl font-medium text-foreground">
+        {organization.nameEn}
+      </h1>
+      {organization.nameBn && organization.nameBn !== organization.nameEn && (
+        <p className="font-bn text-lg text-muted-foreground">{organization.nameBn}</p>
+      )}
+      {organization.parent && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Network className="h-3.5 w-3.5 text-primary" strokeWidth={1.8} />
+          A company under{" "}
+          <Link
+            href={`/public/companies/${organization.parent.id}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {organization.parent.nameEn}
+          </Link>
+        </p>
+      )}
 
-        <div className="mt-10">
-          <CompanyDetail organization={organization} missing={missing} />
-        </div>
-      </main>
-      <Footer />
+      <div className="mt-10">
+        <CompanyDetail organization={organization} missing={missing} />
+      </div>
     </div>
   );
 }

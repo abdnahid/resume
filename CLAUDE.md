@@ -181,6 +181,24 @@ and a theme class in `app/globals.css`.
 - **`loading.tsx` is what makes a click feel responsive.** Every slow route needs
   one; `app/(main)/hr/loading.tsx` is the fallback for everything under /hr.
 
+**The client surfaces have their own shell**, `app/(public)/public/layout.tsx` —
+`ClientNavbar`, `<main>`, `Footer`. It exists because it was in *none* of them:
+the dashboard, the applications and the company profiles each rendered their own
+`min-h-screen` column and their own footer and no navbar at all, so a client
+reading their own application had no way back to the store, no account menu and
+no sign-out. Pages under it supply content and their own width — 1100px for the
+listings, 900px for the forms — and must not render a footer or a
+`min-h-screen` wrapper of their own.
+
+- **`ClientNavbar` is the citizen counterpart of the store's `Navbar`** — a thin
+  wrapper over `ModuleNavbar` listing services, never the module grid (D14).
+  `/pay/return` renders it directly rather than through the layout, because it
+  cannot share one with `/pay/sandbox`: the sandbox page impersonates a
+  *gateway's* hosted page, and a BSTI navbar on it would misrepresent whose page
+  the payer is looking at.
+- **The landing page keeps its own masthead.** It is a designed government
+  header with the bilingual institution name, not a module navbar.
+
 ## Auth
 
 Decisions D11–D16 in the plan. The route prefix decides the audience:
@@ -650,6 +668,25 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   next year cannot move a file already in flight. Before submission the screen
   still names the office the file *would* go to — the applicant should not
   discover that after committing.
+
+- **All three ways in are on the apply page.** `/public/applications/new` picks
+  an existing factory, registers a **new factory** for an existing company
+  inline, or sends someone to set up a **company that does not exist yet** —
+  which is where an applicant who has just discovered the plant is unregistered
+  actually is. `FactoryForm` is shared with the company page rather than copied,
+  because the district field decides which office receives every application
+  from that plant and two copies would drift.
+  **The company wizard is deliberately not duplicated inline.** It asks for
+  everything `missingForSubmission()` later demands; a stripped-down second form
+  would create companies that cannot submit, with the wall arriving *after* the
+  product, the SKUs and the fee. So `/public/companies/new` takes a `?next=`
+  and the wizard lands there instead of on the company page — the applicant
+  comes straight back to the picker. `safeNext()` (now `lib/nav.ts`, Prisma-free
+  so a client component may import it) discards anything not app-relative.
+  **A factory added here is listed with its BSTI office resolved before the
+  Apply button beside it is worth pressing** — the form refreshes the server
+  render rather than splicing the row in, because the office is derived from the
+  district on the server and a row without it hides the one fact that matters.
 
 - **The BDS attachment rule has three layers, and the UI is not one of them**
   (§3.3): the single scalar `BdsPurchase.consumedByApplicationId`, the checks in

@@ -69,10 +69,18 @@ const label = "mb-1.5 block text-xs font-medium text-muted-foreground";
 export default function ProfileWizard({
   parentId,
   parentName,
+  returnTo,
 }: {
   /** Set when adding a company beneath an existing group. */
   parentId?: number;
   parentName?: string;
+  /**
+   * Where to land once the profile exists. The apply page passes itself, so
+   * someone who came here mid-application is returned to it with the new
+   * company — and its factory — ready to apply for. Validated by the page that
+   * reads it off the query string; the default is the company just created.
+   */
+  returnTo?: string | null;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -201,7 +209,7 @@ export default function ProfileWizard({
         return;
       }
 
-      router.push(`/public/companies/${organizationId}`);
+      router.push(returnTo ?? `/public/companies/${organizationId}`);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");

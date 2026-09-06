@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   Check, AlertTriangle, Loader2, Plus, MapPin, Building2, Pencil, X,
 } from "lucide-react";
-import AddressFields, { type Address, EMPTY_ADDRESS } from "./AddressFields";
+import AddressFields, { type Address } from "./AddressFields";
+import FactoryForm from "./FactoryForm";
 import type { Requirement } from "@/lib/client/organization";
 
 type Org = {
@@ -207,9 +208,9 @@ export default function CompanyDetail({
           )}
 
           {addingFactory && (
-            <AddFactory
+            <FactoryForm
               organizationId={organization.id}
-              onDone={() => {
+              onSaved={() => {
                 setAddingFactory(false);
                 router.refresh();
               }}
@@ -365,97 +366,6 @@ function EditForm({ organization, onDone }: { organization: Org; onDone: () => v
         {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />}
         {busy ? "Saving…" : "Save changes"}
       </button>
-    </div>
-  );
-}
-
-function AddFactory({
-  organizationId,
-  onDone,
-  onCancel,
-}: {
-  organizationId: number;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const [nameEn, setNameEn] = useState("");
-  const [nameBn, setNameBn] = useState("");
-  const [address, setAddress] = useState<Address>(EMPTY_ADDRESS);
-  const [contactName, setContactName] = useState("");
-  const [contactMobile, setContactMobile] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/client/factories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ organizationId, nameEn, nameBn, ...address, contactName, contactMobile }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Could not save the factory.");
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save the factory.");
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mt-5 rounded-xl border border-dashed border-border p-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Factory name (English)</label>
-          <input className={field} value={nameEn} onChange={(e) => setNameEn(e.target.value)} />
-        </div>
-        <div>
-          <label className={label}>কারখানার নাম (বাংলা)</label>
-          <input className={`${field} font-bn`} value={nameBn} onChange={(e) => setNameBn(e.target.value)} />
-        </div>
-      </div>
-      <div className="mt-4">
-        <AddressFields
-          value={address}
-          onChange={setAddress}
-          districtHint="This decides which BSTI office receives applications from this factory."
-        />
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Contact person</label>
-          <input className={field} value={contactName} onChange={(e) => setContactName(e.target.value)} />
-        </div>
-        <div>
-          <label className={label}>Contact mobile</label>
-          <input
-            className={field}
-            inputMode="numeric"
-            value={contactMobile}
-            onChange={(e) => setContactMobile(e.target.value)}
-          />
-        </div>
-      </div>
-      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={save}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-60"
-        >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />}
-          {busy ? "Saving…" : "Save factory"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-sm font-medium text-muted-foreground transition hover:text-foreground"
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   );
 }

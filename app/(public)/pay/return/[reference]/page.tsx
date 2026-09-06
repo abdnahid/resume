@@ -4,8 +4,9 @@ import { CheckCircle2, XCircle, Clock, ArrowRight, Download, FlaskConical } from
 import { prisma } from "@/lib/prisma";
 import { requireClient } from "@/lib/auth-guard";
 import { fulfilPayment } from "@/lib/payments/fulfil";
-import { safeNext } from "@/lib/payments/service";
+import { safeNext } from "@/lib/nav";
 import { formatPoisha } from "@/lib/payments/money";
+import ClientNavbar from "@/components/layout/ClientNavbar";
 import Footer from "@/components/layout/Footer";
 
 export const metadata = { title: "Payment — BSTI e-Services" };
@@ -72,6 +73,7 @@ export default async function PaymentReturnPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <ClientNavbar />
       <main className="mx-auto w-full max-w-[720px] flex-1 px-5 py-14 lg:px-10">
         <div className="rounded-2xl border border-border bg-card p-8">
           <Icon className={`h-10 w-10 ${tone}`} strokeWidth={1.8} />

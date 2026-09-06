@@ -525,6 +525,50 @@ over 8 MB. Every test row was removed afterwards.
 needs CM Wing confirmation, at the same standing as `CM_DOCUMENTS`; and the
 label images are still not stored (D47).
 
+### ✅ Step 7e — The client shell, and every way into an application
+Built 2026-09-06, from two things the client reported: **no navbar on the
+dashboard or the application pages**, and **no way to register a factory or a
+company from the page that asks you to choose one**.
+
+**The shell.** `app/(public)/public/layout.tsx` now owns navbar, page and
+footer for every client surface. It was in none of them — each page rendered
+its own `min-h-screen` column and its own footer and no navbar at all, so a
+client reading their own application had no way back to the store, no account
+menu and no sign-out. `ClientNavbar` is the citizen counterpart of the store's
+`Navbar`: a thin wrapper over `ModuleNavbar` listing services, never the module
+grid (D14). `/pay/return` renders it directly rather than through the layout,
+because it cannot share one with `/pay/sandbox` — the sandbox page impersonates
+a *gateway's* hosted page, and a BSTI navbar on it would misrepresent whose
+page the payer is looking at. The landing page keeps its own government
+masthead.
+
+**All three ways in are now on `/public/applications/new`:** pick an existing
+factory, register a new factory for an existing company inline, or set up a
+company that does not exist yet. `FactoryForm` is shared with the company page
+rather than copied — the district field decides which office receives every
+application from that plant, and two copies would drift.
+
+**The company wizard is deliberately not duplicated inline.** It asks for
+everything `missingForSubmission()` later demands, and a stripped-down second
+form would create companies that cannot submit, with the wall arriving *after*
+the product, the SKUs and the fee. So `/public/companies/new` takes a `?next=`
+and the wizard lands there rather than on the company page. `safeNext()` moved
+to `lib/nav.ts` — Prisma-free (D9), so a client component may import it without
+dragging `pg` into the browser bundle.
+
+**A factory added here is listed with its BSTI office resolved** before the
+Apply button beside it is worth pressing: the form refreshes the server render
+rather than splicing the row in, because the office is derived from the district
+on the server, and a row without it hides the one fact this page exists to show.
+
+**Verified against the live database** with a throwaway client account: the
+navbar renders on the dashboard and the company pages with exactly one header,
+one main and one footer; the picker shows a factoryless company with *Register a
+factory*, and after registering shows the row with *বিভাগীয় কার্যালয়,
+বিএসটিআই, বরিশাল* named beside it; `?next=/public/applications/new` reaches the
+wizard while `https://evil.example/x` and `//evil.example` both arrive as null.
+Everything the run created was removed by id.
+
 ### 🚧 Step 8a — Office head, and files that move
 Built 2026-09-02. The first slice of Phase D: a submitted file is received by
 its office and moves through the organogram. `/workflow` replaces a placeholder

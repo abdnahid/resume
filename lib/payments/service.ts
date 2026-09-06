@@ -9,6 +9,7 @@
  * gateway.** Nothing that a browser can reach decides it.
  */
 import { prisma } from "@/lib/prisma";
+import { safeNext } from "@/lib/nav";
 import { splitFee, buildReference } from "./money";
 import { amountMatches, type PaymentPurposeKey } from "./provider";
 import { activeProvider, providerByKey } from "./registry";
@@ -119,19 +120,6 @@ export async function beginCheckout(
   });
 
   return session;
-}
-
-/**
- * An app-relative path, or null.
- *
- * Anything else — an absolute URL, a protocol-relative `//host`, a bare word —
- * is discarded rather than corrected, so a crafted checkout cannot turn the
- * receipt page into an open redirect.
- */
-export function safeNext(next?: string | null): string | null {
-  if (!next) return null;
-  if (!next.startsWith("/") || next.startsWith("//")) return null;
-  return next;
 }
 
 export type SettleResult = {
