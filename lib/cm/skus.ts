@@ -277,8 +277,27 @@ export async function updateSku(
   });
 }
 
-export async function removeSku(applicationId: number, skuId: number, userId: string) {
-  await guard(applicationId, userId);
+/**
+ * Take a variant off.
+ *
+ * `foundBy` is the inspecting officer undoing his own amendment (D89) — he
+ * mistyped, or looked again. **He may only remove what he added.** Deleting a
+ * variant the applicant declared would erase their declaration, and "did they
+ * under-declare, or did we find more" stops being answerable the moment either
+ * side can rewrite the other.
+ */
+export async function removeSku(
+  applicationId: number,
+  skuId: number,
+  userId: string,
+  foundBy?: { employeeId: string },
+) {
+  if (foundBy) {
+    await assertNotSealed(applicationId);
+    await standing(applicationId, userId).catch(() => null);
+  } else {
+    await guard(applicationId, userId);
+  }
 
   const existing = await prisma.applicationSku.findUnique({
     where: { id: skuId },
@@ -286,6 +305,9 @@ export async function removeSku(applicationId: number, skuId: number, userId: st
   });
   if (!existing || existing.applicationSubProduct.applicationId !== applicationId) {
     throw new Error("That variant is not on this application.");
+  }
+  if (foundBy && existing.declaredBy !== "fdo") {
+    throw new Error("That variant is the applicant's declaration, not your finding.");
   }
 
   // Specimens are sealed against a variant, so removing one after sampling

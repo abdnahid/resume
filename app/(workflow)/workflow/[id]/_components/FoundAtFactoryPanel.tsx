@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PackagePlus, Plus, Search, X } from "lucide-react";
+import { Loader2, PackagePlus, Plus, Search, Trash2, X } from "lucide-react";
 
 /**
  * What the officer found on the factory floor that the applicant did not
@@ -141,21 +141,70 @@ export default function FoundAtFactoryPanel({
                   </span>
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  setAddingTo(addingTo === d.applicationSubProductId ? null : d.applicationSubProductId)
-                }
-                className="cursor-pointer text-xs font-medium text-primary underline-offset-4 hover:underline"
-              >
-                {addingTo === d.applicationSubProductId ? "Cancel" : "Add a variant"}
-              </button>
+              <span className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAddingTo(addingTo === d.applicationSubProductId ? null : d.applicationSubProductId)
+                  }
+                  className="cursor-pointer text-xs font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  {addingTo === d.applicationSubProductId ? "Cancel" : "Add a variant"}
+                </button>
+                {/* Only his own findings: removing what the applicant declared
+                    would erase their declaration (D89). */}
+                {d.byFdo && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      send(
+                        "unfound-sub-product",
+                        { applicationSubProductId: d.applicationSubProductId },
+                        `rm-sp-${d.applicationSubProductId}`,
+                      )
+                    }
+                    disabled={busy !== null}
+                    className="inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                  >
+                    {busy === `rm-sp-${d.applicationSubProductId}` ? (
+                      <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+                    ) : (
+                      <Trash2 className="h-3 w-3" strokeWidth={2} />
+                    )}
+                    Remove
+                  </button>
+                )}
+              </span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {d.skus.length === 0
-                ? "No variants named."
-                : d.skus.map((s) => `${s.label}${s.byFdo ? " (found)" : ""}`).join(" · ")}
-            </p>
+            {d.skus.length === 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground">No variants named.</p>
+            ) : (
+              <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                {d.skus.map((k) => (
+                  <li key={k.id} className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    {k.label}
+                    {k.byFdo && (
+                      <>
+                        <span className="text-primary">(found)</span>
+                        <button
+                          type="button"
+                          onClick={() => send("unfound-sku", { skuId: k.id }, `rm-sku-${k.id}`)}
+                          disabled={busy !== null}
+                          aria-label={`Remove ${k.label}`}
+                          className="cursor-pointer text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                        >
+                          {busy === `rm-sku-${k.id}` ? (
+                            <Loader2 className="h-3 w-3 animate-spin" strokeWidth={2} />
+                          ) : (
+                            <X className="h-3 w-3" strokeWidth={2} />
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
 
             {addingTo === d.applicationSubProductId && (
               <div className="mt-3 grid gap-2 sm:grid-cols-3">

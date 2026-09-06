@@ -82,13 +82,29 @@ export default function SamplingPanel({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  /**
+   * The typed value for a cell, falling back to what the server sent.
+   *
+   * `useState`'s initialiser runs once, so a cell that appears *after* mount —
+   * which is exactly what happens when the officer records a sub-product he
+   * found, since it brings its own lab — has no entry in `draft`. Reading it
+   * directly gave `undefined.trim()` and crashed the render, while the row had
+   * already been written; a full page reload then looked fine, which is the
+   * worst kind of bug to be told about. Falling back to the prop keeps the two
+   * in step without a `useEffect` that would fight the officer's typing.
+   */
+  const valueFor = (c: Cell) => {
+    const key = `${c.applicationSubProductId}:${c.labId}`;
+    return draft[key] ?? (c.samplesPerVariant === null ? "" : String(c.samplesPerVariant));
+  };
+
   // The running total, recomputed as he types — the arithmetic is the screen's
   // job, not his.
   const live = useMemo(() => {
     const perLab = new Map<number, number | null>();
     let total: number | null = 0;
     for (const c of cells) {
-      const raw = draft[`${c.applicationSubProductId}:${c.labId}`];
+      const raw = valueFor(c);
       const n = raw.trim() === "" ? null : Number(raw);
       const count = n !== null && Number.isInteger(n) && n > 0 ? n * c.variantCount : null;
       const prev = perLab.get(c.labId);
@@ -99,6 +115,7 @@ export default function SamplingPanel({
       total = count === null || total === null ? null : total + count;
     }
     return { perLab, total };
+    // `valueFor` closes over `draft`, which is in the dependency list.
   }, [cells, draft]);
 
   async function send(action: string, extra: Record<string, unknown> = {}, key = action) {
@@ -200,7 +217,7 @@ export default function SamplingPanel({
             <tbody>
               {cells.map((c) => {
                 const key = `${c.applicationSubProductId}:${c.labId}`;
-                const raw = draft[key];
+                const raw = valueFor(c);
                 const n = raw.trim() === "" ? null : Number(raw);
                 const count = n !== null && Number.isInteger(n) && n > 0 ? n * c.variantCount : null;
                 return (

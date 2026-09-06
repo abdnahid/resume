@@ -8,8 +8,8 @@ import {
 } from "@/lib/cm/inspection";
 import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
 import { setRequirement, commitSampling } from "@/lib/samples/service";
-import { addSubProduct } from "@/lib/cm/sub-products";
-import { addSku } from "@/lib/cm/skus";
+import { addSubProduct, removeSubProduct } from "@/lib/cm/sub-products";
+import { addSku, removeSku } from "@/lib/cm/skus";
 import { planFor } from "@/lib/cm/inspection";
 
 /**
@@ -236,7 +236,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // ── What the officer found at the factory (D89) ───────────────────────
-    if (body.action === "found-sub-product" || body.action === "found-sku") {
+    if (
+      body.action === "found-sub-product" ||
+      body.action === "found-sku" ||
+      body.action === "unfound-sub-product" ||
+      body.action === "unfound-sku"
+    ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
@@ -264,14 +269,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ subProduct: row });
       }
 
-      const sku = await addSku(
-        applicationId,
-        Number(body.applicationSubProductId),
-        body.sku as never,
-        actor.userId,
-        { employeeId: actor.employeeId },
-      );
-      return NextResponse.json({ sku });
+      if (body.action === "found-sku") {
+        const sku = await addSku(
+          applicationId,
+          Number(body.applicationSubProductId),
+          body.sku as never,
+          actor.userId,
+          { employeeId: actor.employeeId },
+        );
+        return NextResponse.json({ sku });
+      }
+
+      // Undoing his own amendment. The services refuse anything the applicant
+      // declared, so this cannot be turned into a way to edit their file.
+      if (body.action === "unfound-sub-product") {
+        await removeSubProduct({
+          applicationId,
+          applicationSubProductId: Number(body.applicationSubProductId),
+          userId: actor.userId,
+          isFdo: true,
+        });
+        return NextResponse.json({ ok: true });
+      }
+
+      await removeSku(applicationId, Number(body.skuId), actor.userId, {
+        employeeId: actor.employeeId,
+      });
+      return NextResponse.json({ ok: true });
     }
 
     // ── Sampling (D87) ────────────────────────────────────────────────────

@@ -173,12 +173,19 @@ export async function removeSubProduct(args: {
     where: { id: args.applicationSubProductId },
     select: {
       applicationId: true,
+      declaredBy: true,
       subProduct: { select: { nameEn: true } },
       _count: { select: { registry: true } },
     },
   });
   if (!row || row.applicationId !== args.applicationId)
     throw new Error("That sub-product is not on this application.");
+  // The officer undoes his own amendment and nothing else: removing what the
+  // applicant declared would erase their declaration, and "did they
+  // under-declare, or did we find more" stops being answerable the moment
+  // either side can rewrite the other (D89).
+  if (args.isFdo && row.declaredBy !== "fdo")
+    throw new Error("That sub-product is the applicant's declaration, not your finding.");
   if (row._count.registry > 0)
     throw new Error("Samples have already been sealed for this sub-product.");
 

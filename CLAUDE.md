@@ -1269,6 +1269,11 @@ can reuse them.
   we find more" stays answerable (D67), and the applicant's declaration is never
   rewritten. Adding one changes the sampling grid and the test fee by itself,
   because both read `ApplicationSubProduct`.
+- **He may remove only what he added.** `removeSubProduct` and `removeSku`
+  refuse a row whose `declaredBy` is `applicant`: deleting the applicant's
+  declaration would erase it, and "did they under-declare, or did we find more"
+  stops being answerable the moment either side can rewrite the other. The
+  Remove control renders only on his own findings.
 - **Amendments close when the jars are sealed.** The plan cannot be regenerated
   (`commitSampling` refuses), so a variant added afterwards would be licensed
   without ever having been sampled. Both `addSubProduct` and `addSku` refuse,
@@ -1611,6 +1616,13 @@ build once.
   lands. A `loading.tsx` covers its own segment and every nested one, so
   `app/(main)/hr/loading.tsx` is the fallback and the heavy tables override it.
 
+- **A `useState` initialiser runs once, so a list that grows after mount
+  breaks state keyed on it.** `SamplingPanel` keyed its typed counts by cell and
+  read them directly; recording a found sub-product adds a cell, and the
+  re-render read `undefined.trim()` and crashed — while the row had already been
+  written, so a full reload looked fine. **Fall back to the prop rather than
+  syncing with an effect**, which would fight the officer's typing. Any panel
+  holding draft state over a server-derived list has the same shape.
 - **`loading.tsx` does not fire for same-route navigation.** Moving between
   profile wizard steps only changes `?step=`, so the segment never re-mounts.
   Those use `StepNavButton`, which wraps `router.push` in `useTransition` —
