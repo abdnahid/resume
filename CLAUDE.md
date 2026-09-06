@@ -47,7 +47,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 | Log | Covers |
 |---|---|
 | `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
-| `docs/sessions/workflow-desks-and-office-heads.md` | The `/workflow` board, organogram placement, and the `office_head` role — who can be handed a file, and why five offices could not pass one on. Started 2026-09-05, covering work begun 2026-09-02 with step 8a. |
+| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
 
@@ -1385,6 +1385,10 @@ can reuse them.
 - **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
   so the counter keeps working when the officer on it changes, and
   `/workflow/counter` lists what is coming to their office.
+  **`one_stop` has no users today**, so every counter is empty and no box can be
+  marked received — which is also why the applicant's own panel can never show
+  one as delivered. Granting the role at `/hr/listing/roles` is the first step,
+  and `submitConsignment()` still has no button.
   **Boxes are listed by the *laboratory's* office, not the file's** — the
   applicant carries each box to the office of the lab that will test it, which is
   often not the office the application belongs to, and a counter scoped to its

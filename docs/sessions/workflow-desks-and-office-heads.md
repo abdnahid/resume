@@ -1163,3 +1163,337 @@ and a PDF from the same page.
   needs amending — noted at the top of this log and still true.
 - 15 offices have no local payroll admin, needing nomination at
   `/hr/listing/roles`.
+
+---
+
+## Session 2 — 2026-09-06 → 07 (office machine, then Linux machine)
+
+Picking up from `cd0a83f`. Two commits (`a6a0632`, `b2ff25c`) were made on the
+office machine before this session opened on the Linux one. The session ran the
+CM flow forward from the sealed samples: what the officer finds at the factory,
+how the visit is approved, and the letters that follow — ending at the applicant,
+who until the last hour of it could not see the one letter addressed to them.
+
+### User
+
+> We have moved from the last progress here. Get updated with the changes
+
+### Assistant
+
+Read the two office-machine commits. `a6a0632` gave the client surfaces a shared
+shell — `ClientNavbar` over `ModuleNavbar`, a layout at
+`app/(public)/public/layout.tsx` — because the dashboard, the applications and
+the company pages each rendered their own column and footer and no navbar at
+all. `b2ff25c` recorded what the textile file implies about the chemistry wing's
+file: `TestParameter` is upserted on `(subProductId, nameEn)` and
+`sourceSection` is not in that key, so where two wings name the same test on one
+sub-product the second import **overwrites** the first rather than sitting
+beside it. Nothing is wrong with one file loaded; it has to be checked the moment
+a second arrives.
+
+---
+
+### User
+
+> Now I am at the FDO's desk of the application. Currently on the inspection
+> step. Now while visiting FDO may find that the factory is manufacturing more
+> sub-products and variants. In that case he should be able to add those
+> manually. Should we add directly to the applied section or sampling letter?
+> what do you think? Also the sampling letter and inspection report should not be
+> shown on AD/DD or anyone else desk other than FDO untill it is sent to AD.
+> After AD apporoves it the Chain will see those reports also.
+
+### Assistant
+
+**The applied section, not the letter** (D89). A sub-product added to the letter
+alone would be sealed and tested but never applied for: no routing, no
+parameters, no test fee, and a licence that does not cover the article the jar
+came from. Adding it to the application changes the sampling grid and the fee by
+itself, because both read `ApplicationSubProduct`. `declaredBy` keeps the two
+apart, so "did they under-declare, or did we find more" stays answerable and the
+applicant's declaration is never rewritten.
+
+**The visit's working is not everyone's to read** (D90). `inspectionAudience()`
+returns `author` / `approver` / `chain` / `none`: the visiting officer always,
+the desk it was sent to once sent, everyone with standing once approved. D80
+gives every desk that handled a file the right to read it, which is right for the
+application and wrong for a report being written. A superadmin is deliberately
+not exempt — the point is not access control, it is that unfinished work is not
+somebody else's to read.
+
+---
+
+### User
+
+> while adding a sub-product I get error. Then after refresh it shows fine on the
+> page and it is added. The error is -> TypeError: Cannot read properties of
+> undefined (reading 'trim'). Also just like we can add, we should also be able
+> to remove
+
+### Assistant
+
+`SamplingPanel` keyed its typed counts by cell in a `useState` initialiser, which
+runs **once**. Recording a found sub-product adds a cell, and the re-render read
+a key that was not in the map. The row had already been written, which is why a
+reload looked fine. Fixed with `valueFor(c)` falling back to the prop rather than
+syncing with an effect, which would fight the officer's typing. Any panel holding
+draft state over a server-derived list has the same shape.
+
+---
+
+### User
+
+> The applied sub-products should also be removable. Because after application
+> the factory might discontinue a product line and want to remove that from that
+> applicaiton.
+
+### Assistant
+
+Struck out, not deleted (D91). `notInProductionAt` on both
+`ApplicationSubProduct` and `ApplicationSku`; everything downstream ignores a
+struck row — no sampling cell, no box, no test fee, nothing licensed — and the
+declaration stays on the file, because "what did they say they made" is asked in
+disputes and a deleted row cannot answer it. Reversible until the jars are
+sealed. Hard removal stays limited to the officer's own findings: deleting the
+applicant's declaration would erase the very thing `declaredBy` exists to keep.
+
+---
+
+### User
+
+> inspection report and sampling report both be sent to AD by FDO for approval.
+> AD will approve both or send shortfall to FDO or demand for a re-inspection
+> because inspection report is not good. At that time factory development notice
+> will be sent to client and the application will be on hold. […] One stop should
+> be a desk in each office. Anybody assigned to that place will be able to see
+> the files sent to that desk.
+
+### Assistant
+
+Built as three answers on one decision (D92), because a visit is either sound, or
+wrong on paper, or wrong in the factory: **approve** (numbered, file back to the
+officer), **send back** (`submittedAt` cleared, nothing on the application
+reopens, the samples stand), **factory not ready** (a `FactoryDevelopmentNotice`
+to the applicant and `awaiting_factory_development`). The third is explicitly not
+a shortfall: a shortfall reopens fields on a form, this asks for work in a
+building, and the visit stays exactly as recorded because a re-inspection is a
+*second* visit.
+
+The report and the sampling record go up **together** — one visit. Sending is
+refused while no consignment exists, which is what ties them at the sending end.
+
+**One Stop is a role, not a person** (D93), so the counter keeps working when the
+officer on it changes. `/workflow/counter` is scoped to `Consignment` and never
+to `Application` — and by the **laboratory's** office, not the file's, because
+the applicant carries each box to the office of the lab that will test it, which
+is often not the office the application belongs to. A counter scoped to its own
+office's files would miss exactly the boxes walking through its door.
+
+---
+
+### User
+
+> Wing head is 99% time a director of that wing at head office. In very rare case
+> we assign a DD to director as additional charge. what do you suggest about this
+> two? 1.The letters be generated automatically after approval of sampling letter
+> by AD or 2. The application comes to FDO's desk after approval and at that time
+> FDO issues letters.
+
+### Assistant
+
+Recommended **2**, and it is now D95. Automatic issue would attribute the letters
+to the approving desk, when the wing-head letter says "these samples are coming
+to your laboratory" and that is the sampling officer's statement; it would also
+commit seal numbers and specimen counts the moment they are approved, so a wrong
+one is already out. But leaving him to *compose* them invites the omission
+`resolveDestinations()` exists to prevent — so the set is derived for him and he
+issues it, all at once, refused while anything is unaddressed. Approval already
+hands the file back to him, so there is no extra hop.
+
+The wing head itself became D94: **whoever holds the wing's Director post** —
+substantively, then in additional charge, then nobody, said out loud. Seniority
+could not answer it, and the roster showed why: two grade-4 Directors in the
+Physical Testing Wing tied on grade *and* on designation rank, so "seniormost"
+returned whichever the sort happened to put first.
+
+---
+
+### User
+
+> We have 19945010033 as Chemical wing director in hr module. Why are chemical
+> wing head vacant you say? Also for physical wing Shahadat hossain is already
+> retired. id=19984010029 is the director now. His designation is also
+> director(physical) now. Okay implement the option 2.
+
+### Assistant
+
+The tie was stale data, not a rule failure. Corrected in
+`prisma/import/hr-corrections.ts` — the place for roster facts the export cannot
+supply: Shahadat Hossain retired, Mobin Ul Islam moved to post 682 as Director
+(Physical), Gazi Md. Nurul Islam to post 728. The Chemical wing then read as
+vacant for a reason worth keeping in mind: `import:desks` matches a Bengali wing
+name to the closest **leaf** section, so the sibling `Executive (<wing>)` unit —
+where the Director post actually sits — falls out of scope. That flaw is what hid
+the CM wing's free DD seat too. Still unfixed.
+
+---
+
+### User
+
+> The application is at AD's desk. I had approved inspection report earlier. The
+> sampling report was generated at FDO's desk and stays at everyone's desk. I
+> want inspection report and sampling report generated by FDO and sent to AD for
+> approval. Approves both then the file automatically passed to FDO with draft
+> letters generated. FDO issues those and the next phase of the applicaiton
+> begins.
+
+### Assistant
+
+Three separate things, and the diagnosis mattered more than the fix.
+
+**The file was stuck because it was approved under the old code.** Approval had
+not yet handed the file back when it ran, so it sat on the approver's desk with
+nothing for him to do. Corrected `CM-2026-000019` to its field officer and
+recorded the movement as the hand-back it should have been.
+
+**The sampling report was not a document.** It existed as `samplingRemarks` on
+the inspection report and nothing else. Built as its own page (D96) printing the
+sealed boxes, seal numbers, specimens and each order's parameter count — but with
+**no state of its own**: no serial, no submitted flag, no approver. It prints
+under the inspection report's number and is approved by the same act. One visit
+approved twice is a factory that passed on paper and failed on jars, which is not
+a state anyone can act on.
+
+**"Stays at everyone's desk" was the sampling *screen*, not the report** (D97).
+D90 widens the audience for the visit's work once approved, which handed a
+supervising desk the buttons for estimating counts and sealing jars. The screen
+is now the visiting officer's alone; every other desk gets the two documents,
+linked together so nobody approves one having read the other.
+
+---
+
+### User
+
+> I am at director(physical) and also clients desk. Where to find those issued
+> letter
+
+### Assistant
+
+Nowhere — and that was the honest answer. Three letters existed for application
+19 as dispatch records only. `SampleLetter` was read in exactly two places,
+`lib/cm/letters.ts` and one API route, so the only surface showing them was the
+Letters panel on the issuing officer's own process page.
+
+Three separate gaps, reported as such: the Director (Physical) has **no standing
+on the file** — the desks that touched application 19 are five others, and being
+*addressed by a letter* is not a form of standing the code recognises, so
+`/workflow/19` would 404 for him and there is no inbox of letters addressed to
+him; nothing on the client's application page reads letters at all; and none of
+the three has a printed form. Also flagged: `one_stop` has **zero users**, so
+letter 0003 is addressed to a desk nobody occupies and `/workflow/counter` is
+empty for every office until someone is granted the role.
+
+---
+
+### User
+
+> First build the client's end. We need to work in detail for physical testing
+> module. Physical and chemical testing workflow is different than CM workflow.
+
+### Assistant
+
+Built the client's end (D98). `/public/applications/[id]/letter` renders নমুনা
+জমাদান পত্র on the government letterhead with print and PDF, and
+`SampleLetterNotice` repeats its substance on the application page above the
+form.
+
+**It could not live under `/workflow`** — that prefix is INTERNAL-only, so the
+one person the letter is addressed to is the one person who could not open it
+there. Hence the client route and a PDF under `/api/client/…`, which is on the
+public allow-list; access is `membershipFor()` and a wrong id 404s, because a
+letter carries seal numbers and its existence must not be confirmable.
+
+The panel repeats the letter rather than only linking to it, for the reason the
+shortfall panel does: there is still no notification channel, so the page *is*
+the notice. A box already handed in shows as received rather than as an
+outstanding errand — from `Consignment.submittedAt`, which nobody can set yet.
+
+`ModuleNavbar` became `print:hidden` in the same commit. It had to be the moment
+a client surface printed a real document: a page under `app/(public)/public/`
+cannot opt out of that layout's chrome.
+
+**The testing modules were recorded as step 9, not started.** Their workflow is
+not CM's and must not be built as a variant of it — a laboratory receives boxes,
+opens them against a seal, distributes specimens to benches and records results
+per parameter, which is a different unit of work (`LabTestOrder`, carrying no
+application column at all by D70), a different actor, and a different reason to
+move. What is open before it can be planned is listed with the step.
+
+---
+
+### Facts established this session
+
+- **What the officer finds goes on the application, not on the letter.** The
+  letter is a dispatch instruction; the application is what gets licensed.
+- **A discontinued line is struck out, never deleted** — the declaration is
+  evidence.
+- **One visit, one approval.** The inspection and sampling reports share a
+  number and an approver; the sampling report has no state of its own.
+- **The wing head is a post, not a ranking.** Two grade-4 Directors in one wing
+  tie on grade and on designation, so seniority cannot address a letter.
+- **The One Stop counter is scoped to the laboratory's office**, not the file's.
+- **`one_stop` has zero users**, so every counter is empty today.
+- **The chemistry wing's Director was invisible to `import:desks`** because the
+  Bengali wing name resolves to the closest *leaf* section and the Director post
+  sits in the sibling `Executive` unit. Same flaw that hid the CM wing's free DD
+  seat.
+
+### Lessons that cost something
+
+- **"Where do I find X" is usually a report that X has no surface.** The answer
+  here was "nowhere", across three different audiences, and finding that took
+  one grep of who reads `SampleLetter`.
+- **A panel is not a document.** The sampling report was a form field and a
+  working screen; the chain needed a paper, and the two are not the same
+  artefact even when they hold the same rows.
+- **Fix the data as well as the code.** Approval was corrected to hand the file
+  back, but the file already approved under the old rule stayed stuck until it
+  was moved by hand.
+
+### Resume here
+
+**State.** Typecheck clean, tree committed and pushed. `CM-2026-000019` sits with
+its field officer, both reports approved, all three letters issued.
+
+**Where the CM flow now runs, end to end:** submitted → received → passed down →
+desk review with correction rounds → ready → inspection plan → approved with an
+office order → sampling plan → sealed specimens and printed labels → inspection
+and sampling reports → approved as one act → back to the officer → letters issued
+→ **the applicant sees where to carry each sealed box**.
+
+**The next hop is the counter, and it is not built.** `submitConsignment()`
+exists with its seal check and has no button; `one_stop` has no users. Until then
+no box can be marked received and the applicant's panel can never show one as
+delivered.
+
+**Also outstanding**
+
+- **The wing head and One Stop letters have no paper**, and their recipients have
+  no standing on the file — the two remaining gaps from "where do I find those
+  issued letter".
+- **Step 9 — the Physical and Chemical testing modules.** Client asked for it
+  next, in detail, and said plainly that their workflow differs from CM's. The
+  open questions are listed with the step in `docs/BUILD-PLAN.md`.
+- **`SAMPLE_SUBMISSION_DAYS` is 14 and invented** (D8), printed as guidance and
+  enforced nowhere. Needs the CM Wing's real period, and whether microbiological
+  work differs.
+- **`import:desks` leaf-section matching** still resolves a Bengali wing name to
+  the closest leaf, missing `Executive (<wing>)`.
+- **`candidates()` still restricts to the sender's own section** — D58 unamended,
+  carried from Session 1 and still true.
+- **Every routing row is `isPlaceholder`** (D66); no office has entered its own
+  referral map.
+- **The Bengali in every letter is drafted, not supplied.** The office order, the
+  two reports and now the submission letter all need a CM Wing officer's eye.
+- 15 offices have no local payroll admin, needing nomination at
+  `/hr/listing/roles`.
