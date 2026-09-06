@@ -8,6 +8,9 @@ import {
 } from "@/lib/cm/inspection";
 import { saveReport, sendReportForApproval, approveReport } from "@/lib/cm/inspection-report";
 import { setRequirement, commitSampling } from "@/lib/samples/service";
+import { addSubProduct } from "@/lib/cm/sub-products";
+import { addSku } from "@/lib/cm/skus";
+import { planFor } from "@/lib/cm/inspection";
 
 /**
  * Move a file: receive it into an office, or pass it along the chain.
@@ -230,6 +233,45 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         role: actor.role,
       });
       return NextResponse.json({ report });
+    }
+
+    // ── What the officer found at the factory (D89) ───────────────────────
+    if (body.action === "found-sub-product" || body.action === "found-sku") {
+      if (!(await canViewApplication(actor, applicationId))) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      if (!actor.employeeId) {
+        return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
+      }
+      // The visiting officer only: this is an amendment made *at the factory*,
+      // and a desk that was not there cannot make it.
+      const plan = await planFor(applicationId);
+      if (plan?.proposedByEmployeeId !== actor.employeeId) {
+        return NextResponse.json(
+          { error: "Only the officer who made the visit can record what he found." },
+          { status: 403 },
+        );
+      }
+
+      if (body.action === "found-sub-product") {
+        const row = await addSubProduct({
+          applicationId,
+          subProductId: Number(body.subProductId),
+          userId: actor.userId,
+          declaredBy: "fdo",
+          employeeId: actor.employeeId,
+        });
+        return NextResponse.json({ subProduct: row });
+      }
+
+      const sku = await addSku(
+        applicationId,
+        Number(body.applicationSubProductId),
+        body.sku as never,
+        actor.userId,
+        { employeeId: actor.employeeId },
+      );
+      return NextResponse.json({ sku });
     }
 
     // ── Sampling (D87) ────────────────────────────────────────────────────

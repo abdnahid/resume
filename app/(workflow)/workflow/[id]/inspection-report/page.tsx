@@ -3,7 +3,7 @@ import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, canViewApplication } from "@/lib/workflow/inbox";
 import { getApplication } from "@/lib/cm/applications";
 import { planFor } from "@/lib/cm/inspection";
-import { reportFor } from "@/lib/cm/inspection-report";
+import { reportFor, inspectionAudience } from "@/lib/cm/inspection-report";
 import { INSPECTION_CONDITIONS, INSPECTION_MARKINGS, INSPECTION_NARRATIVE } from "@/lib/cm/policy";
 import { orgForOffice } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
@@ -38,6 +38,18 @@ export default async function InspectionReportPage({
     planFor(applicationId),
   ]);
   if (!app || !report || !(report.submittedAt || report.approvedAt)) notFound();
+
+  // The same rule the panel uses (D90): a draft is the officer's, a sent report
+  // is the approver's, an approved one is the chain's.
+  const audience = inspectionAudience({
+    visitingOfficerId: plan?.proposedByEmployeeId ?? null,
+    holderEmployeeId: app.holderEmployeeId,
+    viewerEmployeeId: actor.employeeId,
+    viewerRole: actor.role,
+    submittedAt: report.submittedAt,
+    approvedAt: report.approvedAt,
+  });
+  if (audience === "none") notFound();
 
   const office = app.bstiOfficeId
     ? await prisma.office.findUnique({

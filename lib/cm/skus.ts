@@ -78,6 +78,22 @@ async function guard(applicationId: number, userId: string) {
   return app;
 }
 
+/**
+ * Refuse an amendment once the jars are sealed.
+ *
+ * A variant added after sealing would be licensed without ever having been
+ * sampled — the specimens are already in the applicant's custody and the plan
+ * cannot be regenerated (`commitSampling` refuses).
+ */
+async function assertNotSealed(applicationId: number) {
+  const sealed = await prisma.consignment.count({ where: { applicationId } });
+  if (sealed > 0) {
+    throw new Error(
+      "The samples are sealed. A variant found now cannot be added to this application.",
+    );
+  }
+}
+
 /** Membership only — who may act on the file, saying nothing about what is open. */
 async function standing(applicationId: number, userId: string) {
   const app = await prisma.application.findUniqueOrThrow({ where: { id: applicationId } });
@@ -144,13 +160,29 @@ const text = (v: string | null | undefined) => {
   return t === "" ? null : t;
 };
 
+/**
+ * Add a variant.
+ *
+ * `foundBy` is the inspecting officer's path (D67, D89): at the factory he may
+ * find articles the applicant did not declare, and the whole point of his
+ * amendment is that it happens *after* the file has left the applicant's hands.
+ * So it skips the applicant's editability gate — and only that. It is refused
+ * once specimens exist, because a variant added after sealing would be licensed
+ * without ever having been sampled.
+ */
 export async function addSku(
   applicationId: number,
   applicationSubProductId: number,
   input: SkuInput,
   userId: string,
+  foundBy?: { employeeId: string },
 ) {
-  await guard(applicationId, userId);
+  if (foundBy) {
+    await assertNotSealed(applicationId);
+    await standing(applicationId, userId).catch(() => null);
+  } else {
+    await guard(applicationId, userId);
+  }
   await subProductOf(applicationId, applicationSubProductId);
   const size = await resolveSize(input);
 
@@ -168,6 +200,10 @@ export async function addSku(
       packaging: text(input.packaging),
       grade: text(input.grade),
       sortOrder: (last?.sortOrder ?? -1) + 1,
+      // The applicant's declaration is never rewritten; a variant the officer
+      // found stands beside it, saying who found it (D67).
+      declaredBy: foundBy ? "fdo" : "applicant",
+      declaredByEmployeeId: foundBy?.employeeId ?? null,
       ...size,
       ...labelFields(input),
     },
@@ -177,7 +213,7 @@ export async function addSku(
   await prisma.applicationEvent.create({
     data: {
       applicationId,
-      kind: "sku_added",
+      kind: foundBy ? "sku_found" : "sku_added",
       note: `${created.brandName}${created.variant ? ` — ${created.variant}` : ""}`,
       actorUserId: userId,
     },

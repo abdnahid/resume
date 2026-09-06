@@ -9,13 +9,15 @@ import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import { roundsFor, artworkTargetsFor } from "@/lib/cm/shortfall";
 import { planFor, teamCandidates, reviewIsClosed } from "@/lib/cm/inspection";
 import { delegatorOf } from "@/lib/workflow/inbox";
-import { reportFor, reportGaps } from "@/lib/cm/inspection-report";
+import { reportFor, reportGaps, inspectionAudience } from "@/lib/cm/inspection-report";
 import { INSPECTION_CONDITIONS, INSPECTION_MARKINGS, INSPECTION_NARRATIVE } from "@/lib/cm/policy";
 import { prisma } from "@/lib/prisma";
 import ReviewPanel from "../_components/ReviewPanel";
 import InspectionPanel from "../_components/InspectionPanel";
 import ReportPanel from "../_components/ReportPanel";
 import SamplingPanel from "../_components/SamplingPanel";
+import FoundAtFactoryPanel from "../_components/FoundAtFactoryPanel";
+import { choicesFor } from "@/lib/cm/sub-products";
 import { samplingView } from "@/lib/samples/screen";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
@@ -75,6 +77,22 @@ export default async function ProcessPage({
    */
   const sampling = plan?.approvedAt ? await samplingView(applicationId) : null;
 
+  // The sub-products of this product not yet on the file — what the officer can
+  // add if he finds the factory making them (D89).
+  const unclaimed =
+    plan?.approvedAt && app.productId
+      ? (await choicesFor(app.productId)).filter(
+          (c) => !app.subProducts.some((sp) => sp.subProductId === c.id),
+        )
+      : [];
+  const sizeTypes =
+    plan?.approvedAt
+      ? await prisma.sizeType.findMany({
+          select: { id: true, nameEn: true, kind: true, units: { select: { id: true, code: true } } },
+          orderBy: { sortOrder: "asc" },
+        })
+      : [];
+
   const stage = stageInfo(app.state);
   const isHolder = !!actor.employeeId && app.holderEmployeeId === actor.employeeId;
 
@@ -89,6 +107,21 @@ export default async function ProcessPage({
    */
   const isVisitingOfficer =
     !!actor.employeeId && plan?.proposedByEmployeeId === actor.employeeId;
+
+  /**
+   * Who may see the visit's working at all (D90). Until the report is sent up
+   * it is a draft, and a senior reading a draft either corrects work that was
+   * going to be corrected anyway or forms a view of a visit from notes.
+   */
+  const audience = inspectionAudience({
+    visitingOfficerId: plan?.proposedByEmployeeId ?? null,
+    holderEmployeeId: app.holderEmployeeId,
+    viewerEmployeeId: actor.employeeId,
+    viewerRole: actor.role,
+    submittedAt: report?.submittedAt ?? null,
+    approvedAt: report?.approvedAt ?? null,
+  });
+  const seesInspectionWork = audience !== "none";
   const open = rounds.find((r) => r.respondedAt === null) ?? null;
   const stamp = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -248,7 +281,42 @@ export default async function ProcessPage({
               />
             )}
 
-            {sampling && (
+            {plan?.approvedAt && isVisitingOfficer && (
+              <FoundAtFactoryPanel
+                applicationId={app.id}
+                sealed={(sampling?.committed?.consignments.length ?? 0) > 0}
+                declared={app.subProducts.map((sp) => ({
+                  applicationSubProductId: sp.id,
+                  name: sp.subProduct.nameEn,
+                  byFdo: sp.declaredBy === "fdo",
+                  skus: sp.skus.map((k) => ({
+                    id: k.id,
+                    label: [
+                      k.brandName,
+                      k.variant,
+                      k.sizeValue !== null ? `${k.sizeValue} ${k.sizeUnit.code}` : k.sizeUnit.code,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                    byFdo: k.declaredBy === "fdo",
+                  })),
+                }))}
+                choices={unclaimed.map((c) => ({
+                  id: c.id,
+                  nameEn: c.nameEn,
+                  parameterCount: c.parameterCount,
+                  testFeeTaka: (c.testFeePoisha / 100).toLocaleString("en-BD"),
+                }))}
+                sizeTypes={sizeTypes.map((t) => ({
+                  id: t.id,
+                  nameEn: t.nameEn,
+                  kind: String(t.kind),
+                  units: t.units,
+                }))}
+              />
+            )}
+
+            {sampling && seesInspectionWork && (
               <SamplingPanel
                 applicationId={app.id}
                 cells={sampling.cells}
@@ -261,7 +329,7 @@ export default async function ProcessPage({
 
             {/* The report follows the approved order: the visit has to have
                 been authorised before there is anything to report on (D86). */}
-            {plan?.approvedAt && (
+            {plan?.approvedAt && seesInspectionWork && (
               <ReportPanel
                 applicationId={app.id}
                 context={{

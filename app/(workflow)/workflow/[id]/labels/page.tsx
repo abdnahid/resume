@@ -4,6 +4,8 @@ import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, canViewApplication } from "@/lib/workflow/inbox";
 import { getApplication } from "@/lib/cm/applications";
 import { samplingView } from "@/lib/samples/screen";
+import { planFor } from "@/lib/cm/inspection";
+import { reportFor, inspectionAudience } from "@/lib/cm/inspection-report";
 import LabelSheet from "./LabelSheet";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,19 @@ export default async function LabelsPage({ params }: { params: Promise<{ id: str
 
   const [app, view] = await Promise.all([getApplication(applicationId), samplingView(applicationId)]);
   if (!app || !view.committed) notFound();
+
+  // Labels belong to the visit, so they follow the report's audience (D90) —
+  // a senior who cannot read the report has no use for the jar codes either.
+  const [plan, report] = await Promise.all([planFor(applicationId), reportFor(applicationId)]);
+  const audience = inspectionAudience({
+    visitingOfficerId: plan?.proposedByEmployeeId ?? null,
+    holderEmployeeId: app.holderEmployeeId,
+    viewerEmployeeId: actor.employeeId,
+    viewerRole: actor.role,
+    submittedAt: report?.submittedAt ?? null,
+    approvedAt: report?.approvedAt ?? null,
+  });
+  if (audience === "none") notFound();
 
   // `/s/<ref>` is what the label resolves to — it answers by role and
   // relationship, and refuses identically to everyone else (D71).

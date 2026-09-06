@@ -101,6 +101,16 @@ export async function addSubProduct(args: {
   employeeId?: string;
 }) {
   const byFdo = args.declaredBy === "fdo";
+  if (byFdo) {
+    // Sealed jars cannot be re-planned, so a sub-product found now would be
+    // licensed without ever having been sampled (D89).
+    const sealed = await prisma.consignment.count({ where: { applicationId: args.applicationId } });
+    if (sealed > 0) {
+      throw new Error(
+        "The samples are sealed. A sub-product found now cannot be added to this application.",
+      );
+    }
+  }
   const app = await guard(args.applicationId, args.userId, byFdo);
 
   const sp = await prisma.subProduct.findUnique({

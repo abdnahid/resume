@@ -1261,6 +1261,28 @@ can reuse them.
   `toBengaliDigits()`. It appears on the board row and in the desk flow, so
   every desk sees it. **An approved plan cannot be edited or sent back** —
   changing the date means a fresh order, not an edited one.
+- **What the officer finds at the factory goes on the *application*, not on
+  the letter** (D89). A sub-product or variant added to the sampling letter
+  alone would be sealed and tested but never applied for — no routing, no
+  parameters, no test fee, and a licence that does not cover the article the jar
+  came from. `declaredBy` keeps the two apart so "did they under-declare, or did
+  we find more" stays answerable (D67), and the applicant's declaration is never
+  rewritten. Adding one changes the sampling grid and the test fee by itself,
+  because both read `ApplicationSubProduct`.
+- **Amendments close when the jars are sealed.** The plan cannot be regenerated
+  (`commitSampling` refuses), so a variant added afterwards would be licensed
+  without ever having been sampled. Both `addSubProduct` and `addSku` refuse,
+  and the panel hides rather than offering a button that will.
+- **The visit's working is not everyone's to read** (D90).
+  `inspectionAudience()`: the visiting officer always; the desk it was **sent
+  to**, once sent; everyone with standing once **approved**. D80 gives every
+  desk that handled a file the right to read it, which is right for the
+  application and wrong for a report being written — a senior reading a draft
+  either corrects work that was going to be corrected anyway or forms a view of
+  a visit from notes. The sampling plan, the labels and the printed report all
+  follow the same rule, so a link cannot outrun the panel that offers it.
+  **A superadmin is not exempt**: the point is not access control against
+  administrators, it is that unfinished work is not somebody else's to read.
 - **Sampling and the report are the visiting officer's work alone** (D88) —
   whoever proposed the inspection plan. A senior desk supervises and approves;
   it does not seal jars or write up a visit it did not make. **Holding the file

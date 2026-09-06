@@ -36,6 +36,45 @@ const REPORT_INCLUDE = {
   answers: { orderBy: { id: "asc" as const } },
 };
 
+/**
+ * Who may see the inspection work — the sampling plan and the report (D90).
+ *
+ * **Not everyone on the flow, and not yet.** D80 gives every desk that has
+ * handled a file the right to read it, which is right for the application; it
+ * is wrong for a report being written. Until the officer sends it up it is a
+ * draft — half-answered questions and a capacity figure he has not checked —
+ * and a senior reading a draft over his shoulder either corrects work that was
+ * going to be corrected anyway or forms a view of a visit from notes.
+ *
+ * So: the visiting officer always; the desk it has been sent to, once it is
+ * sent; everyone with standing once it is approved, because by then it is a
+ * document rather than somebody's working.
+ *
+ * The sampling plan follows the report rather than having a rule of its own —
+ * it is the same visit, and a senior who cannot read the report has no use for
+ * the jar counts behind it.
+ */
+export type InspectionAudience = "author" | "approver" | "chain" | "none";
+
+export function inspectionAudience(args: {
+  /** Whoever proposed the plan — the officer who made the visit. */
+  visitingOfficerId: string | null;
+  /** The desk currently holding the file. */
+  holderEmployeeId: string | null;
+  viewerEmployeeId: string | null;
+  viewerRole: string;
+  submittedAt: Date | null;
+  approvedAt: Date | null;
+}): InspectionAudience {
+  const me = args.viewerEmployeeId;
+  if (args.approvedAt) return "chain";
+  if (me && me === args.visitingOfficerId) return "author";
+  if (args.submittedAt && me && me === args.holderEmployeeId) return "approver";
+  // A superadmin is not exempt: the point is not access control against
+  // administrators, it is that unfinished work is not somebody else's to read.
+  return "none";
+}
+
 export async function reportFor(applicationId: number) {
   return prisma.inspectionReport.findUnique({
     where: { applicationId },

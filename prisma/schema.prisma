@@ -587,6 +587,7 @@ model Employee {
 
   // ─ Samples and lab testing ─
   subProductsDeclared   ApplicationSubProduct[] @relation("SubProductDeclaredBy")
+  skusDeclared          ApplicationSku[]        @relation("SkuDeclaredBy")
   sampleRequirementsSet LabSampleRequirement[]  @relation("SampleRequirementAgreedBy")
   consignmentsPacked    Consignment[]           @relation("ConsignmentPackedBy")
   consignmentsOpened    Consignment[]           @relation("ConsignmentOpenedBy")
@@ -2261,6 +2262,11 @@ model ApplicationSku {
   /// Who put this article on the file — the applicant, or the FDO who found it
   /// at inspection.
   declaredBy DeclaredBy @default(applicant)
+
+  /// The FDO who found it on the floor, when `declaredBy` is `fdo` — the same
+  /// question the sub-product answers, and asked in the same disputes.
+  declaredByEmployeeId String?
+  declaredByEmployee   Employee? @relation("SkuDeclaredBy", fields: [declaredByEmployeeId], references: [id])
 
   /// The brand this article is sold under. Required: an unbranded SKU cannot be
   /// identified on a shelf or on a certificate. Most applications repeat one
