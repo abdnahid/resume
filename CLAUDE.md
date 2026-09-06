@@ -432,9 +432,26 @@ file into the CM section at all. D58 needs amending: the head's first hand-off
 crosses into the *service's* section, and movement stays within that section
 afterwards.
 
-**"Testing wing head" needs no new table.** It is derivable — the seniormost
-officer of the office's Chemical or Physical section — which supersedes the
-`LabMember` table proposed earlier.
+**The testing wing head is whoever holds the wing's Director post** — not the
+seniormost officer of the section (D94, superseding what this file said before,
+which was written before additional charge was a column). Still no new table:
+the post answers it.
+
+The live roster shows why seniority does not: head office's **Physical Testing
+Wing holds two grade-4 Directors**, one in the Director (Physics) post and one
+sitting on a Deputy Director (Textile) post from the original seeding. They tie
+on grade *and* on designation rank, so "seniormost" returned whichever the sort
+happened to put first — not a way to address a letter.
+
+So `wingHeadForLab()` asks the post, in one order: the officer holding it
+substantively; the officer holding it in **additional charge** (D74) — the rare
+case, and what that column exists for; otherwise **nobody, said out loud**.
+Head office's **Chemical Testing Wing is vacant today** with nobody acting, so
+that third answer is live: an unaddressed letter is fixed in a minute, a letter
+addressed to the wrong Director is not noticed at all.
+
+**A branch office has no testing wing** — its labs hang off the branch itself —
+so `officeHeadFor()` answers there, which is what `office_head` already means.
 
 Everything else is in place. **22 of 23 offices have CM-desked staff** — from 23
 at Chittagong down to 1 at Patuakhali. The exception is **DMI, which has none**,
