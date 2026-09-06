@@ -849,3 +849,30 @@ export const INSPECTION_NARRATIVE: readonly ReportField[] = [
   { key: "mark_method", labelBn: "খ) গুণগত মান চিহ্ন সংযোজন পদ্ধতি সম্পর্কে আলোচনা", labelEn: "How the quality mark is to be applied" },
   { key: "recommendation", labelBn: "গ) পণ্যের গুণগত মান উন্নয়ন / সংরক্ষণ বিষয়ে পরামর্শ / সুপারিশ", labelEn: "Advice and recommendations on quality" },
 ] as const;
+
+/**
+ * D8 — how long the applicant has to deliver the sealed boxes.
+ *
+ * **Nobody has given us the real figure.** The samples travel in the
+ * applicant's own custody between the factory and each One Stop counter (D72),
+ * so the window is the whole of the control BSTI has over that leg: too long
+ * and a perishable sample is worthless by the time it reaches a bench, too
+ * short and a box bound for another district is late by the rules and not in
+ * fact.
+ *
+ * 14 days is a stand-in chosen so the letter can name a date at all — an
+ * instruction to deliver "in due course" is not an instruction. **It is
+ * printed as guidance, not as an expiry**, and nothing in the system refuses a
+ * box that arrives after it: a rule enforced on a number nobody has confirmed
+ * would reject real samples over an invented deadline. When the CM Wing gives
+ * the real period — and says whether it differs by discipline, which
+ * microbiological work suggests it must — change it here, and add the
+ * enforcement then and not before.
+ */
+export const SAMPLE_SUBMISSION_DAYS = 14;
+
+export function sampleSubmissionDueOn(issuedAt: Date): Date {
+  const d = new Date(issuedAt);
+  d.setDate(d.getDate() + SAMPLE_SUBMISSION_DAYS);
+  return d;
+}

@@ -86,7 +86,10 @@ export default function ModuleNavbar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-50">
+    // `print:hidden` for the same reason the HR navbar carries it: the client
+    // surfaces print real documents (the sample submission letter), and their
+    // layout has no way to opt out of this shell.
+    <header className="sticky top-0 z-50 print:hidden">
       {/* ── Utility Bar ── */}
       <div className="bg-primary text-primary-foreground/85">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-2 text-[12.5px] tracking-wide lg:px-10">

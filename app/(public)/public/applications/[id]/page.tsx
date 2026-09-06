@@ -11,8 +11,10 @@ import { CM_DOCUMENTS, FORM_STEPS, stepProgress, type FormStep } from "@/lib/cm/
 import { missingForSubmission as companyGaps } from "@/lib/client/organization";
 import { canEditAnyDocument, canEditTarget, stageInfo } from "@/lib/cm/states";
 import { editScopeFor, openRound } from "@/lib/cm/shortfall";
+import { applicantLetterFor } from "@/lib/cm/letter-view";
 import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import ShortfallNotice from "./_components/ShortfallNotice";
+import SampleLetterNotice from "./_components/SampleLetterNotice";
 import ArtworkFix from "./_components/ArtworkFix";
 import { artworkSkuIdOf } from "@/lib/cm/policy";
 import StageTracker from "./_components/StageTracker";
@@ -73,7 +75,7 @@ export default async function ApplicationPage({
   const app = await getApplication(id);
   if (!app) notFound();
 
-  const [gaps, requirements, sizeTypes, prefill, organization, subProductChoices] =
+  const [gaps, requirements, sizeTypes, prefill, organization, subProductChoices, letter] =
     await Promise.all([
       gapsFor(id),
       requirementsFor(id, viewer.id),
@@ -87,6 +89,9 @@ export default async function ApplicationPage({
       // parameters BSTI has not published yet — the step says so rather than
       // showing a picker with nothing in it.
       app.productId ? choicesFor(app.productId) : Promise.resolve([]),
+      // Null until the field officer issues the letters (D95) — a planned
+      // letter is not a letter, and nobody should carry jars on a draft.
+      applicantLetterFor(id),
     ]);
 
   /**
@@ -123,6 +128,9 @@ export default async function ApplicationPage({
       ].filter(Boolean).join(" · "),
     }];
   });
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
   /** True while the whole form is open — before submission. */
   const editable = scope.kind === "all";
   const info = stageInfo(app.state);
@@ -218,6 +226,28 @@ export default async function ApplicationPage({
                 />
               ))}
             </section>
+          )}
+
+          {/* The samples are in the applicant's own custody between the factory
+              and each counter (D72), so this is the one panel that asks them to
+              go somewhere. Above the form for the same reason the shortfall
+              notice is: there is no notification channel, so the page is the
+              notice. */}
+          {letter && (
+            <SampleLetterNotice
+              applicationId={app.id}
+              letterNo={letter.letterNo}
+              issuedOn={day(letter.issuedAt)}
+              dueOn={day(letter.dueOn)}
+              boxes={letter.boxes.map((b) => ({
+                code: b.code,
+                sealNo: b.sealNo,
+                labName: b.labName,
+                officeName: b.officeName,
+                specimenCount: b.specimenCount,
+                submittedOn: b.submittedAt ? day(b.submittedAt) : null,
+              }))}
+            />
           )}
 
           {round && (

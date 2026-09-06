@@ -1362,6 +1362,26 @@ can reuse them.
   them in one go. Issuing twice is refused; a corrected letter is a fresh letter
   with its own number, `বিএসটিআই/<office>/নমুনা/<serial>/<year>`, consecutive
   across one dispatch so a gap means a letter that never went.
+- **The applicant's letter lives on the client surface** (D98).
+  `/public/applications/[id]/letter` renders নমুনা জমাদান পত্র on the government
+  letterhead, with the PDF at `/api/client/applications/[id]/letter/pdf`. It
+  **cannot** live under `/workflow` — that prefix is INTERNAL-only (D12), so the
+  one person the letter is addressed to is the one person who could not open it
+  there. `applicantLetterFor()` in `lib/cm/letter-view.ts` builds it from the
+  consignments themselves, so a box cannot be left off the instruction that says
+  where to carry it. **Seal numbers are printed in full** — they are what the
+  counter checks a box against (D72). `SampleLetterNotice` repeats the substance
+  on the application page above the form, beside the shortfall notice and for
+  the same reason: there is no notification channel, so the page *is* the
+  notice, and a box already handed in shows as received rather than as an
+  outstanding errand.
+  **`ModuleNavbar` is now `print:hidden`**, which it needed to be the moment a
+  client surface printed a real document — a page under
+  `app/(public)/public/` cannot opt out of that layout's chrome.
+  **The delivery window is a stand-in.** `SAMPLE_SUBMISSION_DAYS` is 14 in
+  `policy.ts` with the reasoning (D8); it is printed as guidance and **nothing
+  enforces it**, because refusing a real sample over an invented deadline is
+  worse than accepting a late one.
 - **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
   so the counter keeps working when the officer on it changes, and
   `/workflow/counter` lists what is coming to their office.
