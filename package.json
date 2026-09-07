@@ -20,6 +20,8 @@
     "migrate:postings": "tsx prisma/migrate-postings.ts",
     "import:products": "tsx prisma/import/mandatory-315.ts",
     "import:test-parameters": "tsx prisma/import/test-parameters.ts",
+    "import:chemical-parameters": "tsx prisma/import/chemical-parameters.ts",
+    "backfill:urgent-fees": "tsx prisma/import/backfill-urgent-fees.ts",
     "import:desks": "tsx prisma/import/desks.ts",
     "import:office-heads": "tsx prisma/import/office-heads.ts",
     "import:office-head-desks": "tsx prisma/import/office-head-desks.ts",

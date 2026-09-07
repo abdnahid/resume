@@ -985,8 +985,11 @@ Product (one of the mandatory 315)
   pays the sum over every lab; an overwritten row is counted once, at whichever
   file was imported last. Nothing is wrong today — one file, one discipline,
   nothing to collide with — and the fix, if the wings do overlap, is to put
-  `sourceSection` in the key. **Check this the moment a second wing's file
-  arrives**; see the session log for the one query that settles it.
+  `sourceSection` in the key. **Checked when the chemical files arrived
+  (2026-09-08): it does not bite.** Only three sub-products meet textile at all
+  — Sanitary Napkin, Disposable Diaper, Nonwoven Wipes — each contributing one
+  microbiological count, and none of the names collides. Re-check when a third
+  wing's file lands; the query is in the session log.
 
 - **`discipline` is a per-file default, not a claim about the test** (D63).
   All 713 textile rows are stamped `physical` because that is the file they came
@@ -1003,6 +1006,39 @@ Product (one of the mandatory 315)
   content can be sealed for a chemistry lab and its absorbency for the physical
   lab, off one inspection.
 
+- **The Chemical Wing's two files are in** (2026-09-08), and they are the bulk
+  of the catalogue: **4,767 parameters over 491 sub-products and 203 of the 315
+  products**, against textile's 713 over 104. They arrive as `.docx`, so
+  `prisma/import/docx-grid.ts` is the Word counterpart of `xlsx-grid.ts` —
+  reading the ZIP central directory with `node:zlib` rather than taking a
+  dependency. Four rules earn their keep there, each of which cost a survey:
+  **the published list owns the product name** (match on the standard's
+  `(prefix, number)` and never its year — 92% against 5% by name); **the
+  sub-product is the residue** once the serial, the standard and the listed name
+  are removed, which is what makes `Sweetmeats` → *Rasogolla, Chomchom, Kalojam*
+  and `Chocolate` → *Milk, White*; **a row with no fee, no limit and no method
+  is a category title**, folded into its children's names as
+  `Total Plate Count, per gm, Max (Microbiological Requirements)` — which is
+  also what stops `pH (Dye)` and `pH (Developer)` colliding on
+  `(subProductId, nameEn)`, 42 collisions down to 5; and **the wing's stated
+  total is a checksum**, which proved those last 5 were duplicated source rows.
+  **`sourceSection` is `chemical-food` or `chemical-non-food`**, and both are in
+  `SECTION_FOR_SOURCE`. 25 blocks name a product the mandatory list does not and
+  were **not** imported; `--names` prints all 387 sub-product names, 27 of which
+  still carry a serial fragment worth tidying.
+- **The urgent fee is stored, not derived** (D99). Both `feePoisha` and
+  `urgentFeePoisha` are filled on every row: 2× where the sub-product's urgent
+  turnaround is shorter than its normal one, equal where it is not. D62 left the
+  column nullable and read null as "twice the normal fee", which is a rule
+  evaluated at read time — and the moment a second wing priced differently, null
+  would have meant "double" in one row and "nobody knows" in the next with
+  nothing to tell them apart. **Do not reintroduce a doubling rule at read
+  time**; sum the column. `backfill:urgent-fees` filled the 713 textile rows that
+  predated this, and there are now **no nulls**.
+  **The wing's own totals disagree with the rule for 115 of 408 packages** —
+  Poultry Feed computes to ৳40,000 against a published ৳25,000 — because some
+  tests cannot be expedited and carry no surcharge (D100). Open with the wing;
+  correcting it is one `UPDATE` per named test.
 - **The source is `utils/textile-parameter-list-sanitized.xlsx`**, with `Main
   Product` rewritten to the mandatory-315 name — 50 "main products" collapse to
   17 with no collision, because the sub-product name already carried what
@@ -1766,7 +1802,9 @@ npm run import:office-head-desks # seat each office head on their office's Execu
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
 
-npm run import:test-parameters # a wing's test-parameter file → the Phase G catalogue (--dry)
+npm run import:test-parameters # a wing's .xlsx parameter file → the Phase G catalogue (--dry)
+npm run import:chemical-parameters # the Chemical Wing's two .docx files (--dry, --names, --file=food)
+npm run backfill:urgent-fees   # fill any null urgent fee by the turnaround rule (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)
 
 # The 315 list is parsed from the PDF first; the JSON it writes is committed,

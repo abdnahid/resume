@@ -53,7 +53,23 @@ const HEAD_SECTIONS: { slug: string; discipline: LabDiscipline }[] = [
 
 /** Which head-office section owns each wing's parameter file. Extended as the
  *  other wings' files arrive. */
-const SECTION_FOR_SOURCE: Record<string, string> = { textile: "pt-textile" };
+/**
+ * A parameter's `sourceSection` → the head-office lab that owns it. The seed
+ * refuses to write a routing row for a section not listed here, which is what
+ * keeps provenance honest when a new wing's file arrives.
+ *
+ * **`chemical-non-food` → Organic Chemistry is a judgement, not a fact from the
+ * file.** The wing publishes one non-food document covering soaps, cosmetics,
+ * paints, cement and bitumen, which in practice is split between Organic and
+ * Inorganic Chemistry; the document does not say which parameter belongs to
+ * which. Owning it to Organic keeps every row routable today, and the
+ * per-parameter truth is `LabCapability`, which each lab maintains for itself.
+ */
+const SECTION_FOR_SOURCE: Record<string, string> = {
+  textile: "pt-textile",
+  "chemical-food": "ct-food",
+  "chemical-non-food": "ct-organic",
+};
 
 /** The organogram writes Barisal; the office register writes Barishal. */
 const CITY_ALIASES: Record<string, string> = { barisal: "barishal" };
