@@ -54,7 +54,7 @@ export default async function MappingPage({
   const productId = chosen?.subProduct.product.id ?? Number(sp.product);
   const siblings = Number.isInteger(productId)
     ? await prisma.subProduct.findMany({
-        where: { productId },
+        where: { productId, foldedAt: null },
         orderBy: [{ ordinal: "asc" }, { id: "asc" }],
         select: { id: true, nameEn: true, _count: { select: { parameters: true } } },
       })

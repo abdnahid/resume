@@ -111,7 +111,7 @@ export default async function CoveragePage({
   // full set beneath those products rather than only the selected ones.
   const candidates = step === 2 && scopedProductIds.length
     ? await prisma.subProduct.findMany({
-        where: { productId: { in: scopedProductIds } },
+        where: { productId: { in: scopedProductIds }, foldedAt: null },
         orderBy: [{ productId: "asc" }, { ordinal: "asc" }],
         select: {
           id: true, nameEn: true,

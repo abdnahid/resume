@@ -2619,6 +2619,31 @@ model SubProduct {
 
   ordinal Int @default(0)
 
+  /// Set when this row turned out to name the **whole product** rather than a
+  /// variant of it, and its parameters were folded into the real variants.
+  ///
+  /// Each wing files its own list, and the sub-product name is the residue left
+  /// after the product name and the standard are stripped from the block
+  /// heading — so a wing that tests the article as a whole leaves a residue
+  /// that is just the product again. The Chemical Wing's file produced
+  /// *Sanitary Napkins » "Sanitary Napkin"* beside the textile file's
+  /// *"Sanitary Towels/ Napkins"*, and the importer, keying on
+  /// `(productId, nameEn)`, wrote two rows for one article. An applicant
+  /// picking one of them is tested for half the standard and charged for half.
+  ///
+  /// **Folded, not deleted**, the same discipline as `notInProductionAt` and
+  /// `supersededAt`: the name is what a wing actually printed, re-importing
+  /// that wing's file writes its parameters straight back onto this row, and a
+  /// deleted row would simply be recreated. Keeping it means `labs:reconcile`
+  /// re-folds it instead of having to guess which of two identically-named
+  /// packages is the duplicate — and the same test names recurring across real
+  /// variants (D60) makes that guess unsafe.
+  ///
+  /// **A folded row is not a package.** It must be excluded wherever
+  /// sub-products are offered or counted.
+  foldedAt   DateTime?
+  foldedNote String?
+
   parameters         TestParameter[]
   applicationEntries ApplicationSubProduct[]
   labRequirements    LabSampleRequirement[]

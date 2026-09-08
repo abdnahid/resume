@@ -56,7 +56,7 @@ export async function productRows(): Promise<ProductRow[]> {
            ARRAY_REMOVE(ARRAY_AGG(DISTINCT tp."sourceSection"), NULL) AS sections,
            ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.number), NULL)           AS standards
       FROM "Product" p
-      LEFT JOIN "SubProduct"      sp ON sp."productId"    = p.id
+      LEFT JOIN "SubProduct"      sp ON sp."productId"    = p.id AND sp."foldedAt" IS NULL
       LEFT JOIN "TestParameter"   tp ON tp."subProductId" = sp.id
       LEFT JOIN "ProductStandard" ps ON ps."productId"    = p.id
       LEFT JOIN "Bds"             b  ON b.id              = ps."bdsId"
@@ -88,7 +88,7 @@ export async function productDetail(productId: number) {
   if (!product) return null;
 
   const subProducts = await prisma.subProduct.findMany({
-    where: { productId },
+    where: { productId, foldedAt: null },
     orderBy: [{ ordinal: "asc" }, { id: "asc" }],
     select: {
       id: true, nameEn: true, nameBn: true, standardAsPrinted: true,
@@ -139,6 +139,7 @@ export async function subProductDetail(subProductId: number) {
     select: {
       id: true, nameEn: true, nameBn: true, standardAsPrinted: true,
       turnaroundNormalDays: true, turnaroundUrgentDays: true,
+      foldedAt: true, foldedNote: true,
       product: { select: { id: true, serial: true, nameEn: true } },
       bds: { select: { number: true, titleEn: true } },
       packageFees: {

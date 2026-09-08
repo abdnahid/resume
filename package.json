@@ -28,7 +28,8 @@
     "import:hr-corrections": "tsx prisma/import/hr-corrections.ts",
     "fix:orphaned-files": "tsx prisma/import/reassign-orphaned-files.ts",
     "seed:labs": "tsx prisma/seed-labs.ts",
-    "labs:operational": "tsx prisma/import/operational-labs.ts"
+    "labs:operational": "tsx prisma/import/operational-labs.ts",
+    "labs:reconcile": "tsx prisma/import/reconcile-sub-products.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

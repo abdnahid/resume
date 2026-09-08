@@ -18,7 +18,10 @@ import { assertEditable } from "./shortfall";
 /** The sub-products offered for a product, with what each would cost to test. */
 export async function choicesFor(productId: number) {
   const rows = await prisma.subProduct.findMany({
-    where: { productId },
+    // A folded row named the whole product rather than a variant of it, and its
+    // parameters now live on the real variants. Offering it would let an
+    // applicant pick a package that is tested for nothing.
+    where: { productId, foldedAt: null },
     orderBy: [{ ordinal: "asc" }, { id: "asc" }],
     select: {
       id: true,
@@ -115,9 +118,16 @@ export async function addSubProduct(args: {
 
   const sp = await prisma.subProduct.findUnique({
     where: { id: args.subProductId },
-    select: { id: true, productId: true, nameEn: true },
+    select: { id: true, productId: true, nameEn: true, foldedAt: true },
   });
   if (!sp) throw new Error("No such sub-product.");
+  // Checked here and not only in the picker: a folded row named the whole
+  // product rather than a variant, holds no parameters, and would give a
+  // licence tested against nothing.
+  if (sp.foldedAt)
+    throw new Error(
+      `“${sp.nameEn}” is not a variant of this product — choose one of the variants instead.`,
+    );
   if (!app.productId || sp.productId !== app.productId)
     throw new Error("That sub-product does not belong to the product on this application.");
 

@@ -2094,3 +2094,122 @@ Step 1 currently records a working set and **does not** gate submission —
 jurisdiction still decides which office receives an application, from the
 factory's district (D28). If it should gate, that is a larger change and the
 two rules would need reconciling.
+
+---
+
+## Session 8 — 2026-09-08 / 09 (Linux machine)
+
+### User
+
+> There is a major observation I noticed just now. […] You identified Sanitary
+> napkin from chemical non-food parameter file and gave sub-product name as
+> "Sanitary napkin" also. And you got the same BDS from textile parameter file
+> and it has only one sub-product. Actually those are same. […] There wont be 2
+> sub product. Instead it is one. In most cases chemical file has no sub-product
+> I guess. In that case if chemical has 1 sub-product and in the textile file or
+> any future physical test parameter file you find the same product but has
+> multiple sub-product then consider chemical test to be applied on each of them.
+
+### The bug, and how far it went
+
+The sub-product name is the **residue** left after the product name and the
+standard are stripped from a block heading. A wing that tests the article as a
+whole leaves the product name again — so the Chemical Wing produced
+*Sanitary Napkins » "Sanitary Napkin"* beside the textile file's
+*"Sanitary Towels/ Napkins"*, and the importer, keying on `(productId, nameEn)`,
+wrote **two rows for one article**.
+
+Session 5 had checked for this and concluded it did not bite. It had checked the
+wrong thing: whether two wings' *parameter names* collided on a shared
+sub-product. They did not. What it never asked was whether the two wings had
+produced **two sub-products for the same article**, which is the failure that
+matters — the sub-product is the level a test plan resolves against (D67).
+
+**Three products, and one live draft already wrong.** Application 24 named the
+chemical-only row: it would have been tested for one microbiological count and
+charged ৳1,000, on an article that needs five tests at ৳2,370.
+
+| Product | Was | Is |
+|---|---|---|
+| Sanitary Napkins | 2 rows — 4 physical, 1 chemical | 1 row, 5 tests, ৳2,370 |
+| Nonwoven Wipes | 2 rows — 3 physical, 1 chemical | 1 row, 4 tests, ৳2,170 |
+| Disposable Diapers | 9 rows — 8 sizes + 1 whole-product chemical | 8 sizes, 5 tests each, ৳2,341 |
+
+### Three attempts, and why the first two were wrong
+
+This is the part worth keeping.
+
+**1. Delete the whole-product row.** Works once. Does not survive a re-import:
+the importer keys on `(productId, nameEn)`, finds nothing and writes the row
+straight back, so the bug returns the next time a wing's file is loaded.
+
+**2. Delete it, and detect the re-import by comparing parameter names.** The
+dry run proposed folding **201 products**. *Suji » Small particle grade* carries
+the same eight test names as *Large particle grade* and is a different article —
+which is precisely what D60 says is normal, and precisely why a parameter is
+owned by its sub-product. Name equality is not evidence of duplication.
+
+**3. Fold, not delete — `SubProduct.foldedAt`.** The row stays, emptied and
+flagged. Re-importing writes its parameters back onto the *same* row; the
+reconcile folds them away again. No heuristic is needed to recognise it, because
+it is marked. Same discipline as `notInProductionAt` and `supersededAt`.
+
+**And one more correction inside attempt 3.** Identifying the whole-product row
+by *counting rows per wing* — one against many — broke as soon as a fold had
+happened: the eight diaper sizes then carry both wings, so chemical reads eight
+and textile eight, and the rule refused with "two wings name different sets of
+variants". They are the **same** eight rows. Fixed by comparing row *sets*
+rather than counts, and by making the primary signal the **name**: a
+whole-product row is named after the product, de-pluralised, with one edit
+allowed per ten characters — enough for *Non Oven wipes* → *Nonwoven Wipes*,
+tight enough that *Sanitary Towels/ Napkins* stays a variant name.
+
+### What it does
+
+`npm run labs:reconcile [-- --dry]`, run after any wing's import; both importers
+now end by naming it.
+
+- **Copied onto each variant, not shared** (D60): eight rows carrying the same
+  microbiological count, each free to be corrected alone, each with its own
+  package fee. Capability and routing are carried across, so an office that had
+  already chosen a destination keeps it.
+- **It refuses rather than guesses** when two wings name genuinely different
+  variant sets, and when a sub-product already carries laboratory test orders.
+- **Applications move rather than dying with the row** — the applicant named the
+  article, and which row it hung off is our modelling.
+
+**Proven idempotent over the real loop**: import → reconcile → import →
+reconcile → idle.
+
+### Facts established this session
+
+- **491 sub-products, 3 of them folded; 488 offered.** 4,774 parameters, none on
+  a folded row, none without capability or routing.
+- **10 sub-products now carry two wings' tests** — 1 + 8 + 1 — where before the
+  same articles were split across 13 rows.
+- **A folded row is excluded in seven queries** and refused by `addSubProduct()`.
+
+### Lessons that cost something
+
+- **Checking a thing is not checking the thing next to it.** Session 5 verified
+  that two wings' parameter names would not collide on a shared sub-product,
+  and recorded it as "it does not bite". The question that mattered was whether
+  the two wings were describing the same article at all.
+- **A rule that reads the data's shape breaks when the data's shape is what you
+  just changed.** Counting rows per wing was correct before the first fold and
+  wrong immediately after it. Identity — a flag, a name — survives the
+  operation; structure does not.
+- **The dry run caught the 201-product mistake before it was written.** Second
+  time in this log that reading the dry run was the whole of the review.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean, committed.
+
+Unchanged from session 7: nothing on record is any laboratory's own answer yet,
+and the order is grant `lab_incharge` → each office works through
+`/labs/coverage`.
+
+**New standing instruction:** `npm run labs:reconcile` after every wing's
+import. When the third wing's file lands it is the step most likely to be
+forgotten, and the failure is silent — an applicant tested for half a standard.

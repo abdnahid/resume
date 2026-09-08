@@ -644,6 +644,13 @@ async function main() {
   for (let i = 0; i < feeRows.length; i += 500)
     await prisma.subProductPackageFee.createMany({ data: feeRows.slice(i, i + 500), skipDuplicates: true });
   console.log(`✓ package fees  ${feeRows.length}`);
+
+  console.log(`
+Next: npm run labs:reconcile -- --dry
+  A wing that tests an article as a whole leaves a sub-product named after the
+  product itself, which is the same article another wing filed under its real
+  variant names. Reconciling folds one into the other; until it runs, an
+  applicant can pick a package that is tested for half the standard.`);
 }
 
 main()

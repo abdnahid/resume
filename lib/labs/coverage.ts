@@ -118,7 +118,7 @@ export async function setProductScope(args: {
 }) {
   if (args.add.length) {
     const subs = await prisma.subProduct.findMany({
-      where: { productId: { in: args.add } },
+      where: { productId: { in: args.add }, foldedAt: null },
       select: { id: true },
     });
     for (let i = 0; i < subs.length; i += 500) {
@@ -209,7 +209,7 @@ export async function coverageFor(officeId: number, subProductIds?: number[]) {
 
   const [subProducts, labs] = await Promise.all([
     prisma.subProduct.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, foldedAt: null },
       orderBy: [{ productId: "asc" }, { ordinal: "asc" }],
       select: {
         id: true, nameEn: true,

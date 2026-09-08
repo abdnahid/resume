@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -970,11 +970,43 @@ Product (one of the mandatory 315)
   duration are each written once and span the rows beneath. Read without filling
   them, every column but the sub-parameter and the limit looks 90% empty.
 
+- **One article, one sub-product — and `(productId, nameEn)` is not enough to
+  guarantee it** (D111). The sub-product name is the residue left after the
+  product name and the standard are stripped from a block heading, so a wing
+  that tests the article *as a whole* leaves the product name again: the
+  Chemical Wing filed `Sanitary Napkins » "Sanitary Napkin"` beside the textile
+  file's `"Sanitary Towels/ Napkins"`, and two rows were written for one
+  article. **The sub-product is the level a test plan resolves against** (D67),
+  so that means an applicant picks one and is tested for half the standard and
+  charged for half — a live draft was doing exactly that.
+  **`npm run labs:reconcile` is the step that fixes it, and it must be run after
+  any wing's import** — both importers end by saying so. The rule: a wing
+  contributing a row named after the *product* is testing the whole product, so
+  its tests apply to **each** variant another wing named. Three products were
+  affected; Disposable Diapers' single chemical package now sits on each of its
+  eight sizes, because each size is a separate sample.
+- **Folded, not deleted, and identified by name** (D112). `SubProduct.foldedAt`.
+  Deleting does not survive a re-import — the importer keys on
+  `(productId, nameEn)`, finds nothing and writes the row straight back.
+  Detecting the re-import by comparing *parameter names* is unsafe, because the
+  same test names recur across genuinely different variants (D60): *Suji »
+  Small particle grade* carries the same eight names as *Large particle grade*,
+  and that rule proposed folding 201 products. Counting rows per wing breaks
+  once a fold has happened, because the variants then carry both wings and
+  eight-against-eight reads as a disagreement when it is the same eight rows.
+  So the signal is that the **name is the product's name**, de-pluralised with
+  one edit per ten characters — enough for *Non Oven wipes*, tight enough that
+  *Sanitary Towels/ Napkins* stays a variant.
+- **A folded row is not a package and must be excluded wherever sub-products are
+  offered or counted** (D113). Seven queries filter `foldedAt: null`, and
+  `addSubProduct()` refuses one by id as well — a rule enforced only where the
+  button is holds only for people who used the button.
 - **Import merges, never duplicates.** `(productId, nameEn)` on `SubProduct` is
   what lets the chemistry file add its parameters to a sub-product the textile
   file created. Adding a wing means a `SOURCE` block plus a
   `SECTION_FOR_SOURCE` entry in `prisma/seed-labs.ts`; the seed **refuses to
-  write** if a parameter arrives from a section not listed there.
+  write** if a parameter arrives from a section not listed there. **Then
+  `npm run labs:reconcile`** — see D111 above, and do not skip it.
 
   **But `TestParameter` is upserted on `(subProductId, nameEn)`, and
   `sourceSection` is not in that key.** So a merge only happens where the two
@@ -1957,6 +1989,7 @@ npm run import:chemical-parameters # the Chemical Wing's two .docx files (--dry,
 npm run fees:urgent            # re-price every package's urgent fee from what the wing published (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)
 npm run labs:operational       # close the labs the client says do not exist in practice (--dry)
+npm run labs:reconcile         # one article, one sub-product — run after any wing's import (--dry)
 
 # The 315 list is parsed from the PDF first; the JSON it writes is committed,
 # so this is only needed if the source PDF changes.
