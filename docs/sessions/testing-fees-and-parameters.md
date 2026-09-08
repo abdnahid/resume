@@ -1525,3 +1525,260 @@ been built), the two letters, encrypting the link at rest, and the
 **Added by this session:** when the chemistry wing's file arrives, run the
 Disposable Diapers check *before* importing it, and decide whether these 77 rows
 should be re-stamped as chemical now or left for the chemistry file to claim.
+
+---
+
+## Session 5 — 2026-09-07 / 08 (Linux machine)
+
+The chemistry wing's files arrived — the ones Sessions 3 and 4 kept writing
+notes for. They are Word documents, not spreadsheets, and they are six times the
+textile file. By the end of the session they were in the database and the
+catalogue had gone from one wing to three sections.
+
+### User
+
+> Good news. I have got two files for chemical products and parameters. Study it
+> and plan how we can integrate it in our system?
+
+### Assistant
+
+Surveyed both before proposing anything, because the textile file had already
+shown that a confident reader of the wrong column bills someone for a method
+name. `utils/Chemical-food-param.docx` is 222 product blocks over 2,724
+parameter rows; `utils/chemical-non-food-param.docx` is 190 over 1,615. One
+eleven-column table each.
+
+**The schema needs no change** — every column has a home already. What has to be
+built is a reader.
+
+Seven findings decided how. The hierarchy is carried by **blank cells as often
+as by merges** (1,627 rows leave the product cell empty with no `vMerge` at all,
+so honouring merges alone splits one product into dozens). **The BDS number is
+the join key and the name is not** — 88% resolve by the cited standard against
+19 blocks by name. One cell holds serial, product, sub-product and standard in
+no fixed order. There is a level below the parameter expressed as a **caption**
+— 30 rows with a name but no fee, no limit and no method, with 184 parameters
+beneath them. The `(subProductId, nameEn)` key **would silently destroy data**:
+Oxidation Hair Dyes carries `pH` at both `9.0 – 11.0` and `1.8 to 4.0`, one for
+the dye and one for the developer. **The stated total is a usable checksum** —
+it agrees for 383 of 412 blocks, and of the 29 that disagree, 4 are explained
+exactly by a duplicated row. And **"urgent is 2× normal" is a textile rule, not
+a BSTI rule**: it holds for 284 of 408 packages.
+
+**Session 4's parting instruction was carried out first.** It asked that the
+Disposable Diapers check run *before* importing, because `TestParameter` is
+upserted on `(subProductId, nameEn)` with `sourceSection` outside the key, so a
+second wing naming a test the first wing already recorded would overwrite it.
+**It does not bite.** Across both chemical files only three sub-products meet
+textile at all — Sanitary Napkin, Disposable Diaper, Nonwoven Wipes — each
+contributing exactly one parameter, a microbiological count, and none of the
+three names collides. The key can stay. Re-check when a third wing's file lands.
+
+---
+
+### User
+
+> Let me clarify some things. I have provided you with correct BDS Names. So take
+> BDS Number from chemical files and understand the related name from the BDS
+> list file. Also you have to identity sub-products. For example we have
+> sweetmeats as BDS name and the sub-products to identify are-> Rasogolla,
+> Chomchom, Kalojan, Roshmalai. About no fee, no limit, no method-> that is just
+> category title. You can give parameter names like this-> Total Plate Count, per
+> gm, Max (Microbiological)
+
+### Assistant
+
+All three clarifications tested against the files, and they lifted coverage from
+88% to 94%.
+
+**The published list owns the name**, and the standard's identity is
+`(prefix, number)` and **never the year** — the list writes
+`BDS 25:2015 Amendmentment-1:2020` where the wing writes `BDS 25:2015`, and they
+are one standard. Requiring the year to agree loses a third of the file.
+
+**The sub-product is the residue.** The rule generalises further than the
+example: matching the *longest listed name contained in the cell* and taking
+what is left also turns `Milk Chocolate` and `White Chocolate` into two
+sub-products of `Chocolate`, and `Follow Up Formula for older infants` into one
+of `Follow-up formula` — both of which had been unmatched. Run over both files
+it reproduces the client's own example exactly: Sweetmeats → *Rasogolla,
+Chomchom, Kalojam, Rasomalai, Pera, Monda Sandesh*.
+
+**The caption becomes a qualifier**, and that is what saves the upsert key.
+`pH (Dye)` and `pH (Developer)` are distinct rows, both limits kept, both fees
+counted. Measured across both files: **42 collisions before, 5 after** — and
+those last 5 are exact repeats with identical limits, which the checksum already
+proved were duplicated source rows.
+
+---
+
+### User
+
+> Urgent fee for physical parameters are always double the normal fees. Its the
+> chemical that has this issue. How should we handle this?
+
+### Assistant
+
+Recommended moving the urgent price to the package — and that recommendation was
+wrong, for a reason that arrived one message later.
+
+The evidence for it was real: `testFeeFor()` had always priced every parameter
+of a sub-product with no selection possible, `TestParameter.urgentFeePoisha` had
+**no reader anywhere in the codebase**, and the chemical wing publishes one
+urgent total per product. Cross-referencing the ratio against the duration
+columns also produced a genuine rule — the 13 packages at exactly 1× include 9
+whose urgent turnaround *equals* their normal one, and you cannot sell speed you
+cannot deliver.
+
+Also found, and recorded as D100 rather than imported: for **121 of the 124**
+non-2× packages, `urgent − normal` is exactly a subset-sum of the parameter
+fees, and the tests left at single fee are coherent — **Aldrin and Dieldrin in
+47 of 47 packages, never doubled anywhere**, plus aflatoxin, heavy metals and
+microbiological counts. Every one has a floor on its turnaround. But subset-sum
+is ambiguous where fees repeat (Moisture reads as single in 7 packages and
+doubled in 97), so it identifies *a* subset, not *the* subset.
+
+---
+
+### User
+
+> We will need parameter selection. Actually we need it now. When applicant
+> applies for a sub-product there is a chance for some products to be tested on
+> user specified parameters. I dont want to give this access to applicant
+> directly while applying for a CM License. FDO at the step of sampling are
+> adding/removing sub-product and variant, I want to give FDO to select/deselect
+> parameters also. So are you gonna do urgent fees on parameter basis or
+> sub-product basis?
+
+### Assistant
+
+**Per parameter** — selection settles it, and it reverses the previous answer.
+A package-level urgent price was defensible only while every parameter was
+always priced; once the officer can deselect, the wing's published urgent
+*total* describes a package nobody ordered.
+
+Recorded the selection design as D101 but did **not** build it: exclusion rows
+rather than selections, because the default is "everything the standard
+requires" and the *deviation* is the fact worth storing — the same discipline as
+`notInProductionAt` (D91) — with a **required reason**, locked once the jars are
+sealed, printed on the inspection report so the approving desk sees it, and
+filtered in `resolveDestinations()`, the single place a sub-product's parameters
+are gathered.
+
+---
+
+### User
+
+> Let me be clear. Can we not solve parameter fee issue by keeping two separate
+> db column. 1. normal, 2. urgent? And when user selects urgent then just
+> calculate urgent.
+
+### Assistant
+
+Yes, and it is simpler than what I was proposing. **Both columns already
+existed**; the change is making the urgent one NOT NULL and always filled.
+
+D62 had left it nullable with null meaning "twice the normal fee" — a rule
+evaluated at read time, which works for exactly as long as one wing prices one
+way. With a second wing, null means "double" in one row and "nobody knows" in
+the next with nothing to tell them apart. **Storing the number removes the
+ambiguity rather than managing it**, and the reader becomes a sum. The work
+moves to the importer, which is where deciding a number once, in a script whose
+output a person reads, belongs.
+
+---
+
+### User
+
+> I think its the normal days and urgent days that determines fee difference. Do
+> this -> seed database based on this logic-> put normal fees and then put urgent
+> fee double if urgent days is shorter than normal, otherwise make urgent value =
+> normal value. Now do all the data entry.
+
+### Assistant
+
+Checked the rule against the files, flagged one disagreement, then built it.
+
+**The durations are uniform within a package** — only 2 of 412 blocks vary row
+to row — so the rule gives 2× for nearly everything. Against the wing's own
+published urgent totals it agrees for 271 of 408 packages and **charges more for
+115**: Poultry Feed computes to ৳40,000 against a published ৳25,000. Said once,
+then built as specified. It is recoverable: the rule is deterministic and
+correcting it is one `UPDATE` per named test.
+
+**Built and run.**
+
+- `prisma/import/docx-grid.ts` — the Word counterpart of `xlsx-grid.ts`. Walks
+  the ZIP central directory with `node:zlib` rather than taking a dependency,
+  resolves `gridSpan` and `vMerge`, fills blanks downward. Verified against both
+  files before anything else was written: it reproduced the Python survey's
+  counts exactly.
+- `prisma/import/chemical-parameters.ts` — `--dry`, `--names`, `--file=`.
+- `prisma/import/backfill-urgent-fees.ts` — the 713 textile rows that predated
+  the rule.
+- `chemical-food` and `chemical-non-food` added to `SECTION_FOR_SOURCE`, then
+  `seed:labs` re-run.
+
+Three bugs found and fixed by reading the dry run rather than by a failure: the
+final punctuation trim was stripping the closing bracket that the bracket repair
+had just balanced; `sourceSection` was being written as a constant, losing the
+food/non-food provenance D63 requires; and the serial patterns needed four more
+shapes (`28 a)`, `39a.`, `7.(a)`, `69.u)21)`).
+
+### Facts established this session
+
+- **The catalogue is now 4,767 parameters over 491 sub-products and 203 of the
+  315 products** — chemical-food 2,570, chemical-non-food 1,484, textile 713.
+  1,212 methods, 4,767 capability rows, 109,641 routing rows, all still
+  `isPlaceholder`.
+- **No urgent fee is null any more**, in any section.
+- **The `(subProductId, nameEn)` key survives a second wing**, measured: three
+  shared sub-products, one parameter each, no name collisions.
+- **`TestSubParameter` was not needed** for these files. A caption becomes part
+  of its children's names instead of a level of its own.
+- **The wing tests products CM does not license** — 25 blocks name a product
+  absent from the mandatory 315, and they were not imported.
+
+### Lessons that cost something
+
+- **A recommendation is only as good as the constraints known when it was
+  made.** The package-level urgent price was well-argued and wrong, and what
+  made it wrong was a requirement that had not been stated yet. Nothing was
+  built on it, because it was a recommendation and not a commit.
+- **The dry run is the deliverable until it is read.** Every bug in the importer
+  was found by reading its own output — the stranded bracket, the lost
+  provenance, the unstripped serials — and none by an exception.
+- **An anchor that stops matching takes the whole edit with it.** A doc script
+  aborted on its third `assert` and wrote nothing, which is the behaviour the
+  Session-1 lesson in the workflow log asked for: the two earlier failures had
+  written a partial file.
+
+### Resume here
+
+**State.** Typecheck clean, committed, pushed. The database holds the full
+three-section catalogue.
+
+**Open with the Chemical Wing, in priority order:**
+
+1. **Urgent pricing.** The imported rule charges more than the wing's own total
+   for 115 of 408 packages. D100 says the difference is per-test — Aldrin,
+   Dieldrin, aflatoxin, microbiology carry no surcharge because they cannot be
+   expedited. Confirm the reason and the list.
+2. **23 checksum failures**, listed by the dry run.
+3. **25 unmatched products.** Some are on the published list under another name
+   (Pickle, Vegetable Ghee, Condensed Milk); the rest are testing BSTI does that
+   CM does not license, which needs a decision about whether the catalogue holds
+   non-mandatory `Product` rows.
+4. **18 cited BDS numbers our catalogue does not hold** — ten edition drift, and
+   eight international adoptions (Codex CXS 87/156, CAC 8/9/074, ISO 13006,
+   EN 12591/14023).
+
+**Not built, and decided:** D101, the field officer's parameter selection.
+Exclusion rows with a required reason, filtered in `resolveDestinations()`.
+Until it exists, every parameter of a sub-product is always tested and always
+charged.
+
+**Also carried forward:** 27 of 387 sub-product names still carry a serial
+fragment (`--names` lists them); the 77 textile parameters that are chemistry by
+method are still stamped `physical` and no chemical file claimed them; every
+routing row is still `isPlaceholder`, now at 109,641 of them.

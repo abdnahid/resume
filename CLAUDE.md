@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -1189,6 +1189,17 @@ travels through several hands and is treated as public.
 - **Removing a variant or sub-product is refused once specimens exist.**
   Otherwise sealed jars in the applicant's custody lose the row that says whose
   they are.
+- **[NOT BUILT] The field officer will select which parameters are tested**
+  (D101, decided 2026-09-07). Today every parameter of an applied sub-product is
+  tested and charged — `testFeeFor()` and `resolveDestinations()` both take the
+  whole set — and any code written before D101 lands should keep assuming that.
+  When it is built: **exclusion rows with a required reason**, not a selection,
+  because the default is "everything the standard requires" and the deviation is
+  the fact worth storing (the `notInProductionAt` discipline, D91); locked once
+  the jars are sealed; printed on the inspection report so the approver sees it;
+  and filtered in `resolveDestinations()`, which is the single place a
+  sub-product's parameters are gathered. **Not the applicant's choice** — nobody
+  should pick which tests their own licence rests on.
 
 ## Workflow — files moving inside BSTI
 
