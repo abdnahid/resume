@@ -256,6 +256,28 @@
 }
 
 /* Admin — Slate */
+/* Laboratory — the testing wings' own colour, distinct from the workflow module
+   that hands them their samples. */
+.labs-theme {
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --secondary: #f0fdfa;
+  --secondary-foreground: #115e59;
+  --accent: #f0fdfa;
+  --accent-foreground: #115e59;
+  --ring: #0f766e;
+}
+.labs-theme.dark,
+.labs-theme .dark {
+  --primary: #2dd4bf;
+  --primary-hover: #14b8a6;
+  --secondary: #042f2e;
+  --secondary-foreground: #99f6e4;
+  --accent: #042f2e;
+  --accent-foreground: #99f6e4;
+  --ring: #2dd4bf;
+}
+
 .admin-theme {
   --primary: #334155;
   --primary-hover: #1e293b;

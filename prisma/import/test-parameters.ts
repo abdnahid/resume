@@ -24,6 +24,9 @@
 import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  priceUrgent, URGENT_SOURCE_NOTE, type UrgentFeeSource,
+} from "../../lib/labs/urgent-fee";
 import path from "node:path";
 import { readGrid, resolveColumns, type ColumnSpec } from "./xlsx-grid";
 import type { LabDiscipline, LimitKind } from "../../generated/prisma/client";
@@ -324,6 +327,7 @@ async function main() {
 
   // ── Sub-products, parameters, sub-parameters ───────────────────────────────
   let nSub = 0, nParam = 0, nLine = 0;
+  const bySource = new Map<UrgentFeeSource, number>();
   for (const sp of subProducts) {
     const product = byName.get(sp.productName)!;
     const row = await prisma.subProduct.upsert({
@@ -343,7 +347,34 @@ async function main() {
     });
     nSub++;
 
-    for (const p of sp.params) {
+    // **The urgent price is decided per package** (D99). This file publishes no
+    // urgent total — it carries the two durations and nothing else — so every
+    // package here is priced by the rule and labelled `doubled_assumed`: the 2×
+    // holds, and nothing in the file confirms it. The chemical files do publish
+    // one, and 1,621 of their parameters are apportioned against it instead.
+    const priced = priceUrgent({
+      normalFees: sp.params.map((x) => x.feePoisha),
+      statedUrgentTotal: null,
+      normalDays: sp.normalDays,
+      urgentDays: sp.urgentDays,
+    });
+    bySource.set(priced.source, (bySource.get(priced.source) ?? 0) + sp.params.length);
+
+    await prisma.subProductPackageFee.upsert({
+      where: { subProductId_sourceSection: { subProductId: row.id, sourceSection: SOURCE.section } },
+      create: {
+        subProductId: row.id, sourceSection: SOURCE.section,
+        statedNormalFeePoisha: null, statedUrgentFeePoisha: null,
+        summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
+        turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
+      },
+      update: {
+        summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
+        turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
+      },
+    });
+
+    for (const [i, p] of sp.params.entries()) {
       const own = p.subParams.length ? { kind: "unspecified" as LimitKind, refNumber: null } : classifyLimit(p.limit);
       const param = await prisma.testParameter.upsert({
         where: { subProductId_nameEn: { subProductId: row.id, nameEn: p.name } },
@@ -351,6 +382,7 @@ async function main() {
           subProductId: row.id, nameEn: p.name, slug: slugify(p.name),
           methodId: p.method ? (methods.get(p.method) ?? null) : null,
           feePoisha: p.feePoisha, discipline: SOURCE.discipline,
+          urgentFeePoisha: priced.urgentFees[i], urgentFeeSource: priced.source,
           sourceSection: SOURCE.section, ordinal: p.ordinal,
           limitText: p.subParams.length ? null : p.limit || null,
           limitKind: own.kind,
@@ -358,6 +390,10 @@ async function main() {
         update: {
           methodId: p.method ? (methods.get(p.method) ?? null) : null,
           feePoisha: p.feePoisha, discipline: SOURCE.discipline,
+          // A fee typed by hand in the catalogue screen is not recomputed over
+          // (D99), and re-importing the wing's file is not "by hand" — the file
+          // is the authority for the rows it carries, so the source resets too.
+          urgentFeePoisha: priced.urgentFees[i], urgentFeeSource: priced.source,
           sourceSection: SOURCE.section, ordinal: p.ordinal,
           limitText: p.subParams.length ? null : p.limit || null,
           limitKind: own.kind,
@@ -387,6 +423,8 @@ async function main() {
 
   console.log(`✓ sub-products ${nSub}`);
   console.log(`✓ parameters   ${nParam}`);
+  for (const [k, n] of [...bySource].sort((a, b) => b[1] - a[1]))
+    console.log(`    urgent: ${k.padEnd(16)} ${n}  ${URGENT_SOURCE_NOTE[k]}`);
   console.log(`✓ sub-params   ${nLine}`);
 }
 

@@ -1782,3 +1782,179 @@ charged.
 fragment (`--names` lists them); the 77 textile parameters that are chemistry by
 method are still stamped `physical` and no chemical file claimed them; every
 routing row is still `isPlaceholder`, now at 109,641 of them.
+
+---
+
+## Session 6 — 2026-09-08 (Linux machine)
+
+Opened cold: the previous session had been closed by accident, so nothing of it
+survived except the repository. State was read back from `git log`, the Session 5
+resume point and the database itself, which is what those three exist for.
+
+**One discrepancy surfaced immediately, and it was in the plan rather than the
+code.** `docs/BUILD-PLAN.md`'s D99 row described an `urgentFeeSource` column and
+an apportioned pricing scheme, with counts (2,564 / 1,591 / 67 of 4,222 chemical
+rows). The schema had no such column, the importer used the flat 2× rule, and
+the real chemical row count is 4,054. D99's *decision* was right; its row had
+been written describing a recommendation that was reversed a message later.
+Recorded here because a plan that describes unbuilt work reads exactly like a
+plan that describes built work.
+
+### User
+
+> For urgent pricing lets do it like this-> initially assume urgent fee = 2x
+> normal fees per parameter unless normal days=urgent days. In that case use
+> normal fee = urgent fees for that parameter. No for the products like poultry
+> feeds where all the parameter having shorter urgent days doesn't math 2x fees
+> -> calculate a multiplier and apply it to all parameter (25000/20000=1.25).
+> Besides this I want you to build a frontend for product data management along
+> with laboratory mapping. […] Application can be at any office but the
+> laboratory selection is based on testing availability. […] I think I have
+> discussed at length about 2D mapping with you before.
+
+### Assistant — the pricing
+
+The apportionment is what D100 could not justify writing per test and *can*
+justify writing per package, and saying so is the whole of D102: subset-sum
+identifies *a* subset of tests that double, not *the* subset, because fees
+repeat — Moisture reads as single in 7 packages and doubled in 97. A flat
+multiplier is **right in aggregate to the poisha** and honest about being an
+apportionment; `urgentFeeSource` is what stops the two being confused.
+
+- `lib/labs/urgent-fee.ts` — `priceUrgent()`, Prisma-free, the only place the
+  decision is made. `distribute()` is largest-remainder, so the parts sum to the
+  wing's published total **exactly**: rounding each part alone would leave the
+  package a few poisha off the one figure this exists to match.
+- `SubProductPackageFee` (D103) — each wing's stated totals per
+  `(subProduct, sourceSection)`. Needed because the apportionment divides by the
+  published urgent total, and re-parsing a Word document is not a thing a screen
+  can do. It also makes the 23 checksum failures queryable instead of printed
+  once by a dry run, and it is the only place a turnaround survives a second
+  wing filing for the same sub-product.
+- Both importers now price per package; `npm run fees:urgent` replaces
+  `backfill:urgent-fees`, which filled nulls in a column that is now NOT NULL.
+
+**Result.** `doubled` 2,323 · `apportioned` 1,606 · `doubled_assumed` 732 (713
+of them the whole textile file, whose format has no urgent-total column at all)
+· `same_as_normal` 106. **383 of the 385 apportionable packages now match the
+wing's published urgent total exactly.**
+
+**Two that do not, and they are the source contradicting itself.** *Flat bread
+Tortilla* and *Food Grade Container* publish an urgent total for a turnaround
+that is not shorter than their normal one. The client's rule wins — no shorter
+service, no surcharge — and `priceUrgent()` returns an `anomaly` string saying
+so rather than smoothing it over. Both were already on the checksum list, which
+is fair evidence their totals are stale. A third, *After Shave Lotion Type-1*,
+publishes an urgent total **below** its normal total.
+
+### Assistant — the module
+
+`/labs`, four screens, built to the shape the session-2 discussion settled.
+
+**The map is one package at a time.** 23 offices × 4,767 parameters is 109,641
+cells. The question people actually bring is "for this product, where does each
+test go", which is one package wide and 23 offices across.
+
+**Reading is every office; writing is one column.** "Who else sends this to
+Faridpur" is a question the whole grid should answer at a glance; the decision
+itself belongs to one office and nobody redraws another's referrals.
+
+**Three owners for three kinds of fact** (D104), in `lib/labs/access.ts`: the
+fee schedule is superadmin's, because an office able to edit it could reduce
+what its own applicants pay; capability is the lab's own office's, because
+nobody else can find out; routing is the office's, which is the whole reason
+D64 stores it. `lab_incharge` (D105) is the role that makes "each office and
+wing will enter their own data" possible — no users today, like `one_stop`.
+
+**Verified end to end against the live database, then rolled back**, using the
+client's own worked example:
+
+```
+✓ refused, no capability: Chemistry Lab, Khulna has not declared it can run
+  “Colour fastness test to Light (Sunlight)”…
+✓ Khulna routes 3 tests to itself and 2 to Faridpur
+  resolveDestinations at Khulna → 3 → Chemistry Lab, Khulna
+                                  2 → Chemistry Lab, Faridpur   problems: 0
+  after closing Faridpur:
+  ⚠ Colour fastness to Dry Cleaning is routed to Chemistry Lab, Faridpur,
+    which is closed
+  ⚠ 2 of 5 parameters have no usable route from this office
+```
+
+That last part is the design, not a gap: closing a lab **does not repoint**
+anyone. The office chose those destinations, and silently moving its samples
+somewhere it never agreed to send them is worse than telling it.
+
+### The laboratories that do not exist
+
+The client named eleven offices with laboratories. `seed:labs` had created 46
+across 22, from the organogram, with none invented. The other 22 laboratories
+are organogram units with no bench behind them.
+
+Closed rather than deleted (D106), by `npm run labs:operational`, which holds
+the list. **All 22 held no capability and no routing cells, so nothing broke** —
+and every office the client named does have a lab in the organogram, so the two
+sources disagree in one direction only.
+
+It makes the fallback larger than CLAUDE.md said: **11 offices have a working
+chemistry lab, 7 a physical one, and 12 have no laboratory at all.**
+
+### Facts established this session
+
+- **No package is priced above what its wing publishes any more.** The 115
+  over-charged packages are gone; 383 of 385 match exactly.
+- **The `(subProduct, sourceSection)` key is now load-bearing in two places** —
+  parameters and package fees — which is what makes a second wing filing for the
+  same sub-product safe.
+- **The module is complete and the map is empty.** Three head-office sections
+  hold every capability row; all 109,641 routing cells are still stand-ins.
+  Nothing is blocked, because the stand-ins resolve.
+
+### Lessons that cost something
+
+- **A decision recorded in the plan reads like a feature in the code.** D99's
+  row described an apportionment nobody had built, with counts that did not
+  match the database. Session 5 had already flagged the general form of this for
+  D101 and written it down; the same trap had been laid one row above and not
+  noticed. **When a decision is recorded ahead of the build, the row has to say
+  so** — the D101 entry does, and that is why it did not mislead.
+- **The typecheck is the module checklist.** Adding `labs` to `MODULES`
+  immediately failed the build on `Footer`'s icon map, which is exactly the
+  guard CLAUDE.md describes for adding a module. Nothing else caught it.
+- **`pkill -f "next dev"` kills the shell running it**, because the pattern
+  matches its own command line. Cost one aborted build.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean, committed. Database holds
+the repriced catalogue and the 24 open laboratories.
+
+**The map is the next real work, and it is data entry, not code.** In order:
+
+1. **Grant `lab_incharge`** at `/hr/listing/roles` to somebody at each of the 11
+   offices with a laboratory. Until then only an office head or a superadmin can
+   fill anything in.
+2. **Each laboratory declares what it can run** at `/labs/registry/<id>`. Only
+   three head-office sections have declared anything, and a lab that has
+   declared nothing cannot be chosen as a destination.
+3. **Each office fills in its column** at `/labs/mapping`. The 12 offices with
+   no laboratory at all are the ones where every single parameter has to be
+   routed somewhere else.
+
+**Still open with the Chemical Wing**, unchanged from session 5 except the
+first, which is now smaller:
+
+1. **D100** — is the urgent surcharge per test, and if so which tests? The
+   apportionment matches the package total, so nothing is wrong today; what is
+   unverified is the per-test split. 1,606 rows carry `urgentFeeSource =
+   'apportioned'` and are the list to correct.
+2. **23 checksum failures**, now stored on `SubProductPackageFee` and shown on
+   each package's screen rather than only in a dry run.
+3. **25 unmatched products** — non-mandatory `Product` rows, or skip?
+4. **18 cited BDS numbers the catalogue does not hold.**
+
+**Also carried forward:** D101 (the field officer's parameter selection) is
+decided and **not built** — every parameter of an applied sub-product is still
+tested and charged. 27 of 387 sub-product names still carry a serial fragment.
+The 77 textile parameters that are chemistry by method are still stamped
+`physical`.

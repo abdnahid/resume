@@ -38,6 +38,9 @@
 import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import {
+  priceUrgent, URGENT_SOURCE_NOTE, type UrgentFeeSource,
+} from "../../lib/labs/urgent-fee";
 import path from "node:path";
 import { readTables, fillGrid } from "./docx-grid";
 import type { LabDiscipline, LimitKind } from "../../generated/prisma/client";
@@ -282,12 +285,26 @@ function parseFile(file: string): { blocks: Block[]; dataRows: number } {
 /** A caption: named, but with nothing to charge and nothing to test against. */
 const isCaption = (r: Row) => !!r.parameter && !r.feePoisha && !r.limit && !r.method;
 
+/**
+ * Two published totals for one package add up; one published and one absent is
+ * the published one. Null + null stays null — an absent total is not a zero,
+ * and treating it as one would make an unpublished package look like a free one.
+ */
+const addStated = (a: number | null, b: number | null) =>
+  a === null ? b : b === null ? a : a + b;
+
 export type Resolved = {
   productId: number; productSerial: number; productName: string;
   /** The file this block came from — provenance, and never inferred (D63). */
   section: string;
   subProduct: string; standard: string | null;
   normalDays: number | null; urgentDays: number | null;
+  /** The wing's own stated totals for this package, kept as printed (D99). */
+  statedNormalTotal: number | null; statedUrgentTotal: number | null;
+  /** What our parsed rows actually sum to. */
+  summedNormalTotal: number;
+  /** How the urgent fees below were arrived at, and the multiplier if scaled. */
+  urgentSource: UrgentFeeSource; multiplier: number | null;
   params: {
     name: string; limit: string; method: string;
     feePoisha: number; urgentFeePoisha: number; ordinal: number;
@@ -323,6 +340,7 @@ async function main() {
   const unmatched: { file: string; cell: string }[] = [];
   const dropped: { sub: string; name: string }[] = [];
   const checksum: { sub: string; stated: number; summed: number }[] = [];
+  const anomalies: { sub: string; why: string }[] = [];
   let dataRows = 0, captionRows = 0, lumpBlocks = 0;
 
   for (const src of SOURCES) {
@@ -371,15 +389,9 @@ async function main() {
         if (seen.has(dupKey)) { dropped.push({ sub, name }); continue; }
         seen.add(dupKey);
 
-        const fee = r.feePoisha ?? 0;
-        // The client's rule (2026-09-07): a shorter urgent turnaround is what
-        // is being paid for, so it doubles; where the turnaround cannot be
-        // shortened there is nothing to charge for.
-        const nd = r.normalDays, ud = r.urgentDays;
-        const urgent = nd !== null && ud !== null && ud < nd ? fee * 2 : fee;
         params.push({
           name, limit: r.limit, method: r.method,
-          feePoisha: fee, urgentFeePoisha: urgent, ordinal: params.length,
+          feePoisha: r.feePoisha ?? 0, urgentFeePoisha: 0, ordinal: params.length,
         });
       }
       if (!params.length) { lumpBlocks++; continue; }
@@ -389,11 +401,29 @@ async function main() {
       if (head.normalTotal && head.normalTotal !== summed)
         checksum.push({ sub, stated: head.normalTotal, summed });
 
+      // **The urgent price is decided per package, not per row** (D99). The
+      // package total is the only urgent figure the wing published, so it is
+      // the only one that can be checked — and where doubling does not
+      // reproduce it, the surcharge is apportioned across the rows so that it
+      // does. A block is exactly one published package, which is why this
+      // happens here and not after the merge below.
+      const priced = priceUrgent({
+        normalFees: params.map((p) => p.feePoisha),
+        statedUrgentTotal: head.urgentTotal,
+        normalDays: head.normalDays,
+        urgentDays: head.urgentDays,
+      });
+      for (const [i, p] of params.entries()) p.urgentFeePoisha = priced.urgentFees[i];
+      if (priced.anomaly) anomalies.push({ sub, why: priced.anomaly });
+
       resolved.push({
         productId: product.id, productSerial: product.serial, productName: product.nameEn,
         section: src.section,
         subProduct: sub, standard: printed,
         normalDays: head.normalDays, urgentDays: head.urgentDays,
+        statedNormalTotal: head.normalTotal, statedUrgentTotal: head.urgentTotal,
+        summedNormalTotal: summed,
+        urgentSource: priced.source, multiplier: priced.multiplier,
         params,
       });
     }
@@ -408,6 +438,19 @@ async function main() {
     if (!prior) { merged.set(k, r); continue; }
     const have = new Set(prior.params.map((p) => p.name));
     for (const p of r.params) if (!have.has(p.name)) prior.params.push({ ...p, ordinal: prior.params.length });
+    // The wing published a total per block, so two blocks under one
+    // sub-product state two halves of one package (Coconut Oil, once per
+    // grade). Add them, and recompute the summed figure over what survived the
+    // name dedup rather than trusting either block's own.
+    prior.statedNormalTotal = addStated(prior.statedNormalTotal, r.statedNormalTotal);
+    prior.statedUrgentTotal = addStated(prior.statedUrgentTotal, r.statedUrgentTotal);
+    prior.summedNormalTotal = prior.params.reduce((a, p) => a + p.feePoisha, 0);
+    // Two blocks priced differently leave the package mixed. Say so rather
+    // than picking one: `apportioned` is the weaker claim, so it wins.
+    if (prior.urgentSource !== r.urgentSource) {
+      prior.urgentSource = "apportioned";
+      prior.multiplier = null;
+    }
   }
   const subProducts = [...merged.values()];
   const allParams = subProducts.flatMap((s) => s.params);
@@ -424,9 +467,12 @@ async function main() {
   console.log(`Duplicate rows    ${dropped.length} dropped`);
   console.log(`Lump-priced       ${lumpBlocks} blocks skipped (a total, no parameters)`);
   console.log(`Unmatched         ${unmatched.length} blocks (no product in the published list)`);
-  const doubled = allParams.filter((p) => p.urgentFeePoisha === p.feePoisha * 2).length;
-  console.log(`Urgent = 2x       ${doubled}`);
-  console.log(`Urgent = normal   ${allParams.length - doubled}  (turnaround cannot be shortened)`);
+  const bySource = new Map<UrgentFeeSource, number>();
+  for (const s2 of subProducts)
+    bySource.set(s2.urgentSource, (bySource.get(s2.urgentSource) ?? 0) + s2.params.length);
+  console.log(`Urgent fees       ${allParams.length} parameters, by how each was priced:`);
+  for (const [k, n] of [...bySource].sort((a, b) => b[1] - a[1]))
+    console.log(`   ${k.padEnd(17)} ${n}  ${URGENT_SOURCE_NOTE[k]}`);
   console.log(`Checksum failures ${checksum.length}  (stated total ≠ sum of its parameters)`);
   const suspect = subProducts.filter((s2) => /^\s*\d/.test(s2.subProduct) || /\(/.test(s2.subProduct) !== /\)/.test(s2.subProduct));
   console.log(`Names to eyeball  ${suspect.length}  (leading digit or an unmatched bracket — run with --names)`);
@@ -440,6 +486,10 @@ async function main() {
     for (const c of checksum.slice(0, 30))
       console.log(`  • ${c.sub.slice(0, 46)}  stated ${c.stated / 100}  summed ${c.summed / 100}`);
     if (checksum.length > 30) console.log(`  … and ${checksum.length - 30} more`);
+  }
+  if (anomalies.length) {
+    console.log(`\nPackages whose own figures do not agree — priced by the 2× rule instead:`);
+    for (const a of anomalies) console.log(`  • ${a.sub.slice(0, 46)} — ${a.why}`);
   }
   if (dropped.length) {
     console.log(`\nDuplicate rows dropped:`);
@@ -543,7 +593,8 @@ async function main() {
 
   const paramRows: {
     subProductId: number; nameEn: string; slug: string; methodId: number | null;
-    feePoisha: number; urgentFeePoisha: number; discipline: LabDiscipline;
+    feePoisha: number; urgentFeePoisha: number; urgentFeeSource: UrgentFeeSource;
+    discipline: LabDiscipline;
     sourceSection: string; ordinal: number; limitText: string | null; limitKind: LimitKind;
   }[] = [];
   for (const s of subProducts) {
@@ -556,6 +607,7 @@ async function main() {
         subProductId: id, nameEn: p.name, slug: slugify(p.name),
         methodId: p.method ? methodId.get(slugify(p.method)) ?? null : null,
         feePoisha: p.feePoisha, urgentFeePoisha: p.urgentFeePoisha,
+        urgentFeeSource: s.urgentSource,
         discipline: "chemical", sourceSection: s.section,
         ordinal: p.ordinal, limitText: p.limit || null, limitKind: c.kind,
       });
@@ -566,6 +618,32 @@ async function main() {
     process.stdout.write(`\r  … ${Math.min(i + 500, paramRows.length)}/${paramRows.length} parameters`);
   }
   console.log(`\n✓ parameters    ${allParams.length} (${paramRows.length} new)`);
+
+  // ── the wing's own published figures, kept ────────────────────────────────
+  // Written every run, not only when the parameters are new: this is what the
+  // recompute divides by (D99) and what makes the 23 open checksum questions
+  // answerable in SQL rather than only in a dry run somebody has to re-do.
+  // Replaced rather than upserted, because the key is (sub-product, section)
+  // and this run is the authority for the sections it just read.
+  const sections = SOURCES.filter((x) => !ONLY || x.key === ONLY).map((x) => x.section);
+  await prisma.subProductPackageFee.deleteMany({
+    where: { sourceSection: { in: sections }, subProductId: { in: subIds } },
+  });
+  const feeRows = subProducts
+    .map((s) => {
+      const id = subId.get(`${s.productId}|${s.subProduct}`);
+      return id === undefined ? null : {
+        subProductId: id, sourceSection: s.section,
+        statedNormalFeePoisha: s.statedNormalTotal,
+        statedUrgentFeePoisha: s.statedUrgentTotal,
+        summedNormalFeePoisha: s.summedNormalTotal,
+        turnaroundNormalDays: s.normalDays, turnaroundUrgentDays: s.urgentDays,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+  for (let i = 0; i < feeRows.length; i += 500)
+    await prisma.subProductPackageFee.createMany({ data: feeRows.slice(i, i + 500), skipDuplicates: true });
+  console.log(`✓ package fees  ${feeRows.length}`);
 }
 
 main()

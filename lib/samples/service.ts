@@ -45,7 +45,7 @@ export async function resolveDestinations(officeId: number, subProductId: number
       labId: true,
       isPlaceholder: true,
       parameter: { select: { id: true, nameEn: true, discipline: true } },
-      lab: { select: { id: true, nameEn: true, discipline: true, officeId: true } },
+      lab: { select: { id: true, nameEn: true, discipline: true, officeId: true, isActive: true } },
     },
   });
 
@@ -62,6 +62,16 @@ export async function resolveDestinations(officeId: number, subProductId: number
   const problems: string[] = [];
 
   for (const r of rows) {
+    // A lab that has been closed is not a destination, whatever the map still
+    // says. Rows pointing at one are deliberately not repointed when it closes
+    // — that would move an office's samples somewhere it never chose — so this
+    // is where the consequence surfaces, by name.
+    if (!r.lab.isActive) {
+      problems.push(
+        `${r.parameter.nameEn} is routed to ${r.lab.nameEn}, which is closed`,
+      );
+      continue;
+    }
     if (!capable.has(`${r.labId}:${r.parameter.id}`)) {
       problems.push(
         `${r.parameter.nameEn} is routed to ${r.lab.nameEn}, which does not hold that capability`,

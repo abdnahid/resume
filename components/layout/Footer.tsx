@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   BadgeCheck,
   SearchCheck,
+  FlaskConical,
   Home,
 } from "lucide-react";
 import { MODULES, type ModuleKey } from "@/lib/modules";
@@ -17,6 +18,7 @@ const MODULE_ICONS: Record<ModuleKey, typeof Users> = {
   hr: Users,
   store: ShoppingBag,
   workflow: GitBranch,
+  labs: FlaskConical,
   accounts: Calculator,
   inventory: Package,
   admin: ShieldCheck,

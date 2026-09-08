@@ -46,6 +46,14 @@ enum Role {
   /// the only role besides superadmin that may record a verdict. Carries no
   /// other administrative power.
   case_officer
+  /// The officer who maintains a laboratory's own reference data — what the lab
+  /// can actually run (`LabCapability`) and, for its office, where a parameter
+  /// it cannot run is sent (`LabRouting`). Its own job, because a lab's
+  /// capability is a fact only the lab knows, and the client's instruction from
+  /// the outset was that "each office and wing will enter their own data".
+  /// Carries no authority over files, payroll or the fee schedule: what a test
+  /// *costs* is the wing's published price and stays superadmin's.
+  lab_incharge
   /// The One Stop Service Centre counter, one per office (D93). Receives the
   /// sealed boxes an applicant carries in. Its **only** write in the whole flow
   /// is "received / not received": payment is read-only to it, so a counter
@@ -340,9 +348,9 @@ model User {
 
   applications         Application[]
   applicationEvents    ApplicationEvent[]
-  applicationConsents  Application[]         @relation("ApplicationConsent")
+  applicationConsents  Application[]              @relation("ApplicationConsent")
   applicationMovements ApplicationMovement[]
-  shortfallResponses   ShortfallRound[]      @relation("ShortfallRespondedBy")
+  shortfallResponses   ShortfallRound[]           @relation("ShortfallRespondedBy")
   developmentResponses FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRespondedBy")
 
   // ─ Samples and lab testing ─
@@ -415,9 +423,9 @@ model Office {
   bankAccount OfficeBankAccount?
   factories   Factory[]
 
-  labs         Lab[]
-  labRoutings  LabRouting[]
-  applications Application[]
+  labs          Lab[]
+  labRoutings   LabRouting[]
+  applications  Application[]
   sampleLetters SampleLetter[]
 }
 
@@ -594,25 +602,25 @@ model Employee {
   movementsReceived   ApplicationMovement[] @relation("MovementTo")
 
   // ─ Samples and lab testing ─
-  subProductsDeclared   ApplicationSubProduct[] @relation("SubProductDeclaredBy")
-  skusDeclared          ApplicationSku[]        @relation("SkuDeclaredBy")
-  subProductsStruckOut  ApplicationSubProduct[] @relation("SubProductStruckOut")
-  skusStruckOut         ApplicationSku[]        @relation("SkuStruckOut")
-  sampleRequirementsSet LabSampleRequirement[]  @relation("SampleRequirementAgreedBy")
-  consignmentsPacked    Consignment[]           @relation("ConsignmentPackedBy")
-  consignmentsOpened    Consignment[]           @relation("ConsignmentOpenedBy")
-  samplesSealed         SampleRegistration[]    @relation("SampleSealedBy")
-  labTestOrdersHeld     LabTestOrder[]          @relation("LabTestOrderHolder")
-  shortfallsRaised      ShortfallRound[]        @relation("ShortfallRaisedBy")
-  inspectionsProposed   InspectionPlan[]        @relation("InspectionProposedBy")
-  inspectionsApproved   InspectionPlan[]        @relation("InspectionApprovedBy")
-  reportsPrepared       InspectionReport[]      @relation("ReportPreparedBy")
+  subProductsDeclared   ApplicationSubProduct[]    @relation("SubProductDeclaredBy")
+  skusDeclared          ApplicationSku[]           @relation("SkuDeclaredBy")
+  subProductsStruckOut  ApplicationSubProduct[]    @relation("SubProductStruckOut")
+  skusStruckOut         ApplicationSku[]           @relation("SkuStruckOut")
+  sampleRequirementsSet LabSampleRequirement[]     @relation("SampleRequirementAgreedBy")
+  consignmentsPacked    Consignment[]              @relation("ConsignmentPackedBy")
+  consignmentsOpened    Consignment[]              @relation("ConsignmentOpenedBy")
+  samplesSealed         SampleRegistration[]       @relation("SampleSealedBy")
+  labTestOrdersHeld     LabTestOrder[]             @relation("LabTestOrderHolder")
+  shortfallsRaised      ShortfallRound[]           @relation("ShortfallRaisedBy")
+  inspectionsProposed   InspectionPlan[]           @relation("InspectionProposedBy")
+  inspectionsApproved   InspectionPlan[]           @relation("InspectionApprovedBy")
+  reportsPrepared       InspectionReport[]         @relation("ReportPreparedBy")
   developmentNotices    FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRaisedBy")
   lettersIssued         SampleLetter[]             @relation("LetterIssuedBy")
   lettersAddressed      SampleLetter[]             @relation("LetterAddressedTo")
-  reportsApproved       InspectionReport[]      @relation("ReportApprovedBy")
+  reportsApproved       InspectionReport[]         @relation("ReportApprovedBy")
   inspectionTeams       InspectionTeamMember[]
-  testResultsEntered    TestResult[]            @relation("TestResultEnteredBy")
+  testResultsEntered    TestResult[]               @relation("TestResultEnteredBy")
 }
 
 // ─── Pay scale (versioned) ───────────────────────────────────────────────────
@@ -2027,12 +2035,12 @@ model Application {
   subProducts  ApplicationSubProduct[]
   consignments Consignment[]
 
-  production ApplicationProduction?
-  answers    ApplicationAnswer[]
-  movements  ApplicationMovement[]
-  shortfalls       ShortfallRound[]
-  inspection       InspectionPlan?
-  inspectionReport InspectionReport?
+  production         ApplicationProduction?
+  answers            ApplicationAnswer[]
+  movements          ApplicationMovement[]
+  shortfalls         ShortfallRound[]
+  inspection         InspectionPlan?
+  inspectionReport   InspectionReport?
   developmentNotices FactoryDevelopmentNotice[]
   letters            SampleLetter[]
 
@@ -2246,8 +2254,8 @@ model SizeUnit {
 
   sortOrder Int @default(0)
 
-  skus       ApplicationSku[]
-  capacities ApplicationProduction[]
+  skus            ApplicationSku[]
+  capacities      ApplicationProduction[]
   /// Capacity as an inspecting officer found it, which may differ from what
   /// the applicant declared (D86).
   foundCapacities InspectionReport[]
@@ -2288,10 +2296,10 @@ model ApplicationSku {
 
   /// Declared but not being made at the visit (D91). Struck out, not deleted,
   /// for the reason the sub-product's is.
-  notInProductionAt         DateTime?
+  notInProductionAt           DateTime?
   notInProductionByEmployeeId String?
-  notInProductionBy         Employee? @relation("SkuStruckOut", fields: [notInProductionByEmployeeId], references: [id])
-  notInProductionNote       String?
+  notInProductionBy           Employee? @relation("SkuStruckOut", fields: [notInProductionByEmployeeId], references: [id])
+  notInProductionNote         String?
 
   /// The brand this article is sold under. Required: an unbranded SKU cannot be
   /// identified on a shelf or on a certificate. Most applications repeat one
@@ -2524,6 +2532,27 @@ enum LimitKind {
 /// `LabRouting.labId`; this says whether the work happens there. A sample sent
 /// outside stays the responsibility of the examiner who sent it, which is why
 /// third-party work is a mode and not a different destination.
+/// Where a parameter's urgent fee came from (D99). Kept because the number
+/// alone cannot say whether it was published, derived or apportioned, and the
+/// three are corrected in different ways.
+enum UrgentFeeSource {
+  /// The wing's published urgent total for the package is exactly twice its
+  /// normal total, so each part doubling is proved rather than assumed.
+  doubled
+  /// The file carries no urgent total to check against — the textile file's
+  /// case — so the 2× rule stands unverified.
+  doubled_assumed
+  /// Scaled by a flat multiplier so the package matches the urgent total the
+  /// wing published, where doubling does not reproduce it. Right in aggregate,
+  /// unverifiable per parameter: this is the list to correct under D100.
+  apportioned
+  /// The urgent turnaround is not shorter than the normal one, so there is no
+  /// surcharge to make.
+  same_as_normal
+  /// Typed by hand in the catalogue screen. The recompute never overwrites it.
+  manual
+}
+
 enum LabRoutingMode {
   in_house
   third_party
@@ -2592,12 +2621,61 @@ model SubProduct {
   applicationEntries ApplicationSubProduct[]
   labRequirements    LabSampleRequirement[]
   testOrders         LabTestOrder[]
+  packageFees        SubProductPackageFee[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([productId, nameEn])
   @@index([bdsId])
+}
+
+/// What one wing published for one package, kept as printed.
+///
+/// A wing's file states a "Total Fee" and a turnaround for each (product,
+/// sub-product) block it prices. D62 says **do not store a grand total** — the
+/// fee an applicant pays is the sum over every lab, and a stored total would be
+/// a per-lab figure masquerading as the price. This is not that: it is one
+/// wing's own stated subtotal, kept beside the section it came from, and it
+/// exists for three reasons.
+///
+/// 1. **It is the checksum**, made durable. The import compared the wing's
+///    stated total against the sum of the rows it parsed and printed the
+///    disagreements once; 23 of them are still open with the Chemical Wing.
+///    A figure only a dry run ever held cannot be reconciled later.
+/// 2. **It is what the urgent apportionment divides by** (D99). Recomputing
+///    after a fee is corrected in the catalogue screen needs the published
+///    urgent total, and re-parsing a Word document to get it is not a thing a
+///    screen can do.
+/// 3. **It is per section, and it has to be.** `SubProduct` carries one
+///    turnaround pair, so a sub-product tested by two wings keeps whichever
+///    file was imported last. Three sub-products already meet that way —
+///    Sanitary Napkin, Disposable Diaper, Nonwoven Wipes — and every wing that
+///    files after this adds more.
+model SubProductPackageFee {
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
+
+  /// The lab section whose file stated these figures, e.g. "chemical-food".
+  /// Matches `TestParameter.sourceSection`.
+  sourceSection String
+
+  /// The wing's own stated totals, in poisha. Null where its file carries no
+  /// such column — the textile file states neither.
+  statedNormalFeePoisha Int?
+  statedUrgentFeePoisha Int?
+
+  /// What our imported rows actually sum to, at import time. Stored beside the
+  /// stated figure so a disagreement is queryable rather than only printable.
+  summedNormalFeePoisha Int
+
+  turnaroundNormalDays Int?
+  turnaroundUrgentDays Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([subProductId, sourceSection])
 }
 
 /// One test on one sub-product. The fee and the method live here, because both
@@ -2629,10 +2707,20 @@ model TestParameter {
   /// Integer poisha, never taka floats.
   feePoisha Int
 
-  /// Null means the default rule applies: urgent costs twice the normal fee.
-  /// A column rather than a constant because the wing says it is 2× "99.99% of
-  /// the time", and the exceptions have to be recordable.
-  urgentFeePoisha Int?
+  /// What the same test costs at the urgent turnaround. **Always filled** (D99):
+  /// the urgent price is the sum of this column exactly as the normal price is
+  /// the sum of `feePoisha`, with no rule evaluated at read time. D62 left it
+  /// nullable and read null as "twice the normal fee", which stopped working
+  /// the moment a second wing priced differently — null then meant "double" in
+  /// one row and "nobody knows" in the next, with nothing to tell them apart.
+  ///
+  /// **Do not reintroduce a doubling rule at read time.** Sum the column.
+  urgentFeePoisha Int
+
+  /// Where `urgentFeePoisha` came from. An apportioned figure is right for the
+  /// package and unverifiable per parameter (D100), and a figure typed by hand
+  /// must never be recomputed over — neither is knowable from the number alone.
+  urgentFeeSource UrgentFeeSource @default(doubled_assumed)
 
   /// Which wing owns this test. Comes from the file it was imported from —
   /// one file per lab — not from anything in the row itself.
@@ -2892,10 +2980,10 @@ model ApplicationSubProduct {
   /// made" is asked in disputes and a row that has been removed cannot answer
   /// it. The same discipline as `declaredBy`: record the disagreement rather
   /// than overwrite one side of it.
-  notInProductionAt         DateTime?
+  notInProductionAt           DateTime?
   notInProductionByEmployeeId String?
-  notInProductionBy         Employee? @relation("SubProductStruckOut", fields: [notInProductionByEmployeeId], references: [id])
-  notInProductionNote       String?
+  notInProductionBy           Employee? @relation("SubProductStruckOut", fields: [notInProductionByEmployeeId], references: [id])
+  notInProductionNote         String?
 
   sortOrder Int @default(0)
 
@@ -3270,7 +3358,7 @@ model ShortfallRound {
   respondedByUserId String?
   respondedBy       User?     @relation("ShortfallRespondedBy", fields: [respondedByUserId], references: [id])
   /// What the applicant says they changed.
-  response String?
+  response          String?
 
   items ShortfallItem[]
 
@@ -3395,13 +3483,13 @@ model InspectionReport {
   /// §2(ঙ) Production, as *found* — separate from what the applicant declared
   /// in `ApplicationProduction`, because "did they under-declare" is the
   /// question an inspection exists to answer.
-  foundCapacityValue Decimal? @db.Decimal(16, 3)
+  foundCapacityValue  Decimal?  @db.Decimal(16, 3)
   foundCapacityUnitId Int?
   foundCapacityUnit   SizeUnit? @relation(fields: [foundCapacityUnitId], references: [id])
   /// §2(চ) উৎপাদন ক্ষমতার ভিত্তিতে উৎপাদনের শতকরা হার.
-  utilisationPercent Decimal? @db.Decimal(5, 2)
+  utilisationPercent  Decimal?  @db.Decimal(5, 2)
   /// §2(ছ) ইউনিট প্রতি উৎপাদন মূল্য — integer poisha, as money is everywhere.
-  unitCostPoisha Int?
+  unitCostPoisha      Int?
 
   remarks String?
 
@@ -3417,7 +3505,7 @@ model InspectionReport {
   approvedBy           Employee? @relation("ReportApprovedBy", fields: [approvedByEmployeeId], references: [id])
   approvedAt           DateTime?
   /// Assigned at approval, like the office order (D82/D85).
-  reportNo String? @unique
+  reportNo             String?   @unique
 
   conditions InspectionConditionCheck[]
   markings   InspectionMarkingCheck[]

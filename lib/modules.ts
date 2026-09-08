@@ -9,6 +9,7 @@ export type ModuleKey =
   | "hr"
   | "store"
   | "workflow"
+  | "labs"
   | "accounts"
   | "inventory"
   | "admin";
@@ -49,6 +50,14 @@ export const MODULES: readonly ModuleDef[] = [
     labelBn: "কর্মপ্রবাহ",
     blurb: "Projects, task assignment and approval tracking across wings.",
     theme: "workflow-theme",
+  },
+  {
+    key: "labs",
+    path: "/labs",
+    label: "Laboratory",
+    labelBn: "পরীক্ষাগার",
+    blurb: "Test parameters, fees, what each lab can run, and where samples are sent.",
+    theme: "labs-theme",
   },
   {
     key: "accounts",

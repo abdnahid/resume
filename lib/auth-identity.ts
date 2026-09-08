@@ -11,6 +11,7 @@
 export const INTERNAL_PREFIXES = [
   "/hr",
   "/workflow",
+  "/labs",
   "/accounts",
   "/inventory",
   "/admin",

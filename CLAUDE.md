@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -78,7 +78,8 @@ app/
                  /public/*    client pages (dashboard, …)     session for private ones
   (ecommerce)/   /store       BDS store                       public
   (main)/        /hr          HR module — the built one       INTERNAL only
-  (workflow)/    /workflow    placeholder                     INTERNAL only
+  (workflow)/    /workflow    CM files on the move            INTERNAL only
+  (labs)/        /labs        test catalogue + the 2D map     INTERNAL only
   (accounts)/    /accounts    placeholder                     INTERNAL only
   (inventory)/   /inventory   placeholder                     INTERNAL only
   (admin)/       /admin       placeholder                     INTERNAL only
@@ -1026,19 +1027,38 @@ Product (one of the mandatory 315)
   `SECTION_FOR_SOURCE`. 25 blocks name a product the mandatory list does not and
   were **not** imported; `--names` prints all 387 sub-product names, 27 of which
   still carry a serial fragment worth tidying.
-- **The urgent fee is stored, not derived** (D99). Both `feePoisha` and
-  `urgentFeePoisha` are filled on every row: 2× where the sub-product's urgent
-  turnaround is shorter than its normal one, equal where it is not. D62 left the
-  column nullable and read null as "twice the normal fee", which is a rule
-  evaluated at read time — and the moment a second wing priced differently, null
-  would have meant "double" in one row and "nobody knows" in the next with
-  nothing to tell them apart. **Do not reintroduce a doubling rule at read
-  time**; sum the column. `backfill:urgent-fees` filled the 713 textile rows that
-  predated this, and there are now **no nulls**.
-  **The wing's own totals disagree with the rule for 115 of 408 packages** —
-  Poultry Feed computes to ৳40,000 against a published ৳25,000 — because some
-  tests cannot be expedited and carry no surcharge (D100). Open with the wing;
-  correcting it is one `UPDATE` per named test.
+- **The urgent fee is stored, not derived** (D99), and `priceUrgent()` in
+  `lib/labs/urgent-fee.ts` is the one place it is decided — Prisma-free, shared
+  by both importers, `npm run fees:urgent` and the catalogue screen. Both
+  `feePoisha` and `urgentFeePoisha` are NOT NULL and always filled. **Do not
+  reintroduce a doubling rule at read time**; sum the column.
+  The rule has three cases (D102), and `urgentFeeSource` records which applied:
+  - **2× the normal fee** — the ordinary case. `doubled` where the wing's
+    published urgent total is exactly twice its normal total and therefore
+    proves each part doubles (2,323); `doubled_assumed` where the file
+    publishes no urgent total to check against (732, of which 713 are the whole
+    textile file).
+  - **equal to the normal fee** (`same_as_normal`, 106) where the urgent
+    turnaround is not shorter — there is no faster service to charge for.
+  - **apportioned** (1,606) where the published urgent total is *not* twice the
+    normal one. Every parameter in the package is scaled by the same multiplier
+    — Poultry Feed's ৳25,000 ÷ ৳20,000 = 1.25 — largest-remainder so the parts
+    sum to the published figure **exactly**. 383 of the 385 apportionable
+    packages now match the wing's own urgent total to the poisha.
+  **An apportioned figure is right for the package and unverified per test.**
+  D100's evidence says the surcharge really falls on some tests and not others
+  (Aldrin, Dieldrin, aflatoxin, microbiology cannot be hurried), and equally
+  says why it cannot be imported: subset-sum is ambiguous wherever fees repeat.
+  `WHERE "urgentFeeSource" = 'apportioned'` is the list to correct when the wing
+  answers. `manual` — typed in the catalogue screen — is **never** recomputed
+  over, and is subtracted from the package total before the rest is apportioned.
+- **`SubProductPackageFee` keeps each wing's own stated totals** (D103), keyed
+  `(subProductId, sourceSection)`. Not a grand total — D62 still forbids that —
+  but one wing's published subtotal, which is three things at once: the
+  checksum made durable (23 disagreements are open with the Chemical Wing and
+  are now queryable rather than printed once by a dry run), what the
+  apportionment divides by, and the only place a turnaround survives a second
+  wing filing for the same sub-product.
 - **The source is `utils/textile-parameter-list-sanitized.xlsx`**, with `Main
   Product` rewritten to the mandatory-315 name — 50 "main products" collapse to
   17 with no collision, because the sub-product name already carried what
@@ -1068,10 +1088,13 @@ Product (one of the mandatory 315)
   nominated destination holds the capability**. The mapping module still renders
   the 2D grid the client asked for.
 
-- **The fallback is not hypothetical.** 21 offices have a chemistry lab and only
-  **17** a physical one — Cox's Bazar, Cumilla, Faridpur and Mymensingh have no
-  physical lab at all, so every physical parameter filed there falls through on
-  day one.
+- **The fallback is not hypothetical, and it got larger.** Once the labs that
+  exist only in the organogram were closed (D106), **11 offices have a working
+  chemistry lab and only 7 a physical one** — head office, Barishal, Sylhet,
+  Chittagong, Rangpur, Khulna and Rajshahi. Cox's Bazar, Cumilla, Faridpur and
+  Mymensingh have chemistry only. **The other 12 offices have no laboratory at
+  all**, so every parameter filed at one of them falls through to another office
+  on day one. That is what the map is for.
 
 - **Third-party testing is a mode, not a destination** (D65).
   `LabRouting.labId` is always the accountable BSTI unit; `mode: third_party`
@@ -1080,10 +1103,79 @@ Product (one of the mandatory 315)
   it, and enters the result. Collapse the two and the destination letters cannot
   be grouped and the examiner has no row to record against.
 
-- **Every seeded routing row is `isPlaceholder`** (D66). All 16,399 point at the
-  owning head-office section until offices enter their own, and the flag travels
-  with the row — the same discipline as the seeded bank branch details. Do not
-  read a stand-in as a decision.
+- **Every seeded routing row is `isPlaceholder`** (D66). All **109,641** point
+  at the owning head-office section until offices enter their own, and the flag
+  travels with the row — the same discipline as the seeded bank branch details.
+  Do not read a stand-in as a decision.
+
+- **22 of the 46 seeded labs are closed, because they do not exist in
+  practice** (D106). The organogram gave every office but DMI a laboratory
+  unit; the client named the eleven offices that actually have one — head
+  office, Chittagong, Khulna, Rajshahi, Rangpur, Faridpur, Cumilla, Sylhet,
+  Barishal, Mymensingh, Cox's Bazar. `npm run labs:operational` holds the list.
+  **Closed, not deleted**: the organogram unit is real even where the bench is
+  not, and deleting would take `LabCapability` and every `LabRouting` row with
+  it. Nothing was repointed — all 22 held no capability and no routing cells.
+
+### The laboratory module — `/labs`
+
+Decisions D102–D106. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
+`access.ts` are Prisma-free (D9); `catalogue.ts` and `mapping.ts` are the
+server half.
+
+- **Three screens over three kinds of fact, with three different owners**, and
+  `lib/labs/access.ts` is the one place that says which:
+
+  | Screen | The fact | Who writes it |
+  |---|---|---|
+  | `/labs/catalogue` | what a test *is* and what it costs | superadmin |
+  | `/labs/registry` | what a laboratory can *run* | that lab's own office |
+  | `/labs/mapping` | where a sample *goes* | that office |
+
+  The fee schedule is superadmin's because an office able to edit it could
+  reduce what its own applicants pay. Capability is the lab's because nobody
+  else can find out — an instrument out of service is not a fact head office
+  discovers. Routing is the office's, which is the whole reason D64 stores it
+  rather than deriving it. **Reading is open to every member of staff**: an FDO
+  planning a visit and an examiner expecting a box both have reason to look.
+
+- **The map is one package at a time, always.** 23 offices × 4,767 parameters is
+  109,641 cells, and no screen should try to be all of it. The question people
+  bring is "for this product, where does each test go", which is one package
+  wide and 23 offices across — parameters down the rows, every office as a
+  column, and the cell reads the lab's own name when the sample stays put and
+  `→ Faridpur` when it travels.
+
+- **Reading is every office; writing is one column.** That asymmetry is the
+  design: "who else sends this to Faridpur" is a question the whole grid should
+  answer at a glance, while the decision itself belongs to one office and
+  nobody redraws another's referrals.
+
+- **`/labs/mapping` is `FullBleedContainer`, and so is its `loading.tsx`.**
+  23 columns do not fit `PageContainer`'s 1440px box. The skeleton must use the
+  same container as the page — the organogram's did not, and the chart jumped
+  sideways on load.
+
+- **A destination must hold the capability, refused by name.** `setRouting()`
+  names the tests the lab has not declared rather than counting them, because
+  the fix is to go and tick those tests on the lab's page and a number does not
+  say which. It also refuses a closed lab.
+
+- **Withdrawing a capability does not repoint anybody.** Routing rows pointing
+  at the lab stay exactly as the office left them and start failing the check in
+  `resolveDestinations()`, which now also refuses a **closed** lab and says so.
+  Silently moving an office's samples somewhere it never chose would be worse
+  than telling it — the arbitrariness D64 respects cuts both ways.
+
+- **`lab_incharge` is a role** (D105) and has **no users today**, exactly like
+  `one_stop`. Granting it at `/hr/listing/roles` is the first step; until then
+  an office head or a superadmin does the work.
+
+- **The module is built and the map is empty.** Only three head-office sections
+  hold any capability and every routing row is still a stand-in, so nothing in
+  it is real data yet. The order is: grant the role, each lab declares what it
+  runs, each office fills its column. Nothing is blocked meanwhile — the
+  stand-ins still resolve.
 
 ### Sequencing, when the workflow is built
 
@@ -1464,9 +1556,10 @@ can reuse them.
   different consignment of the same sub-product, so filling it in silently would
   make last month's quantity this month's decision. It renders as
   *"2 last time — use it"*.
-- **A cell resting on seeded routing says so** (D66). All 16,399 rows still
+- **A cell resting on seeded routing says so** (D66). All 109,641 rows still
   point at the owning head-office section, and a destination nobody has chosen
-  is not the same fact as one an office decided.
+  is not the same fact as one an office decided. `/labs/mapping` is where an
+  office replaces them.
 - **Only `ref` is printed on a label** (D68). `/workflow/[id]/labels` renders a
   cut-up sheet with the QR to `/s/<ref>`, the sub-product, the size and the
   specimen number. **The brand is deliberately absent** — the variant *is* the
@@ -1815,8 +1908,9 @@ npm run fix:orphaned-files      # files held by someone no longer serving → th
 
 npm run import:test-parameters # a wing's .xlsx parameter file → the Phase G catalogue (--dry)
 npm run import:chemical-parameters # the Chemical Wing's two .docx files (--dry, --names, --file=food)
-npm run backfill:urgent-fees   # fill any null urgent fee by the turnaround rule (--dry)
+npm run fees:urgent            # re-price every package's urgent fee from what the wing published (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)
+npm run labs:operational       # close the labs the client says do not exist in practice (--dry)
 
 # The 315 list is parsed from the PDF first; the JSON it writes is committed,
 # so this is only needed if the source PDF changes.
