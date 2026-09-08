@@ -87,7 +87,13 @@ export default function MapPicker({
             }
             className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
           >
+            {/* Without this the control shows the first package as selected
+                while the page below says nothing is — a `value` with no
+                matching option leaves the browser displaying option one. */}
             {!siblings.length && <option value="">Choose a product first</option>}
+            {siblings.length > 0 && currentSubProductId === null && (
+              <option value="">— choose a sub-product —</option>
+            )}
             {siblings.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nameEn} — {s._count.parameters} test{s._count.parameters === 1 ? "" : "s"}

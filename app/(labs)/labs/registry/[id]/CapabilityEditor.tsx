@@ -147,7 +147,12 @@ export default function CapabilityEditor({
             }}
             className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
           >
+            {/* A `value` with no matching option leaves the browser showing
+                option one, which would read as a package already chosen. */}
             {!siblings.length && <option value="">Choose a product first</option>}
+            {siblings.length > 0 && !subProduct && (
+              <option value="">— choose a sub-product —</option>
+            )}
             {siblings.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nameEn} — {s._count.parameters} tests

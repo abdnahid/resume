@@ -1195,6 +1195,16 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   answer at a glance, while the decision itself belongs to one office and
   nobody redraws another's referrals.
 
+- **A single-option `<select>` fires no change event.** `/labs/mapping` and
+  `/labs/registry/[id]` pick a product and then one of its packages; **129 of
+  the 203 products with parameters have exactly one**, so for most of the
+  catalogue there was nothing to change to and the grid sat on "choose a
+  sub-product" for ever. Both pages now resolve a lone package **on the server**
+  and redirect to it, which also makes the URL the same however it was reached.
+  The second half of the same fault: a `value` with no matching `<option>`
+  leaves the browser displaying option one, so the control read as a package
+  already chosen while the page said none was. Both selects render an explicit
+  placeholder option while nothing is selected.
 - **`/labs/mapping` is `FullBleedContainer`, and so is its `loading.tsx`.**
   23 columns do not fit `PageContainer`'s 1440px box. The skeleton must use the
   same container as the page — the organogram's did not, and the chart jumped

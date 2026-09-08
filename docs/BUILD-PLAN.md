@@ -667,6 +667,13 @@ tests itself and sending two to Faridpur resolves through
 `resolveDestinations()`; and closing the Faridpur lab breaks those two cells
 **by name** rather than repointing them.
 
+**Fixed 2026-09-09:** a product with exactly one sub-product could not be
+opened on the map or the lab page — a single-option `<select>` fires no change
+event, and 129 of the 203 products with parameters have exactly one, so most of
+the catalogue was unreachable. Both pages resolve a lone package server-side and
+redirect; both selects now render a placeholder while nothing is chosen, because
+a `value` with no matching option leaves the browser showing option one.
+
 **What has to happen before any of it is real data.** All 109,641 routing rows
 are still `isPlaceholder` and only three head-office sections hold any
 capability, so the module is complete and the map is empty. The order is:

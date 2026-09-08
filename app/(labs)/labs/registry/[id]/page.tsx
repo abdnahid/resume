@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import PageContainer from "@/components/PageContainer";
@@ -77,6 +77,11 @@ export default async function LabPage({
         select: { id: true, nameEn: true, _count: { select: { parameters: true } } },
       })
     : [];
+
+  // One package means nothing to choose, and a single-option select fires no
+  // change event — see the note in the mapping page.
+  if (!chosen && siblings.length === 1)
+    redirect(`/labs/registry/${labId}?subProduct=${siblings[0].id}`);
 
   return (
     <>

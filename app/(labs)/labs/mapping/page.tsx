@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import FullBleedContainer from "@/components/FullBleedContainer";
 import { requireInternal } from "@/lib/auth-guard";
@@ -59,6 +60,14 @@ export default async function MappingPage({
         select: { id: true, nameEn: true, _count: { select: { parameters: true } } },
       })
     : [];
+
+  // **A product with one package has nothing to choose**, and a select cannot
+  // report a choice nobody made: with a single option there is no change event
+  // to fire, so the page sat on "now choose one of its sub-products" for ever.
+  // Resolving it here rather than in the picker also makes the URL the same
+  // whichever way the package was reached.
+  if (!chosen && siblings.length === 1)
+    redirect(`/labs/mapping?subProduct=${siblings[0].id}`);
 
   return (
     <>
