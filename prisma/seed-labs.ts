@@ -158,6 +158,13 @@ async function main() {
   const capabilities = parameters.map((p) => ({
     labId: labIdBySlug.get(`lab-${SECTION_FOR_SOURCE[p.sourceSection]}`)!,
     parameterId: p.id,
+    // **A stand-in, and flagged as one.** A test parameter belongs to no
+    // office — the catalogue is institution-wide, and a wing's file is where a
+    // test was written down rather than a claim about who can run it. These
+    // rows exist so the sampling flow resolves before any office has declared
+    // anything, and they must never be read as "only head office can do this".
+    // `/labs/coverage` is where an office replaces them with its own answer.
+    isPlaceholder: true,
   }));
   await prisma.labCapability.createMany({ data: capabilities, skipDuplicates: true });
   console.log(`✓ capabilities     ${capabilities.length}`);

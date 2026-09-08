@@ -26,6 +26,9 @@ export type ProductRow = {
   urgentFeePoisha: number;
   /** The wing sections that have filed parameters for this product. */
   sections: string[];
+  /** BDS numbers, because an office searches by the standard as often as by
+   *  the name — "BDS 1221" is what is written on the file in front of them. */
+  standards: string[];
 };
 
 /**
@@ -42,6 +45,7 @@ export async function productRows(): Promise<ProductRow[]> {
       sub_products: bigint; parameters: bigint;
       normal_fee: bigint | null; urgent_fee: bigint | null;
       sections: string[] | null;
+      standards: string[] | null;
     }[]
   >`
     SELECT p.id, p.serial, p."nameEn", p."isMandatory",
@@ -49,10 +53,13 @@ export async function productRows(): Promise<ProductRow[]> {
            COUNT(tp.id)                                  AS parameters,
            COALESCE(SUM(tp."feePoisha"), 0)              AS normal_fee,
            COALESCE(SUM(tp."urgentFeePoisha"), 0)        AS urgent_fee,
-           ARRAY_REMOVE(ARRAY_AGG(DISTINCT tp."sourceSection"), NULL) AS sections
+           ARRAY_REMOVE(ARRAY_AGG(DISTINCT tp."sourceSection"), NULL) AS sections,
+           ARRAY_REMOVE(ARRAY_AGG(DISTINCT b.number), NULL)           AS standards
       FROM "Product" p
-      LEFT JOIN "SubProduct"    sp ON sp."productId"    = p.id
-      LEFT JOIN "TestParameter" tp ON tp."subProductId" = sp.id
+      LEFT JOIN "SubProduct"      sp ON sp."productId"    = p.id
+      LEFT JOIN "TestParameter"   tp ON tp."subProductId" = sp.id
+      LEFT JOIN "ProductStandard" ps ON ps."productId"    = p.id
+      LEFT JOIN "Bds"             b  ON b.id              = ps."bdsId"
      GROUP BY p.id
      ORDER BY p.serial`;
 
@@ -63,6 +70,7 @@ export async function productRows(): Promise<ProductRow[]> {
     normalFeePoisha: Number(r.normal_fee ?? 0),
     urgentFeePoisha: Number(r.urgent_fee ?? 0),
     sections: (r.sections ?? []).slice().sort(),
+    standards: (r.standards ?? []).slice().sort(),
   }));
 }
 

@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -1119,9 +1119,20 @@ Product (one of the mandatory 315)
 
 ### The laboratory module — `/labs`
 
-Decisions D102–D106. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
-`access.ts` are Prisma-free (D9); `catalogue.ts` and `mapping.ts` are the
-server half.
+Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
+`access.ts` are Prisma-free (D9); `catalogue.ts`, `mapping.ts` and
+`coverage.ts` are the server half.
+
+- **A test parameter belongs to no office** (D107). The catalogue is
+  institution-wide: a wing's file is where a test was *written down*, not a
+  claim about who can run it. `seed:labs` had to point capability somewhere so
+  sampling would resolve before anybody had entered anything, and it pointed all
+  4,767 rows at the head-office section owning each file — which reads exactly
+  like "only head office can run these". **Every seeded `LabCapability` row now
+  carries `isPlaceholder`**, the same discipline as `LabRouting.isPlaceholder`.
+  Nothing was deleted: clearing them would stop the CM sampling flow dead, and a
+  flagged stand-in that still resolves beats a gap. Screens show **declared**
+  and **seeded** as different numbers — do not add them together.
 
 - **Three screens over three kinds of fact, with three different owners**, and
   `lib/labs/access.ts` is the one place that says which:
@@ -1129,8 +1140,9 @@ server half.
   | Screen | The fact | Who writes it |
   |---|---|---|
   | `/labs/catalogue` | what a test *is* and what it costs | superadmin |
-  | `/labs/registry` | what a laboratory can *run* | that lab's own office |
-  | `/labs/mapping` | where a sample *goes* | that office |
+  | `/labs/coverage` | **the entry form** — what this office handles, runs, and sends away | that office |
+  | `/labs/registry` | what a laboratory can *run*, test by test | that lab's own office |
+  | `/labs/mapping` | where a sample *goes*, cell by cell | that office |
 
   The fee schedule is superadmin's because an office able to edit it could
   reduce what its own applicants pay. Capability is the lab's because nobody
@@ -1167,15 +1179,49 @@ server half.
   Silently moving an office's samples somewhere it never chose would be worse
   than telling it — the arbitrariness D64 respects cuts both ways.
 
+- **`/labs/coverage` is the way the map is meant to be filled in** (D108);
+  `/labs/mapping` and `/labs/registry` are the cell-by-cell views over the same
+  two tables. 4,767 parameters × 23 offices is not a grid anybody completes one
+  cell at a time, so the office answers at the level it thinks in — products,
+  variants, then *all of these / some / none* per package — and the parameters
+  follow.
+- **The office answers; the laboratory is resolved** (D108). `labFor()` in
+  `lib/labs/coverage.ts`: a branch has one bench per discipline so the
+  parameter's discipline picks it, and head office's eight sections are picked
+  by the parameter's `sourceSection`. Asking an operator to choose between
+  Organic Chemistry and Food & Bacteriology 4,767 times is asking a question
+  they cannot answer. **`LabCapability` is still per lab** — that is what D64
+  checks and what a consignment is addressed to.
+- **The coverage level is derived, never stored.** `full` / `partial` / `none`
+  comes from counting the capability rows. A stored level would be a second copy
+  of the same fact and would disagree the first time somebody edited one
+  parameter on the map.
+- **`OfficeSubProductScope` is the office's working set** (D109), and it is not
+  derivable: every office already has a routing row for every parameter, so
+  routing cannot say what an office has *looked at*, and "we cannot do this and
+  send it away" is a different fact from "we do not deal with this at all".
+  **It does not gate which applications an office receives** — jurisdiction
+  still does that from the factory's district (D28). Whether it should is open
+  with the client.
+- **A destination that has not declared the capability is allowed and
+  reported** (D110), not refused. Barisal cannot name Khulna until somebody at
+  Khulna has filled in their form, and Khulna is in the same position about
+  Barisal — refusing deadlocks the institution on whoever went first. Nothing is
+  lost: `resolveDestinations()` still refuses to *follow* such a row, by name,
+  days before a sample moves. **A closed lab is still refused outright.**
+- **The destination picker only offers offices that can receive that kind of
+  test.** Four offices have chemistry and no physical bench, twelve have
+  neither; offering them offers a destination the save then refuses. The bulk
+  "send everything to…" assigns what that office can take and **names what it
+  cannot**, which is the rare split.
 - **`lab_incharge` is a role** (D105) and has **no users today**, exactly like
   `one_stop`. Granting it at `/hr/listing/roles` is the first step; until then
   an office head or a superadmin does the work.
 
-- **The module is built and the map is empty.** Only three head-office sections
-  hold any capability and every routing row is still a stand-in, so nothing in
-  it is real data yet. The order is: grant the role, each lab declares what it
-  runs, each office fills its column. Nothing is blocked meanwhile — the
-  stand-ins still resolve.
+- **The module is built and the map is empty.** Not one capability row and not
+  one routing cell is anybody's own answer yet — all 4,767 and all 109,641 are
+  stand-ins. The order is: grant `lab_incharge`, then each office works through
+  `/labs/coverage`. Nothing is blocked meanwhile — the stand-ins still resolve.
 
 ### Sequencing, when the workflow is built
 

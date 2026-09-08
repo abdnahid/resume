@@ -91,7 +91,10 @@ export async function mapFor(subProductId: number) {
     }),
     prisma.labCapability.findMany({
       where: { parameterId: { in: parameterIds }, isActive: true },
-      select: { labId: true, parameterId: true },
+      // `isPlaceholder` travels with the row: a seeded capability is not a
+      // laboratory saying it can run the test, and a destination resting on
+      // one is not the same fact as a destination somebody chose.
+      select: { labId: true, parameterId: true, isPlaceholder: true },
     }),
   ]);
 
@@ -101,11 +104,17 @@ export async function mapFor(subProductId: number) {
 /**
  * Point a set of this office's parameters at a lab.
  *
- * **Refused if the lab does not hold the capability** (D64), and refused if the
- * lab is closed — a routing row is an instruction to carry a box somewhere, and
- * both of those produce a box that arrives where it cannot be tested. The
- * refusal names the parameters rather than the count, because the fix is to go
- * and tick them on the capability screen and a number does not say which.
+ * **A closed lab is refused outright** — a routing row is an instruction to
+ * carry a box somewhere, and a closed bench is never a place to carry one.
+ *
+ * **A lab that has not declared the capability is allowed, and reported.**
+ * This is deliberately weaker than a refusal, and D64 is still satisfied.
+ * Barisal knows perfectly well that Khulna runs a test; it cannot say so until
+ * somebody at Khulna has filled in their own coverage form, and Khulna is in
+ * exactly the same position about Barisal. Refusing would deadlock every
+ * office on whoever happened to go first. Nothing is lost by allowing it:
+ * `resolveDestinations()` still refuses to *follow* such a row, by name, days
+ * before a sample moves — which is the check D64 actually asks for.
  *
  * Writing a row **clears `isPlaceholder`** (D66). Every one of the 109,641
  * seeded rows points at the owning head-office section as a stand-in, and a
@@ -138,17 +147,14 @@ export async function setRouting(args: {
     ).map((c) => c.parameterId),
   );
   const missing = args.parameterIds.filter((id) => !capable.has(id));
-  if (missing.length) {
-    const names = await prisma.testParameter.findMany({
-      where: { id: { in: missing.slice(0, 5) } },
-      select: { nameEn: true },
-    });
-    throw new Error(
-      `${lab.nameEn} has not declared it can run ${missing.length === 1 ? "" : `${missing.length} of these tests, including `}` +
-        names.map((n) => `“${n.nameEn}”`).join(", ") +
-        `. Record the capability on that lab's page first.`,
-    );
-  }
+  const pendingNames = missing.length
+    ? (
+        await prisma.testParameter.findMany({
+          where: { id: { in: missing.slice(0, 5) } },
+          select: { nameEn: true },
+        })
+      ).map((n) => n.nameEn)
+    : [];
 
   // The map is keyed (office, parameter), so a change is an upsert per cell.
   // Batched in one transaction: a whole package is up to ~90 cells and the
@@ -169,7 +175,13 @@ export async function setRouting(args: {
       }),
     ),
   );
-  return { written: args.parameterIds.length };
+  return {
+    written: args.parameterIds.length,
+    /** Cells that will not resolve until the destination declares the test. */
+    pending: missing.length,
+    pendingNames,
+    labName: lab.nameEn,
+  };
 }
 
 /**
@@ -193,8 +205,10 @@ export async function setCapability(args: {
     args.parameterIds.map((parameterId) =>
       prisma.labCapability.upsert({
         where: { labId_parameterId: { labId: args.labId, parameterId } },
-        create: { labId: args.labId, parameterId, isActive: args.isActive },
-        update: { isActive: args.isActive },
+        // Somebody ticking this box is the laboratory answering for itself, so
+        // the row stops being the seed's stand-in whichever way it is set.
+        create: { labId: args.labId, parameterId, isActive: args.isActive, isPlaceholder: false },
+        update: { isActive: args.isActive, isPlaceholder: false },
       }),
     ),
   );
@@ -219,9 +233,14 @@ export async function labDetail(labId: number) {
       office: { select: { id: true, nameEn: true } },
       orgUnit: { select: { id: true, nameEn: true } },
       _count: { select: { capabilities: true, routings: true } },
+      capabilities: { where: { isPlaceholder: false }, select: { labId: true }, take: 1 },
     },
   });
   if (!lab) return null;
+
+  const declared = await prisma.labCapability.count({
+    where: { labId, isPlaceholder: false, isActive: true },
+  });
 
   // Which packages this lab has said anything about, and how much of each.
   const rows = await prisma.$queryRaw<
@@ -230,7 +249,7 @@ export async function labDetail(labId: number) {
     SELECT sp.id                                   AS sub_product_id,
            sp."nameEn"                             AS sub_product,
            p."nameEn"                              AS product,
-           COUNT(*) FILTER (WHERE lc."isActive")    AS held,
+           COUNT(*) FILTER (WHERE lc."isActive" AND NOT lc."isPlaceholder") AS held,
            COUNT(tp.id)                            AS total
       FROM "SubProduct" sp
       JOIN "Product" p        ON p.id = sp."productId"
@@ -238,11 +257,14 @@ export async function labDetail(labId: number) {
       LEFT JOIN "LabCapability" lc
              ON lc."parameterId" = tp.id AND lc."labId" = ${labId}
      GROUP BY sp.id, sp."nameEn", p."nameEn"
-    HAVING COUNT(*) FILTER (WHERE lc."isActive") > 0
+    HAVING COUNT(*) FILTER (WHERE lc."isActive" AND NOT lc."isPlaceholder") > 0
      ORDER BY p."nameEn", sp."nameEn"`;
 
   return {
     lab,
+    /** What this laboratory has said about itself, as opposed to what the seed
+     *  wrote on its behalf. */
+    declared,
     packages: rows.map((r) => ({
       subProductId: r.sub_product_id,
       subProduct: r.sub_product,
@@ -290,9 +312,12 @@ export async function coverage() {
         LEFT JOIN "LabRouting" lr ON lr."officeId" = o.id
        GROUP BY o.id, o."nameEn"
        ORDER BY o.id`,
-    prisma.$queryRaw<{ lab_id: number; lab: string; office: string; active: boolean; held: bigint }[]>`
+    prisma.$queryRaw<
+      { lab_id: number; lab: string; office: string; active: boolean; held: bigint; declared: bigint }[]
+    >`
       SELECT l.id AS lab_id, l."nameEn" AS lab, o."nameEn" AS office, l."isActive" AS active,
-             COUNT(*) FILTER (WHERE lc."isActive") AS held
+             COUNT(*) FILTER (WHERE lc."isActive")                              AS held,
+             COUNT(*) FILTER (WHERE lc."isActive" AND NOT lc."isPlaceholder")   AS declared
         FROM "Lab" l
         JOIN "Office" o ON o.id = l."officeId"
         LEFT JOIN "LabCapability" lc ON lc."labId" = l.id
@@ -305,19 +330,26 @@ export async function coverage() {
       prisma.labRouting.count({ where: { isPlaceholder: false } }),
       prisma.lab.count({ where: { isActive: true } }),
       prisma.lab.count(),
+      prisma.labCapability.count({ where: { isPlaceholder: false } }),
+      prisma.labCapability.count(),
+      prisma.officeSubProductScope.count(),
     ]),
   ]);
 
-  const [parameters, subProducts, routingRows, routingDecided, labsActive, labsTotal] = totals;
+  const [
+    parameters, subProducts, routingRows, routingDecided, labsActive, labsTotal,
+    capabilityDeclared, capabilityRows, scopeRows,
+  ] = totals;
   return {
     parameters, subProducts, routingRows, routingDecided, labsActive, labsTotal,
+    capabilityDeclared, capabilityRows, scopeRows,
     offices: byOffice.map((r) => ({
       officeId: r.office_id, office: r.office,
       decided: Number(r.decided), total: Number(r.total),
     })),
     labs: byLab.map((r) => ({
       labId: r.lab_id, lab: r.lab, office: r.office,
-      isActive: r.active, held: Number(r.held),
+      isActive: r.active, held: Number(r.held), declared: Number(r.declared),
     })),
   };
 }

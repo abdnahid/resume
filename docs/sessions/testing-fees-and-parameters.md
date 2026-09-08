@@ -1958,3 +1958,139 @@ decided and **not built** — every parameter of an applied sub-product is still
 tested and charged. 27 of 387 sub-product names still carry a serial fragment.
 The 77 textile parameters that are chemistry by method are still stamped
 `physical`.
+
+---
+
+## Session 7 — 2026-09-08 (Linux machine)
+
+### User
+
+> Testing parameters are not dedicated to any office's lab. You considered the
+> seeded parameters to be head office's tests. It is not. It is universal. We
+> need to document which office has the capability to test a parameter. I want
+> to make the data entry as simple as possible. Lets make an entry form. […]
+> First step of the form will be-> select the products for which clients can
+> submit cm application at your office. […] 2nd step: those selected products now
+> show sub-products to select (by default all sub-products are selected) […] Now
+> for Each of those selected sub-products three checkbox will be given to detect
+> whether the office is fully capable/partially/incapable. […] In most cases all
+> the incapable parameter will be sent to a single office. In rare cases it might
+> be a portion send to office A another sent to office B.
+
+### Assistant — the correction first
+
+**The premise was wrong and it was worth saying so before building anything.**
+`seed:labs` writes one `LabCapability` row per parameter, pointed at the
+head-office section that owns the wing's file. That is **provenance** — where a
+test was written down — and session 6 built a whole module on top of it while
+reading it as capability: `/labs/registry` said "Textile, Head Office — 713
+tests declared", which nobody at head office had ever declared.
+
+Fixed the way this project fixes everything of the kind: **`isPlaceholder` on
+`LabCapability`**, all 4,767 rows flagged, the same discipline as
+`LabRouting.isPlaceholder`, the seeded bank branch details and the provisional
+standard prices (D107).
+
+**Deleting them was considered and rejected.** Clearing capability would make
+`resolveDestinations()` refuse every routing row in the database, stopping the
+CM sampling flow outright until offices had entered data. A flagged stand-in
+that still resolves beats a gap that stops work — and every screen now shows
+*declared* and *seeded* as two numbers rather than one.
+
+### The form
+
+`/labs/coverage`, three steps, `?step=` with `StepNavButton` because a
+same-route navigation never renders `loading.tsx`.
+
+**Step 3 saves per package, not at the end.** An office with forty products has
+two hundred packages to answer; that is several sittings, and a form that only
+commits at the end loses an afternoon to a closed laptop.
+
+**The office answers; the laboratory is resolved** (D108). A branch has one
+bench per discipline, so the parameter's discipline picks it; head office's
+eight sections are picked by the parameter's `sourceSection`. Asking a
+data-entry operator to choose between Organic Chemistry and Food & Bacteriology
+4,767 times is asking a question they cannot answer and do not need to — while
+`LabCapability` stays per lab, because that is what D64 checks and what a
+consignment is addressed to.
+
+**The level is derived, never stored.** *full / partial / none* comes from
+counting the capability rows. A stored level would be the same fact twice and
+would disagree the first time somebody edited one parameter on the map.
+
+**`OfficeSubProductScope` is stored, and had to be.** Every office already has a
+routing row for every parameter, so routing cannot say what an office has
+*looked at*; and "we cannot do this and send it away" is a different fact from
+"we do not deal with this at all". It is also the form's memory.
+
+### Two things the build changed its mind about
+
+**A destination that has not declared is now allowed** (D110). The strict
+refusal written in session 6 deadlocks the institution: Barisal cannot name
+Khulna until Khulna has filled in its form, and Khulna is in the same position
+about Barisal. D64's check is at *read* time —
+`resolveDestinations()` still refuses to follow such a row, by name, days before
+a sample moves — so allowing the write costs nothing and unblocks everybody. A
+**closed** laboratory is still refused outright.
+
+**The destination picker was letting people pick offices that cannot receive.**
+Found by the end-to-end test, not by reasoning: routing a textile package to
+Faridpur produced six error messages at once, because Faridpur has a chemistry
+bench and no physical one. The picker now offers only offices with a bench of
+that discipline, and the bulk "send everything to…" assigns what the chosen
+office can take and **names what it cannot** — which is exactly the rare split
+the client described, surfaced rather than hit as an error.
+
+### Verified end to end, then rolled back
+
+```
+step 1: scope now 2 packages
+step 2: deselected "Cotton Sharee- Power Loom (White)" → 1 packages
+step 3: 12 tests, 12 with a bench at Khulna
+   after "all here": level=full
+   after "partial":  level=partial  capable=6 routed=12 pending=6
+   after "none":     level=none     hereCapable=0
+   Cox's Bazar physical bench: none — as expected
+   ✓ refused: a physical test cannot be claimed where there is no physical bench
+   resolveDestinations at Khulna:
+   ⚠ … is routed to Physical Lab, Chittagong, which does not hold that capability
+```
+
+That last block is the design working, not a fault: Khulna named Chittagong,
+Chittagong has not answered yet, and the sample is refused **by name** rather
+than sent. It resolves the moment Chittagong fills in its own form.
+
+### Lessons that cost something
+
+- **A seed that has to point somewhere will be read as pointing deliberately.**
+  `LabRouting` got `isPlaceholder` on day one and `LabCapability` did not, for
+  no better reason than that the routing rows were obviously arbitrary and the
+  capability rows looked plausible. Plausible is exactly when the flag is
+  needed. **Any row a seed invents to keep a flow resolving needs one.**
+- **Building on an unexamined premise costs a module, not a function.** Session
+  6's registry screen, its "labs with no capability" tile and its dashboard
+  counts were all correct code over a wrong reading, and every one of them had
+  to be revisited.
+- **The end-to-end test found the UX bug the design review did not.** Refusing
+  Faridpur for a physical test is right; letting somebody choose it first is
+  not, and only running it surfaced that.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean, committed.
+
+**Nothing on record is anybody's own answer yet** — 0 declared capability rows,
+0 decided routing cells. The order has not changed and is now one screen:
+
+1. **Grant `lab_incharge`** at `/hr/listing/roles`, at least one person per
+   office. It still has no users.
+2. **Each office works through `/labs/coverage`.** Head office included — it is
+   not exempt, and its stand-ins are the ones most likely to be mistaken for
+   answers.
+
+**One question for the client**, recorded as D109 and not built: their wording
+was "the products for which clients can submit a CM application at your office".
+Step 1 currently records a working set and **does not** gate submission —
+jurisdiction still decides which office receives an application, from the
+factory's district (D28). If it should gate, that is a larger change and the
+two rules would need reconciling.

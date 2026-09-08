@@ -6,7 +6,10 @@ import { Check, Search } from "lucide-react";
 import type { ProductRow } from "@/lib/labs/catalogue";
 
 type Param = {
-  id: number; nameEn: string; discipline: string; sourceSection: string; held: boolean;
+  id: number; nameEn: string; discipline: string; sourceSection: string;
+  held: boolean;
+  /** A seeded stand-in stands against this test — not this lab's own answer. */
+  seeded: boolean;
 };
 
 /**
@@ -213,6 +216,14 @@ export default function CapabilityEditor({
                   className="h-4 w-4 accent-[var(--primary)]"
                 />
                 <span className={held(p) ? "" : "text-muted-foreground"}>{p.nameEn}</span>
+                {p.seeded && !p.held && (
+                  <span
+                    title="A seeded stand-in points here. Tick the box to make it this laboratory's own answer, or leave it and record the real destination on the map."
+                    className="cursor-help rounded-full border border-dashed border-amber-400 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300"
+                  >
+                    seeded
+                  </span>
+                )}
                 <span className="ml-auto text-xs text-muted-foreground">{p.discipline}</span>
               </li>
             ))}

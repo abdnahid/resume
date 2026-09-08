@@ -423,10 +423,11 @@ model Office {
   bankAccount OfficeBankAccount?
   factories   Factory[]
 
-  labs          Lab[]
-  labRoutings   LabRouting[]
-  applications  Application[]
-  sampleLetters SampleLetter[]
+  labs             Lab[]
+  labRoutings      LabRouting[]
+  subProductScopes OfficeSubProductScope[]
+  applications     Application[]
+  sampleLetters    SampleLetter[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -592,14 +593,15 @@ model Employee {
   idCards          IdCard[]
 
   // New profile sub-tables
-  spouse              Spouse?
-  children            Child[]
-  languages           Language[]
-  curriculars         Curricular[]
-  disciplinaryActions DisciplinaryAction[]
-  heldApplications    Application[]         @relation("ApplicationHolder")
-  movementsSent       ApplicationMovement[] @relation("MovementFrom")
-  movementsReceived   ApplicationMovement[] @relation("MovementTo")
+  spouse               Spouse?
+  children             Child[]
+  languages            Language[]
+  curriculars          Curricular[]
+  disciplinaryActions  DisciplinaryAction[]
+  heldApplications     Application[]           @relation("ApplicationHolder")
+  officeScopesDeclared OfficeSubProductScope[] @relation("OfficeScopeDeclaredBy")
+  movementsSent        ApplicationMovement[]   @relation("MovementFrom")
+  movementsReceived    ApplicationMovement[]   @relation("MovementTo")
 
   // ─ Samples and lab testing ─
   subProductsDeclared   ApplicationSubProduct[]    @relation("SubProductDeclaredBy")
@@ -2622,6 +2624,7 @@ model SubProduct {
   labRequirements    LabSampleRequirement[]
   testOrders         LabTestOrder[]
   packageFees        SubProductPackageFee[]
+  officeScopes       OfficeSubProductScope[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2836,6 +2839,21 @@ model LabCapability {
 
   isActive Boolean @default(true)
 
+  /// True while the row is the seed's stand-in rather than something a
+  /// laboratory has said about itself.
+  ///
+  /// **A test parameter belongs to no office.** The catalogue is institution
+  /// wide: a wing's file is where a parameter was *written down*, not a claim
+  /// about who can run it. `seed:labs` had to point the rows somewhere to keep
+  /// the sampling flow resolving, so it pointed them at the head-office section
+  /// that owns each source file — and that looked exactly like a statement that
+  /// head office alone can run all 4,767 tests, which is not true and was never
+  /// meant. The flag is what separates the two, the same discipline as
+  /// `LabRouting.isPlaceholder` and the seeded bank branch details.
+  ///
+  /// Cleared when an office declares its own coverage at `/labs/coverage`.
+  isPlaceholder Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2854,6 +2872,43 @@ model LabCapability {
 /// `third_party` the sample is physically tested outside, and that lab's
 /// examiner selects the accredited laboratory, writes to it, and enters the
 /// result. Custody never leaves BSTI even when the sample does.
+/// Which packages an office says it deals with — the working set behind the
+/// coverage form, and the office's own statement of what it handles.
+///
+/// **It is not derivable, which is why it is stored.** Every office already has
+/// a routing row for every one of the 4,767 parameters (the seed wrote all
+/// 109,641), so routing cannot say what an office has actually looked at. And
+/// "we have no capability for this and send it away" is a different fact from
+/// "this is not something we deal with at all" — the first has destinations,
+/// the second has nothing.
+///
+/// A product is in an office's scope when at least one of its sub-products is:
+/// a product with no variants selected means nothing, so it is not stored
+/// separately. Deselecting the last sub-product therefore drops the product,
+/// which is what the form says it does.
+///
+/// **This does not gate which applications an office receives.** Jurisdiction
+/// still does that, from the factory's district (D28). Whether it should is an
+/// open question with the client.
+model OfficeSubProductScope {
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
+
+  /// Who last confirmed this office handles it, and when. A coverage statement
+  /// is somebody's assertion about their own laboratory, so it carries a name.
+  declaredByEmployeeId String?
+  declaredBy           Employee? @relation("OfficeScopeDeclaredBy", fields: [declaredByEmployeeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([officeId, subProductId])
+  @@index([subProductId])
+}
+
 model LabRouting {
   officeId Int
   office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)

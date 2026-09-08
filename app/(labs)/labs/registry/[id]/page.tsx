@@ -43,7 +43,7 @@ export default async function LabPage({
     productRows(),
   ]);
   if (!detail) notFound();
-  const { lab, packages } = detail;
+  const { lab, packages, declared } = detail;
 
   const canEdit = canEditCapability(
     { role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId },
@@ -62,7 +62,7 @@ export default async function LabPage({
             orderBy: [{ ordinal: "asc" }, { id: "asc" }],
             select: {
               id: true, nameEn: true, discipline: true, sourceSection: true,
-              capabilities: { where: { labId }, select: { isActive: true } },
+              capabilities: { where: { labId }, select: { isActive: true, isPlaceholder: true } },
             },
           },
         },
@@ -107,8 +107,11 @@ export default async function LabPage({
             )}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {lab.discipline} discipline · {lab._count.capabilities.toLocaleString("en-BD")} tests
-            declared · {lab._count.routings.toLocaleString("en-BD")} routing cells point here
+            {lab.discipline} discipline · {declared.toLocaleString("en-BD")} tests declared
+            {lab._count.capabilities > declared && (
+              <> (plus {(lab._count.capabilities - declared).toLocaleString("en-BD")} seeded stand-ins)</>
+            )}{" "}
+            · {lab._count.routings.toLocaleString("en-BD")} routing cells point here
             {lab.orgUnit && <> · organogram unit {lab.orgUnit.nameEn}</>}
           </p>
         </header>
@@ -129,12 +132,25 @@ export default async function LabPage({
                   parameters: chosen.parameters.map((p) => ({
                     id: p.id, nameEn: p.nameEn, discipline: p.discipline,
                     sourceSection: p.sourceSection,
-                    held: p.capabilities.some((c) => c.isActive),
+                    // Only this laboratory's own answer counts as held. A seeded
+                    // stand-in is what the box is there to replace, so showing
+                    // it as already ticked would hide the entire job.
+                    held: p.capabilities.some((c) => c.isActive && !c.isPlaceholder),
+                    seeded: p.capabilities.some((c) => c.isActive && c.isPlaceholder),
                   })),
                 }
               : null
           }
         />
+
+        {declared === 0 && lab._count.capabilities > 0 && (
+          <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            <strong>Everything against this laboratory is a seeded stand-in.</strong> A test
+            parameter belongs to no office — the catalogue is the same everywhere — and these
+            rows exist only so the sampling flow resolved before anybody had answered. They are
+            not this laboratory saying what it can run. Ticking a package below replaces them.
+          </p>
+        )}
 
         <section className="rounded-2xl border border-border bg-card">
           <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">

@@ -34,7 +34,7 @@ export default async function RegistryPage() {
   }
 
   const closed = c.labs.filter((l) => !l.isActive).length;
-  const silent = c.labs.filter((l) => l.isActive && l.held === 0).length;
+  const silent = c.labs.filter((l) => l.isActive && l.declared === 0).length;
 
   return (
     <>
@@ -55,8 +55,9 @@ export default async function RegistryPage() {
             {silent > 0 && (
               <>
                 {" "}
-                <strong>{silent}</strong> open laboratories have declared nothing yet and can
-                receive nothing.
+                <strong>{silent}</strong> of the open laboratories have said nothing about
+                themselves yet — what stands against them is the seed&rsquo;s stand-in, not their
+                own answer.
               </>
             )}
           </p>
@@ -91,7 +92,11 @@ export default async function RegistryPage() {
                       </Link>
                     </td>
                     <td className="px-5 py-2.5 text-right text-xs tabular-nums text-muted-foreground">
-                      {l.held ? `${l.held.toLocaleString("en-BD")} tests declared` : "nothing declared"}
+                      {l.declared
+                        ? `${l.declared.toLocaleString("en-BD")} tests declared`
+                        : l.held
+                          ? `${l.held.toLocaleString("en-BD")} seeded stand-ins`
+                          : "nothing declared"}
                     </td>
                     <td className="w-40 px-5 py-2.5 text-right">
                       <LabToggle labId={l.labId} isActive={l.isActive} canEdit={canEdit} />

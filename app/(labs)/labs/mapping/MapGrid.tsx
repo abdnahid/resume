@@ -38,7 +38,7 @@ export default function MapGrid({
   subProduct: { id: number; nameEn: string; product: { nameEn: string } };
   parameters: Parameter[];
   routings: Routing[];
-  capabilities: { labId: number; parameterId: number }[];
+  capabilities: { labId: number; parameterId: number; isPlaceholder: boolean }[];
   offices: { id: number; nameEn: string; labCount: number }[];
   labs: MatrixLab[];
   /** null means every office (superadmin); [] means none. */
@@ -64,14 +64,46 @@ export default function MapGrid({
     () => new Set(capabilities.map((c) => `${c.labId}:${c.parameterId}`)),
     [capabilities],
   );
+  /** Declared by the laboratory itself, rather than left over from the seed. */
+  const declared = useMemo(
+    () =>
+      new Set(
+        capabilities.filter((c) => !c.isPlaceholder).map((c) => `${c.labId}:${c.parameterId}`),
+      ),
+    [capabilities],
+  );
   const cells = useMemo(
     () => buildMatrix({ offices, parameters, routings, capable, labs: labById }),
     [offices, parameters, routings, capable, labById],
   );
 
-  /** The destinations that could legitimately take a given test. */
+  /**
+   * Every open laboratory is offerable, and each says where it stands.
+   *
+   * Restricting the list to labs that have already declared the test would
+   * deadlock the whole institution on whoever filled their coverage form
+   * first — Barisal cannot name Khulna until Khulna has spoken, and Khulna is
+   * in the same position about Barisal. So the choice is open and the state is
+   * shown: `declared` when that lab has said so itself, `seeded` when the row
+   * is only the stand-in the seed wrote, `pending` when nobody has said
+   * anything. A pending route is refused at the moment a sample would move,
+   * by name, which is the check that matters (D64).
+   */
   const optionsFor = (parameterId: number) =>
-    labs.filter((l) => l.isActive && capable.has(`${l.id}:${parameterId}`));
+    labs
+      .filter((l) => l.isActive)
+      .map((l) => ({
+        lab: l,
+        state: declared.has(`${l.id}:${parameterId}`)
+          ? ("declared" as const)
+          : capable.has(`${l.id}:${parameterId}`)
+            ? ("seeded" as const)
+            : ("pending" as const),
+      }))
+      .sort((a, b) => {
+        const rank = { declared: 0, seeded: 1, pending: 2 };
+        return rank[a.state] - rank[b.state] || a.lab.nameEn.localeCompare(b.lab.nameEn);
+      });
 
   const brokenCount = [...cells.values()].filter((c) => c.broken).length;
   const placeholderTotal = [...cells.values()].filter((c) => c.isPlaceholder).length;
@@ -84,9 +116,15 @@ export default function MapGrid({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ officeId, parameterIds, labId }),
     });
-    const json = (await res.json()) as { error?: string; written?: number };
+    const json = (await res.json()) as {
+      error?: string; written?: number; pending?: number; labName?: string;
+    };
     if (!res.ok) { setError(json.error ?? "That did not save."); return; }
-    setSaved(`${json.written} test${json.written === 1 ? "" : "s"} routed.`);
+    setSaved(
+      json.pending
+        ? `${json.written} routed — but ${json.labName} has not declared ${json.pending} of them, so those will be refused until it does.`
+        : `${json.written} test${json.written === 1 ? "" : "s"} routed.`,
+    );
     start(() => router.refresh());
   }
 
@@ -238,42 +276,35 @@ export default function MapGrid({
                     <td className="px-5 py-2">{p.nameEn}</td>
                     <td className="px-5 py-2 text-xs text-muted-foreground">{p.discipline}</td>
                     <td className="px-5 py-2">
-                      {opts.length === 0 ? (
-                        <span className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          No open laboratory has declared it can run this test
-                        </span>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={c?.labId ?? ""}
-                            disabled={pending || !officeId}
-                            onChange={(e) => assign([p.id], Number(e.target.value))}
-                            className={`rounded-lg border bg-background px-2 py-1 text-sm ${
-                              c?.isPlaceholder
-                                ? "border-dashed border-amber-400"
-                                : "border-border"
-                            }`}
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={c?.labId ?? ""}
+                          disabled={pending || !officeId}
+                          onChange={(e) => assign([p.id], Number(e.target.value))}
+                          className={`rounded-lg border bg-background px-2 py-1 text-sm ${
+                            c?.isPlaceholder ? "border-dashed border-amber-400" : "border-border"
+                          }`}
+                        >
+                          {!c && <option value="">— not routed —</option>}
+                          {opts.map(({ lab: l, state }) => (
+                            <option key={l.id} value={l.id}>
+                              {labShortName(l.nameEn)} · {officeShortName(l.officeName)}
+                              {state === "seeded" ? "  (seeded)" : state === "pending" ? "  (not declared)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {c?.isPlaceholder && (
+                          <span className="text-xs text-amber-700 dark:text-amber-300">stand-in</span>
+                        )}
+                        {c?.broken && (
+                          <span
+                            title="The destination has not declared it can run this test, so a sample would be refused"
+                            className="flex items-center gap-1 text-xs text-red-700 dark:text-red-300"
                           >
-                            {!c && <option value="">— not routed —</option>}
-                            {opts.map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {labShortName(l.nameEn)} · {officeShortName(l.officeName)}
-                              </option>
-                            ))}
-                          </select>
-                          {c?.isPlaceholder && (
-                            <span className="text-xs text-amber-700 dark:text-amber-300">
-                              stand-in
-                            </span>
-                          )}
-                          {c?.broken && (
-                            <span className="text-xs text-red-700 dark:text-red-300">
-                              unusable
-                            </span>
-                          )}
-                        </div>
-                      )}
+                            <AlertTriangle className="h-3.5 w-3.5" /> waiting on that lab
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -305,10 +336,16 @@ function BulkBar({
   onAssign: (parameterIds: number[], labId: number) => void;
 }) {
   const [labId, setLabId] = useState<number | "">("");
+  const [all, setAll] = useState(false);
   const chosen = labs.find((l) => l.id === labId);
-  const covered = chosen
-    ? parameters.filter((p) => capable.has(`${chosen.id}:${p.id}`)).map((p) => p.id)
-    : [];
+  // Either the tests that lab already holds, or — when the office knows better
+  // than the record does — the whole package, which is the ordinary case for an
+  // office naming the neighbour it has always sent samples to.
+  const covered = !chosen
+    ? []
+    : all
+      ? parameters.map((p) => p.id)
+      : parameters.filter((p) => capable.has(`${chosen.id}:${p.id}`)).map((p) => p.id);
 
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/30 px-5 py-3 text-sm">
@@ -327,7 +364,15 @@ function BulkBar({
             </option>
           ))}
       </select>
-      <span className="text-muted-foreground">can run to it</span>
+      <label className="flex cursor-pointer items-center gap-1.5 text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={all}
+          onChange={(e) => setAll(e.target.checked)}
+          className="h-3.5 w-3.5 accent-[var(--primary)]"
+        />
+        can run — or <span className="text-foreground">the whole package</span>
+      </label>
       <button
         type="button"
         disabled={pending || !officeId || !covered.length}
@@ -338,7 +383,8 @@ function BulkBar({
       </button>
       {chosen && covered.length === 0 && (
         <span className="text-xs text-amber-700 dark:text-amber-300">
-          {labShortName(chosen.nameEn)} has not declared any of this package&rsquo;s tests.
+          {labShortName(chosen.nameEn)} has declared none of these — tick the box to send the
+          whole package anyway.
         </span>
       )}
     </div>

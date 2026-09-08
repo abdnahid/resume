@@ -22,7 +22,7 @@ export default async function LabsOverviewPage() {
   const c = await coverage();
 
   const pct = c.routingRows ? Math.round((c.routingDecided / c.routingRows) * 100) : 0;
-  const labsWithNothing = c.labs.filter((l) => l.isActive && l.held === 0);
+  const labsWithNothing = c.labs.filter((l) => l.isActive && l.declared === 0);
 
   return (
     <>
@@ -64,22 +64,32 @@ export default async function LabsOverviewPage() {
           />
           <Tile
             icon={TriangleAlert}
-            label="Labs with no capability"
+            label="Labs yet to declare"
             value={`${labsWithNothing.length}`}
-            note="open, but not yet able to receive anything"
-            href="/labs/registry"
+            note={`of ${c.labsActive} open — nothing of their own on record`}
+            href="/labs/coverage"
           />
         </div>
 
-        {pct === 0 && (
-          <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-            <strong>Every cell in the map is still a stand-in.</strong> The seed pointed all{" "}
-            {c.routingRows.toLocaleString("en-BD")} of them at the head-office section that owns
-            the parameter, so that nothing was blocked while the offices had not yet decided. A
-            stand-in that looks like a decision is the thing to avoid here, so each one is
-            flagged until an office chooses — including on the field officer&rsquo;s sampling
-            screen, which says when a destination rests on one.
-          </p>
+        {c.capabilityDeclared === 0 && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            <p>
+              <strong>Nothing on record is a laboratory&rsquo;s own answer yet.</strong> A test
+              parameter belongs to no office — the catalogue is the same everywhere — but the
+              seed had to point capability and routing somewhere so that sampling would resolve,
+              and it pointed all {c.capabilityRows.toLocaleString("en-BD")} capability rows and{" "}
+              {c.routingRows.toLocaleString("en-BD")} routing cells at the head-office section
+              that owns each wing&rsquo;s file. That reads like &ldquo;only head office can run
+              these&rdquo;, which was never meant and is not true, so every one of those rows is
+              flagged as a stand-in until an office replaces it.
+            </p>
+            <p className="mt-2">
+              <Link href="/labs/coverage" className="font-medium underline">
+                Each office fills in its own coverage
+              </Link>{" "}
+              — the products it handles, what its own bench can run, and where the rest goes.
+            </p>
+          </div>
         )}
 
         <section className="rounded-2xl border border-border bg-card">
@@ -133,7 +143,7 @@ export default async function LabsOverviewPage() {
 
         <section className="rounded-2xl border border-border bg-card">
           <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">
-            What each laboratory has declared it can run
+            What each laboratory has said it can run
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -141,7 +151,7 @@ export default async function LabsOverviewPage() {
                 <tr className="border-b border-border">
                   <th className="px-5 py-2 font-medium">Laboratory</th>
                   <th className="px-5 py-2 font-medium">Office</th>
-                  <th className="px-5 py-2 text-right font-medium">Parameters</th>
+                  <th className="px-5 py-2 text-right font-medium">Declared</th>
                   <th className="px-5 py-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -155,7 +165,18 @@ export default async function LabsOverviewPage() {
                     </td>
                     <td className="px-5 py-2 text-muted-foreground">{l.office}</td>
                     <td className="px-5 py-2 text-right tabular-nums">
-                      {l.held ? l.held.toLocaleString("en-BD") : <span className="text-muted-foreground">—</span>}
+                      {l.declared ? (
+                        l.declared.toLocaleString("en-BD")
+                      ) : l.held ? (
+                        <span
+                          title="Seeded stand-ins only — this laboratory has not said anything about itself"
+                          className="cursor-help text-amber-700 dark:text-amber-300"
+                        >
+                          {l.held.toLocaleString("en-BD")} seeded
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-2">
                       {l.isActive ? (

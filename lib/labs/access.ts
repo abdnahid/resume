@@ -77,6 +77,16 @@ export function canEditRegistry(actor: LabActor): boolean {
   return actor.role === "superadmin";
 }
 
+/**
+ * The coverage form — an office declaring what it can test and where the rest
+ * goes. It writes capability *and* routing, so it needs both permissions, and
+ * they happen to have the same holders: that office's head or lab in-charge,
+ * or a superadmin.
+ */
+export function canEditCoverage(actor: LabActor, officeId: number): boolean {
+  return canEditRouting(actor, officeId) && canEditCapability(actor, officeId);
+}
+
 /** The offices whose routing column this actor may edit — null means all. */
 export function editableOffices(actor: LabActor): number[] | null {
   if (actor.role === "superadmin") return null;
