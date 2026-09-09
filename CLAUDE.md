@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -1041,7 +1041,9 @@ Product (one of the mandatory 315)
 
 - **The Chemical Wing's two files are in** (2026-09-08), and they are the bulk
   of the catalogue: **4,767 parameters over 491 sub-products and 203 of the 315
-  products**, against textile's 713 over 104. They arrive as `.docx`, so
+  products**, against textile's 713 over 104. (The catalogue stands at **4,774
+  over 488 offered** today: D111 folded three duplicate rows and copied one
+  chemical package onto each of eight diaper sizes.) They arrive as `.docx`, so
   `prisma/import/docx-grid.ts` is the Word counterpart of `xlsx-grid.ts` —
   reading the ZIP central directory with `node:zlib` rather than taking a
   dependency. Four rules earn their keep there, each of which cost a survey:
@@ -1135,10 +1137,12 @@ Product (one of the mandatory 315)
   it, and enters the result. Collapse the two and the destination letters cannot
   be grouped and the examiner has no row to record against.
 
-- **Every seeded routing row is `isPlaceholder`** (D66). All **109,641** point
-  at the owning head-office section until offices enter their own, and the flag
-  travels with the row — the same discipline as the seeded bank branch details.
-  Do not read a stand-in as a decision.
+- **A seeded routing row is `isPlaceholder`** (D66) and points at the owning
+  head-office section until an office enters its own. The flag travels with the
+  row — the same discipline as the seeded bank branch details — so do not read a
+  stand-in as a decision. There are **109,802** cells; entry began 2026-09-08
+  and the live figure is on `/labs`, which is the point of that screen. Never
+  quote a count from here as though it were current.
 
 - **22 of the 46 seeded labs are closed, because they do not exist in
   practice** (D106). The organogram gave every office but DMI a laboratory
@@ -1160,7 +1164,7 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   claim about who can run it. `seed:labs` had to point capability somewhere so
   sampling would resolve before anybody had entered anything, and it pointed all
   4,767 rows at the head-office section owning each file — which reads exactly
-  like "only head office can run these". **Every seeded `LabCapability` row now
+  like "only head office can run these". **Every seeded `LabCapability` row
   carries `isPlaceholder`**, the same discipline as `LabRouting.isPlaceholder`.
   Nothing was deleted: clearing them would stop the CM sampling flow dead, and a
   flagged stand-in that still resolves beats a gap. Screens show **declared**
@@ -1183,8 +1187,8 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   rather than deriving it. **Reading is open to every member of staff**: an FDO
   planning a visit and an examiner expecting a box both have reason to look.
 
-- **The map is one package at a time, always.** 23 offices × 4,767 parameters is
-  109,641 cells, and no screen should try to be all of it. The question people
+- **The map is one package at a time, always.** 23 offices × 4,774 parameters is
+  109,802 cells, and no screen should try to be all of it. The question people
   bring is "for this product, where does each test go", which is one package
   wide and 23 offices across — parameters down the rows, every office as a
   column, and the cell reads the lab's own name when the sample stays put and
@@ -1223,7 +1227,7 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
 
 - **`/labs/coverage` is the way the map is meant to be filled in** (D108);
   `/labs/mapping` and `/labs/registry` are the cell-by-cell views over the same
-  two tables. 4,767 parameters × 23 offices is not a grid anybody completes one
+  two tables. 4,774 parameters × 23 offices is not a grid anybody completes one
   cell at a time, so the office answers at the level it thinks in — products,
   variants, then *all of these / some / none* per package — and the parameters
   follow.
@@ -1231,7 +1235,7 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   `lib/labs/coverage.ts`: a branch has one bench per discipline so the
   parameter's discipline picks it, and head office's eight sections are picked
   by the parameter's `sourceSection`. Asking an operator to choose between
-  Organic Chemistry and Food & Bacteriology 4,767 times is asking a question
+  Organic Chemistry and Food & Bacteriology 4,774 times is asking a question
   they cannot answer. **`LabCapability` is still per lab** — that is what D64
   checks and what a consignment is addressed to.
 - **The coverage level is derived, never stored.** `full` / `partial` / `none`
@@ -1260,10 +1264,13 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   `one_stop`. Granting it at `/hr/listing/roles` is the first step; until then
   an office head or a superadmin does the work.
 
-- **The module is built and the map is empty.** Not one capability row and not
-  one routing cell is anybody's own answer yet — all 4,767 and all 109,641 are
-  stand-ins. The order is: grant `lab_incharge`, then each office works through
-  `/labs/coverage`. Nothing is blocked meanwhile — the stand-ins still resolve.
+- **The module is built and entry has started.** Barishal made the first real
+  coverage entries on 2026-09-08 — U-PVC Pipe, two tests on its own chemistry
+  bench and three sent to Rangpur — which is the whole flow working end to end.
+  Everything else is still a stand-in. The order for the rest is: grant
+  `lab_incharge`, then each office works through `/labs/coverage`. Nothing is
+  blocked meanwhile, because the stand-ins still resolve. **`/labs` is where the
+  live count lives**; figures written here go stale the moment an office types.
 
 ### Sequencing, when the workflow is built
 
@@ -1644,10 +1651,11 @@ can reuse them.
   different consignment of the same sub-product, so filling it in silently would
   make last month's quantity this month's decision. It renders as
   *"2 last time — use it"*.
-- **A cell resting on seeded routing says so** (D66). All 109,641 rows still
-  point at the owning head-office section, and a destination nobody has chosen
-  is not the same fact as one an office decided. `/labs/mapping` is where an
-  office replaces them.
+- **A cell resting on seeded routing says so** (D66). Nearly every one of the
+  109,802 rows still points at the owning head-office section, and a destination
+  nobody has chosen is not the same fact as one an office decided.
+  `/labs/coverage` is where an office replaces them wholesale and
+  `/labs/mapping` cell by cell.
 - **Only `ref` is printed on a label** (D68). `/workflow/[id]/labels` renders a
   cut-up sheet with the QR to `/s/<ref>`, the sub-product, the size and the
   specimen number. **The brand is deliberately absent** — the variant *is* the

@@ -2213,3 +2213,79 @@ and the order is grant `lab_incharge` → each office works through
 **New standing instruction:** `npm run labs:reconcile` after every wing's
 import. When the third wing's file lands it is the step most likely to be
 forgotten, and the failure is silent — an applicant tested for half a standard.
+
+---
+
+## Session 9 — 2026-09-09 (Linux machine)
+
+### User
+
+> In the /labs/mapping section, when the product has one sub-product, the
+> parameter list doesn't load. It keeps saying select sub-product.
+
+### The bug
+
+The picker chooses a product, then one of its packages from a `<select>`. When
+nothing was chosen the control had `value=""` and **no `<option>` matching it**,
+so the browser fell back to displaying option one — the first package — as
+though it were selected. With one package there is nothing else to select, so
+no `change` event ever fires, and the grid sat on *"Now choose one of its
+sub-products"* for ever.
+
+**Not an edge case: 129 of the 203 products carrying parameters have exactly one
+sub-product**, so most of the catalogue could not be opened at all. Sanitary
+Napkins had become one of them the day before, when session 8 folded its
+duplicate away.
+
+`/labs/registry/[id]` had the identical picker and the identical fault.
+
+### The fix, in two parts
+
+- **A lone package resolves on the server** and redirects to it. Doing it there
+  rather than in the picker also means the URL is the same however the package
+  was reached, so a link still works.
+- **The select no longer lies.** It renders an explicit placeholder option while
+  nothing is selected. That half was wrong for multi-package products too: the
+  control showed the first package as chosen while the page below said none was.
+
+### Barishal has started
+
+Found while checking the counts, and worth recording because it is the first
+real use of the module: **employee 20226010105 at Barishal entered coverage on
+2026-09-08 at 18:03** — four products taken on (20 packages), and *U-PVC Pipe*
+answered in full:
+
+| Test | Where |
+|---|---|
+| Appearance | Chemistry Lab, Barisal |
+| Immersion test in Acetone | Chemistry Lab, Barisal |
+| Lead (first extraction) | → Chemistry Lab, Rangpur |
+| Lead (third extraction) | → Chemistry Lab, Rangpur |
+| Dialkyl tin (third extraction) | → Chemistry Lab, Rangpur |
+
+That is the whole design working end to end — partial capability, a split
+destination, capability and routing written together, and the flag cleared on
+the five cells that are now decisions rather than stand-ins. It also means the
+"all N rows are stand-ins" sentences in `CLAUDE.md` and `BUILD-PLAN.md` had
+stopped being true, and have been rewritten to point at `/labs` for the live
+figure instead of carrying a number that goes stale the moment somebody types.
+
+### Lessons that cost something
+
+- **A control with one option cannot report a choice.** The select was correct
+  for every product the developer happened to open — which were the interesting
+  ones, with several variants — and broken for the 63% with a single package.
+- **A document that quotes a live count starts lying the day the feature is
+  used.** Four sentences across two files claimed every routing cell was a
+  stand-in. They were written on the day that was true.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean, committed and pushed.
+
+Unchanged: grant `lab_incharge` at `/hr/listing/roles` so each office has
+somebody who can fill in `/labs/coverage` — Barishal's entry was made by an
+office head, and that will not scale to 23 offices.
+
+**Standing instruction, worth repeating:** `npm run labs:reconcile` after every
+wing's import (D111). The failure it prevents is silent.

@@ -674,18 +674,19 @@ the catalogue was unreachable. Both pages resolve a lone package server-side and
 redirect; both selects now render a placeholder while nothing is chosen, because
 a `value` with no matching option leaves the browser showing option one.
 
-**What has to happen before any of it is real data.** All 109,641 routing rows
-are still `isPlaceholder` and only three head-office sections hold any
-capability, so the module is complete and the map is empty. The order is:
-grant `lab_incharge` at `/hr/listing/roles` (D105) → each lab declares what it
-runs → each office fills in its column. Nothing is blocked meanwhile, because
-the seeded stand-ins still resolve.
+**Entry has started.** Barishal made the first real coverage entries on
+2026-09-08 — U-PVC Pipe, two tests on its own chemistry bench and three sent to
+Rangpur. Everything else of the 109,802 routing cells is still `isPlaceholder`.
+The order for the rest is: grant `lab_incharge` at `/hr/listing/roles` (D105) →
+each office works through `/labs/coverage`. Nothing is blocked meanwhile,
+because the seeded stand-ins still resolve. **`/labs` carries the live count**;
+a figure written into a document goes stale the moment an office types.
 
 ### 🚧 Step 8c — Office coverage entry
 
 Built 2026-09-08 (D107–D110), after the client corrected the premise: **test
 parameters are universal, and the seeded capability rows were provenance, not
-capability.** All 4,767 now carry `isPlaceholder`.
+capability.** Every seeded row carries `isPlaceholder`.
 
 `/labs/coverage`, three steps, one office at a time:
 
@@ -911,12 +912,12 @@ wings. It held: **no schema change was needed.**
 
 | | before | after |
 |---|---|---|
-| test parameters | 713 | **4,767** |
+| test parameters | 713 | **4,767** (4,774 after D111) |
 | sub-products | 104 | **491** |
 | test methods | 53 | **1,212** |
 | products with a test plan | 17 | **203** of 315 |
-| capability rows | 713 | **4,767** |
-| routing rows | 16,399 | **109,641** |
+| capability rows | 713 | **4,767** (4,776 after D111) |
+| routing rows | 16,399 | **109,641** (109,802 after D111) |
 
 **What was left out, and is printed by the dry run**
 
