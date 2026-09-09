@@ -2289,3 +2289,144 @@ office head, and that will not scale to 23 offices.
 
 **Standing instruction, worth repeating:** `npm run labs:reconcile` after every
 wing's import (D111). The failure it prevents is silent.
+
+---
+
+## Session 10 — 2026-09-09 (Linux machine) — the routing scenario, recorded not built
+
+### User
+
+> Okay we need a major upgrade about lab routing. I have placed a file called
+> chemical-physical-mixed-test.xlsx. Lets design the data based on this specific
+> product. Lets assume an applicant has applied this product at Faridpur office.
+> This product has 10 total parameters. 5 Chemical, 5 physical. Some parameters
+> of physical(lets say 2) and chemical(lets say 1) is tested at faridpur physical
+> and chemical lab. 2 physical parameters are testable at khulna/dhaka/ctg
+> office. 2 chemical parameters are testable at comilla/rajshahi/head office.
+> 1 rest of physical parameters are tested at 3rd party lab and 2 rest of
+> chemical parameters are tested at another 3rd party lab. save this scenerio.
+> I will discuss the database structure based on this after you keep this in
+> your memory.
+
+**Nothing was built.** The file was read, the scenario checked against the live
+data, and both written down here. The design discussion follows.
+
+### The file — `utils/chemical-physical-mixed-test.xlsx`
+
+Two sheets, `physical` and `chemical`, both for **Ceramic Tiles**, in the
+familiar column layout.
+
+**`physical`** — Sl. No. 8, `BDS ISO 13006:2021`, 14 days normal / 10 urgent,
+stated total ৳2,200 normal and ৳4,400 urgent:
+
+| Parameter | Sub-parameters | Fee |
+|---|---|---|
+| Size in mm | a) Length, b) Width, c) Thickness | ৳105 **each** |
+| Surface quality | — | ৳185 |
+| Water absorption in percent | — | ৳500 |
+| Breaking strength in N | — | ৳600 |
+| Modulus of rupture in N/mm² | — | ৳600 |
+
+**`chemical`** — Sl. No. 48, `BDS ISO 13006:2015`, 14 days normal / 6 urgent,
+stated total ৳1,800 normal and ৳3,600 urgent:
+
+| Parameter | Fee |
+|---|---|
+| Resistance to staining | ৳900 |
+| *Resistance to chemical:* | **৳0 — a category title** |
+| a) …low concentrations of acids and alkalis | ৳300 |
+| b) …high concentrations of acids and alkalis | ৳300 |
+| c) …household chemicals and swimming pool salts | ৳300 |
+
+### The scenario, as stated
+
+An application filed at **Faridpur**, for this product's ten parameters:
+
+| Group | Count | Goes to |
+|---|---|---|
+| physical | 2 | Faridpur's own physical lab |
+| chemical | 1 | Faridpur's own chemistry lab |
+| physical | 2 | **Khulna *or* Dhaka *or* Chittagong** |
+| chemical | 2 | **Cumilla *or* Rajshahi *or* Head Office** |
+| physical | 1 | a third-party laboratory |
+| chemical | 2 | a **different** third-party laboratory |
+
+### What it breaks, checked against the live data
+
+**1. `LabRouting` holds exactly one destination per (office, parameter).** The
+key is `@@id([officeId, parameterId])` with a single `labId`. Four of the ten
+groups above name **three candidate offices**, so the map has to become a set —
+and something has to choose one when the FDO seals a box, because a box goes to
+one place. Who chooses, and on what basis, is the open question: a stored
+preference order, the FDO at sampling time, or something else.
+
+**2. Third-party is currently a *mode*, not a destination (D65).**
+`LabRouting.labId` is always the accountable BSTI unit and `mode: third_party`
+says the work happens outside; the examiner of the matching discipline picks the
+accredited lab and writes to it. The scenario reads as though the map itself
+knows *which* third-party lab, and names **two different ones**. There is **no
+`ThirdPartyLab` table** — proposed in session 2 with accreditation scope and
+expiry, never built — and **all 109,802 routing rows are `in_house`**;
+`third_party` has never been used once.
+
+**3. Faridpur has no physical laboratory.** Confirmed against the database: it
+holds one open lab, `Chemistry Lab, Faridpur`. Cox's Bazar, Cumilla and
+Mymensingh are in the same position — chemistry only — and twelve offices have
+no laboratory at all. So *"2 physical parameters tested at faridpur physical
+lab"* cannot happen as the data stands. **Either the organogram is wrong about
+Faridpur, or the scenario is illustrative.** Worth settling first, because it
+decides whether the example is the real case or a shape to design against.
+"Dhaka" is read as Head Office throughout: `DMI, BSTI, Dhaka` has no labs.
+
+**4. One box per destination lab (D72), and this application has up to six.**
+Faridpur-physical, Faridpur-chemical, one of three, one of three, third-party A,
+third-party B. The applicant carries each box to that office's One Stop counter
+— but a third-party consignment has no BSTI counter to carry it to, and custody
+for those two is undefined.
+
+**5. The two sheets cite different editions of the same standard** — `2021` on
+the physical sheet, `2015` on the chemical — and each wing numbers its own file
+(Sl. No. 8 against 48). `standardAsPrinted` already keeps both visible.
+
+### Two importer problems the file exposes, independent of routing
+
+**The physical sheet prices per *sub-parameter*, and the textile file does
+not.** `Size in mm` carries ৳105 on each of its three sub-parameter rows, and
+105 × 3 + 185 + 500 + 600 + 600 = **৳2,200**, exactly the stated total. The
+textile importer merges a parameter's fee across its sub-parameters and counts
+it **once** — D61's rule, and right for *Colour fastness to perspiration*, one
+৳700 test producing 14 rated readings. Imported under that rule this package
+sums to **৳1,990** and the wing's own total is missed by ৳210. The convention is
+per file and has to be resolved before this sheet is loaded.
+
+**The `chemical` sheet has a caption row** — *"Resistance to chemical:"*, no
+fee, no limit, no method — which the `.docx` importer folds into its children's
+names (D111's caption rule) but `import:test-parameters` knows nothing about.
+Loaded as-is it becomes a ৳0 parameter. That is very likely why the scenario
+counts five chemical parameters where four carry a fee.
+
+### Where the product already sits
+
+**Ceramic Tiles is product #222**, *"Ceramic Tiles - Definitions,
+Classification, Characteristics and Marking"*, `BDS ISO 13006:2021`, and its one
+sub-product **"Ceramic Tiles" already carries the chemical file's 4
+parameters**. The physical sheet's 5 are not imported. Both files name the
+sub-product identically, so they would merge on `(productId, nameEn)` with no
+fold needed — the mixed physical-and-chemical package this scenario needs is one
+import away.
+
+### Resume here
+
+**Nothing to do until the design discussion.** The questions it turns on, in the
+order they matter:
+
+1. **Does Faridpur have a physical laboratory?** It decides whether this is a
+   real case or a shape.
+2. **Several candidate destinations per parameter — who picks, and when?** This
+   is the schema change.
+3. **Does the map name a third-party lab, or does the examiner still choose one
+   under D65?** This decides whether `ThirdPartyLab` is a routing destination or
+   a record made later.
+4. **How does a third-party consignment reach the lab**, when D72 has the
+   applicant carrying every box to a BSTI counter?
+5. **Which fee convention wins** when a wing prices per sub-parameter.
