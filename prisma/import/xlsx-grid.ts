@@ -11,6 +11,25 @@ import * as XLSX from "xlsx";
 export type Grid = {
   /** Merge-resolved value at a 0-based row and column. Never null. */
   at(row: number, col: number): string;
+  /**
+   * Whether this cell's value was **filled in from a merge** rather than
+   * written there.
+   *
+   * It is the difference between a fee stated once for a parameter and a fee
+   * stated on each of its sub-parameter lines, and the two mean different
+   * things. The textile file merges its Test Fee across a parameter's rows —
+   * 266 merged ranges in that column, exactly matching the Parameter column —
+   * so the value is the parameter's fee and counts **once**; all 104 of its
+   * packages reconcile to their stated total that way and none reconciles to
+   * the other. `chemical-physical-mixed-test.xlsx` merges the parameter and
+   * **not** the fee, writing 105 into three separate cells, and its stated
+   * ৳2,200 only adds up if all three count — so there the parameter's fee is
+   * the sum of its rows.
+   *
+   * Both are "one price per parameter". Resolving merges without recording
+   * that they happened loses the only thing that says which reading is meant.
+   */
+  isFilled(row: number, col: number): boolean;
   /** 0-based index of the last row holding any value. */
   lastRow: number;
   sheetName: string;
@@ -40,17 +59,26 @@ export function readGrid(file: string, sheetMatch?: (n: string) => boolean): Gri
     }
   }
 
+  const filled = new Set<string>();
   for (const m of ws["!merges"] ?? []) {
     const v = cells.get(key(m.s.r, m.s.c));
     if (!v) continue;
     for (let r = m.s.r; r <= m.e.r; r++)
-      for (let c = m.s.c; c <= m.e.c; c++) cells.set(key(r, c), v);
+      for (let c = m.s.c; c <= m.e.c; c++) {
+        if (r !== m.s.r || c !== m.s.c) filled.add(key(r, c));
+        cells.set(key(r, c), v);
+      }
   }
 
   let lastRow = 0;
   for (const k of cells.keys()) lastRow = Math.max(lastRow, Number(k.split(",")[0]));
 
-  return { at: (r, c) => cells.get(key(r, c)) ?? "", lastRow, sheetName };
+  return {
+    at: (r, c) => cells.get(key(r, c)) ?? "",
+    isFilled: (r, c) => filled.has(key(r, c)),
+    lastRow,
+    sheetName,
+  };
 }
 
 /**

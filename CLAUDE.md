@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference.** |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges and finds the textile total column nobody had read. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -956,6 +956,23 @@ Product (one of the mandatory 315)
   import. Nothing in a parameter's own data says whether it is physical or
   chemical, and it is what decides which wing supervises work sent outside.
 
+- **The fee is per parameter — and the file's *merges* say how it wrote it**
+  (D119). A fee merged across a parameter's sub-parameter rows is that
+  parameter's fee, stated once; a fee written into each row separately is that
+  row's share, and the parameter's fee is their **sum**. Both are one price per
+  parameter, and `Grid.isFilled()` is the only thing that tells them apart once
+  merges are resolved. The textile file merges it — 266 merged ranges in the fee
+  column, exactly matching the parameter column — and **all 104 of its packages
+  reconcile to their stated total that way, none to the other**.
+  `chemical-physical-mixed-test.xlsx` merges the parameter and not the fee,
+  writing 105 into three separate cells, and its stated ৳2,200 only adds up if
+  all three count. **Never resolve merges without recording that they
+  happened.**
+- **The textile file publishes a package total, and the importer ignored it for
+  five sessions.** `Total Test Fee`, column J. That is why all 104 textile
+  packages carried no stated figure and every one of its 713 parameters sat at
+  `doubled_assumed`. Read since 2026-09-09; all 104 reconcile. It still has no
+  *urgent* total, so those stay `doubled_assumed` — that part was right.
 - **Columns are found by their header, never by position.** The wings' files do
   not agree on order: the textile list runs `Standard Limit | Method | Test
   Fee`, and `lab-format-setup.xlsx` runs `Standard Limit | Test Fee | Method`.

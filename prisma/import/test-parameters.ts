@@ -80,6 +80,12 @@ const COLUMNS = {
   limit: { exact: ["Standard Limit"] },
   method: { exact: ["Method", "Test Method"] },
   fee: { exact: ["Test Fee"] },
+  // Present in the textile file from the start and never read until
+  // 2026-09-09, which is why all 104 of its packages carried no stated total
+  // and every one of its 713 parameters sat at `doubled_assumed`. It is the
+  // checksum, and it is what proves the fee convention: all 104 reconcile to
+  // the sum of *distinct* parameter fees and none to the sum of every row.
+  normalTotal: { exact: ["Total Test Fee"] },
   normalDays: { exact: ["Duration of Test (Normal)"] },
   urgentDays: { exact: ["Duration of Test (Urgent)"] },
 } satisfies Record<string, ColumnSpec>;
@@ -141,6 +147,8 @@ type ParamRow = {
 type SubProductRow = {
   productName: string; name: string; standard: string;
   normalDays: number | null; urgentDays: number | null;
+  /** The wing's own stated total for the package — the checksum (D103). */
+  statedNormalPoisha: number | null;
   ordinal: number; params: ParamRow[];
 };
 
@@ -178,6 +186,7 @@ function parse(): {
         productName, name: subName, standard: grid.at(r, C.standard),
         normalDays: toDays(grid.at(r, C.normalDays)),
         urgentDays: toDays(grid.at(r, C.urgentDays)),
+        statedNormalPoisha: toPoisha(grid.at(r, C.normalTotal)),
         ordinal: byKey.size, params: [],
       };
       byKey.set(spKey, sp);
@@ -185,16 +194,28 @@ function parse(): {
 
     const fee = toPoisha(grid.at(r, C.fee));
     if (fee === null) { problems.push(`row ${r + 1}: no fee for "${paramName}"`); continue; }
+    // **The price is per parameter; the file decides how it is written.** A fee
+    // merged across a parameter's sub-parameter rows is that parameter's fee,
+    // stated once. A fee written into each row separately is that row's share,
+    // and the parameter's fee is their sum. `isFilled` is the only thing that
+    // tells the two apart once merges are resolved — see the note on `Grid`.
+    const feeIsMerged = grid.isFilled(r, C.fee);
 
     let p = sp.params.find((x) => x.name === paramName);
     if (!p) {
       p = { name: paramName, method: normalizeMethod(grid.at(r, C.method)), feePoisha: fee,
             limit: "", ordinal: sp.params.length, subParams: [] };
       sp.params.push(p);
+    } else if (!feeIsMerged) {
+      // Written on its own line, so it adds to the parameter rather than
+      // restating it.
+      p.feePoisha += fee;
+      const m = normalizeMethod(grid.at(r, C.method));
+      if (m && p.method && m !== p.method)
+        problems.push(`${sp.name} » ${paramName}: two methods ("${p.method}" vs "${m}")`);
     } else {
-      // The fee and method are merged across a parameter's sub-parameters, so
-      // every row of one parameter must agree. If they ever disagree the sheet
-      // is saying two things and the importer must not pick one.
+      // Merged: every row of one parameter must agree. If they ever disagree
+      // the sheet is saying two things and the importer must not pick one.
       if (p.feePoisha !== fee)
         problems.push(`${sp.name} » ${paramName}: two fees (${p.feePoisha} vs ${fee})`);
       const m = normalizeMethod(grid.at(r, C.method));
@@ -360,11 +381,12 @@ async function main() {
       where: { subProductId_sourceSection: { subProductId: row.id, sourceSection: SOURCE.section } },
       create: {
         subProductId: row.id, sourceSection: SOURCE.section,
-        statedNormalFeePoisha: null, statedUrgentFeePoisha: null,
+        statedNormalFeePoisha: sp.statedNormalPoisha, statedUrgentFeePoisha: null,
         summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
         turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
       },
       update: {
+        statedNormalFeePoisha: sp.statedNormalPoisha,
         summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
         turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
       },

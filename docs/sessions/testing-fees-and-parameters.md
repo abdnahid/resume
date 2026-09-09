@@ -2544,3 +2544,61 @@ Also outstanding: `lab_incharge` still has no users, and the physical sheet of
 `chemical-physical-mixed-test.xlsx` is still unimported — it prices per
 *sub-parameter* where the textile file prices per parameter, which is session
 10's open question and would misprice the package by ৳210 if loaded as-is.
+
+---
+
+## Session 12 — 2026-09-10 — the fee convention, settled by the files
+
+### User
+
+> I think all are prices per parameter. Which suggests you to have prices per
+> sub-parameter?
+
+Right on both counts, and the challenge was the useful thing: session 10 had
+written that the new file "prices per sub-parameter", which describes its
+*layout* and reads as a claim about the model. It is not one.
+
+### What the files actually say
+
+**The price is per parameter.** What differs is how each wing writes it, and the
+merge structure is the evidence:
+
+| | Fee column | Reading | Check |
+|---|---|---|---|
+| textile | **merged** across the parameter's rows — 266 ranges, exactly matching the Parameter column | the value *is* the parameter's fee, counted once | **104 of 104** packages match their stated total; **0** match the other reading |
+| mixed-test | **not merged** — `I2`, `I3`, `I4` are three separate cells each holding `105`, while `E2:E4` merges the parameter | the parameter's fee is the **sum** of its rows → Size in mm = ৳315 | stated ৳2,200 works only this way |
+
+`Grid.isFilled()` now records whether a value arrived from a merge. Resolving
+merges without recording that they happened destroys the only signal that says
+which reading is meant — the values look identical either way.
+
+### The thing found while checking
+
+**The textile file publishes a `Total Test Fee` column and the importer had
+never read it.** Five sessions. It is why all 104 textile packages carried
+`statedNormalFeePoisha = null` and why every one of its 713 parameters sits at
+`doubled_assumed`. Reading it: **all 104 reconcile exactly.** There is still no
+*urgent* total in that file, so `doubled_assumed` was the right provenance for
+the urgent side all along.
+
+Across all wings there are now 498 packages with a stated total and 23
+disagreements — the same 23 chemical ones already open with the wing.
+
+### Lessons that cost something
+
+- **Describing a spreadsheet's shape in the vocabulary of the model invites the
+  wrong conclusion.** "Prices per sub-parameter" was true of the cells and false
+  of the article being priced.
+- **An unread column is invisible.** `resolveColumns()` throws on a *missing*
+  column, which is the guard that matters — but a column present in the file and
+  absent from the map produces no signal at all. Worth a survey when a new wing
+  files: print the headers that were not claimed.
+
+### Resume here
+
+Unchanged from session 11: the field officer still has no screen for choosing
+among capable offices, and `lab_incharge` has no users.
+
+The physical sheet of `chemical-physical-mixed-test.xlsx` can now be imported
+correctly whenever the wing confirms it — the fee reading is settled and the
+importer handles both conventions.
