@@ -101,9 +101,7 @@ function Section({
                 </p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>{b.application.applicationNo ?? `#${b.application.id}`}</span>
-                  <span>
-                    {b.lab.nameEn} · {String(b.lab.discipline)}
-                  </span>
+                  <span>{b.office?.nameEn ?? "—"}</span>
                   <span>
                     {b._count.registry} {b._count.registry === 1 ? "specimen" : "specimens"}
                   </span>

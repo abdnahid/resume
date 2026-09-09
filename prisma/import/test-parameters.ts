@@ -335,14 +335,10 @@ async function main() {
       create: {
         productId: product.id, nameEn: sp.name,
         slug: subProductSlug(product.serial, sp.name),
-        standardAsPrinted: sp.standard || null, bdsId: resolveBds(sp.standard),
-        turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
+        standardAsPrinted: sp.standard || null,
         ordinal: sp.ordinal,
       },
-      update: {
-        standardAsPrinted: sp.standard || null,
-        turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
-      },
+      update: { standardAsPrinted: sp.standard || null },
       select: { id: true },
     });
     nSub++;
@@ -383,6 +379,10 @@ async function main() {
           methodId: p.method ? (methods.get(p.method) ?? null) : null,
           feePoisha: p.feePoisha, discipline: SOURCE.discipline,
           urgentFeePoisha: priced.urgentFees[i], urgentFeeSource: priced.source,
+          // Turnaround belongs to the test (D115). The file states one duration
+          // per package, so every test in it inherits that until a wing prices
+          // them individually.
+          normalDays: sp.normalDays, urgentDays: sp.urgentDays,
           sourceSection: SOURCE.section, ordinal: p.ordinal,
           limitText: p.subParams.length ? null : p.limit || null,
           limitKind: own.kind,
@@ -394,6 +394,7 @@ async function main() {
           // (D99), and re-importing the wing's file is not "by hand" — the file
           // is the authority for the rows it carries, so the source resets too.
           urgentFeePoisha: priced.urgentFees[i], urgentFeeSource: priced.source,
+          normalDays: sp.normalDays, urgentDays: sp.urgentDays,
           sourceSection: SOURCE.section, ordinal: p.ordinal,
           limitText: p.subParams.length ? null : p.limit || null,
           limitKind: own.kind,

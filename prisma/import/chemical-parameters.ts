@@ -566,8 +566,7 @@ async function main() {
     await prisma.subProduct.createMany({
       data: toCreate.slice(i, i + 100).map((s, j) => ({
         productId: s.productId, nameEn: s.subProduct, slug: slugFor(s),
-        standardAsPrinted: s.standard, bdsId: resolveBds(s.standard),
-        turnaroundNormalDays: s.normalDays, turnaroundUrgentDays: s.urgentDays,
+        standardAsPrinted: s.standard,
         ordinal: i + j,
       })),
       skipDuplicates: true,
@@ -608,6 +607,9 @@ async function main() {
         methodId: p.method ? methodId.get(slugify(p.method)) ?? null : null,
         feePoisha: p.feePoisha, urgentFeePoisha: p.urgentFeePoisha,
         urgentFeeSource: s.urgentSource,
+        // Turnaround belongs to the test (D115); the file states one duration
+        // per package, so every test in it inherits that.
+        normalDays: s.normalDays, urgentDays: s.urgentDays,
         discipline: "chemical", sourceSection: s.section,
         ordinal: p.ordinal, limitText: p.limit || null, limitKind: c.kind,
       });

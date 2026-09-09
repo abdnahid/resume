@@ -2,16 +2,16 @@
  * Shaping for the 2D map — Prisma-free (D9), so the server page and the client
  * grid agree on what a cell means without either importing the other's half.
  *
- * **The map is offices down one axis and parameters down the other**, and the
- * cell is the laboratory that runs that test for a sample received at that
- * office. That is the client's own framing: an application filed at Khulna may
- * have some parameters testable at Khulna, some that must go to Faridpur and
- * some that only head office can run — and which is which is an
- * administrative decision, not a derivable one (D64).
+ * **Offices across, tests down, and the cell says whether that office can run
+ * that test** — on its own bench or by sending it out. That is the client's own
+ * framing: an application filed at Faridpur may have some parameters testable
+ * at Faridpur, some at any of Khulna, Dhaka or Chittagong, and some only
+ * outside — and reading it as a grid is how you see which.
  *
- * The whole map is 23 offices × 4,767 parameters = 109,641 cells, so it is
- * never rendered whole. One package at a time is the unit anybody actually
- * works in.
+ * It used to hold a single chosen destination per cell, which meant every one
+ * of 109,802 had to be answered before anything resolved. It holds capability
+ * now (D116), which is sparse: a cell is filled only where an office has said
+ * something. One package at a time, always.
  */
 
 export type MatrixLab = {
@@ -21,16 +21,6 @@ export type MatrixLab = {
   officeId: number;
   officeName: string;
   isActive: boolean;
-};
-
-export type MatrixCell = {
-  labId: number | null;
-  isPlaceholder: boolean;
-  mode: string;
-  /** True when the sample leaves the receiving office. The point of the map. */
-  away: boolean;
-  /** True when the named lab cannot actually run this test, or is closed. */
-  broken: boolean;
 };
 
 /**
@@ -45,52 +35,45 @@ export function officeShortName(nameEn: string): string {
   return parts[parts.length - 1] || nameEn;
 }
 
-/**
- * "Chemistry Lab, Khulna" → "Chemistry Lab"; "Textile, Head Office" →
- * "Textile". The city is already the column, so it is dropped from the cell —
- * except when the sample is going somewhere else, where it is the whole point.
- */
+/** "Chemistry Lab, Khulna" → "Chemistry Lab"; the city is already the column. */
 export function labShortName(nameEn: string): string {
   return nameEn.split(",")[0].trim() || nameEn;
 }
 
-/** What a cell reads when the sample stays put, and when it travels. */
-export function cellLabel(lab: MatrixLab, atOfficeId: number): string {
-  const short = labShortName(lab.nameEn);
-  return lab.officeId === atOfficeId ? short : `→ ${officeShortName(lab.officeName)}`;
-}
+export type MatrixCell = {
+  /** How this office covers the test, or null where it does not. */
+  manner: "in_house" | "third_party" | null;
+  /** True when this is where the receiving office prefers to send it. */
+  preferred: boolean;
+};
 
 export function buildMatrix(args: {
-  offices: { id: number }[];
-  parameters: { id: number }[];
-  routings: { officeId: number; parameterId: number; labId: number; mode: string; isPlaceholder: boolean }[];
-  /** `labId:parameterId` for every capability a lab actually holds. */
-  capable: Set<string>;
-  labs: Map<number, MatrixLab>;
+  capabilities: { officeId: number; parameterId: number; manner: string }[];
+  preferences: { officeId: number; parameterId: number; toOfficeId: number }[];
+  /** The office the application would be received at — whose preferences count. */
+  fromOfficeId: number | null;
 }): Map<string, MatrixCell> {
+  const preferred = new Set(
+    args.preferences
+      .filter((p) => p.officeId === args.fromOfficeId)
+      .map((p) => `${p.toOfficeId}:${p.parameterId}`),
+  );
   const cells = new Map<string, MatrixCell>();
-
-  for (const r of args.routings) {
-    const lab = args.labs.get(r.labId);
-    cells.set(`${r.officeId}:${r.parameterId}`, {
-      labId: r.labId,
-      isPlaceholder: r.isPlaceholder,
-      mode: r.mode,
-      away: lab ? lab.officeId !== r.officeId : false,
-      // A row pointing at a lab that has since dropped the capability, or been
-      // closed, is not followed — `resolveDestinations()` refuses it. Showing
-      // that here is how somebody finds out before a field officer does.
-      broken: !lab || !lab.isActive || !args.capable.has(`${r.labId}:${r.parameterId}`),
+  for (const c of args.capabilities) {
+    const key = `${c.officeId}:${c.parameterId}`;
+    cells.set(key, {
+      manner: c.manner === "third_party" ? "third_party" : "in_house",
+      preferred: preferred.has(key),
     });
   }
   return cells;
 }
 
-/** Cells still resting on the seed, per office (D66). */
-export function placeholderCount(
+/** How many of a package's tests this office covers. */
+export function coveredCount(
   cells: Map<string, MatrixCell>,
   officeId: number,
   parameterIds: number[],
 ): number {
-  return parameterIds.filter((p) => cells.get(`${officeId}:${p}`)?.isPlaceholder ?? true).length;
+  return parameterIds.filter((p) => cells.get(`${officeId}:${p}`) !== undefined).length;
 }

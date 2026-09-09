@@ -45,13 +45,7 @@ export async function samplingBoxesFor(applicationId: number): Promise<SamplingR
     select: {
       code: true,
       sealNo: true,
-      lab: {
-        select: {
-          nameEn: true,
-          discipline: true,
-          office: { select: { nameBn: true, nameEn: true } },
-        },
-      },
+      office: { select: { nameBn: true, nameEn: true } },
       registry: {
         select: {
           sample: {
@@ -83,9 +77,9 @@ export async function samplingBoxesFor(applicationId: number): Promise<SamplingR
   return rows.map((c) => ({
     code: c.code,
     sealNo: c.sealNo,
-    labName: c.lab.nameEn,
-    discipline: String(c.lab.discipline),
-    officeName: c.lab.office.nameBn ?? c.lab.office.nameEn,
+    labName: c.office?.nameEn ?? "—",
+    discipline: "",
+    officeName: c.office?.nameBn ?? c.office?.nameEn ?? "—",
     specimens: c.registry.map((s) => ({
       subProductName: s.sample.labTestOrder.subProduct.nameBn ?? s.sample.labTestOrder.subProduct.nameEn,
       brand: s.applicationSku.brandName,

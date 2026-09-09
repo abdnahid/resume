@@ -68,7 +68,8 @@ export async function resolveRef(ref: string, viewer: {
       state: true,
       labTestOrder: {
         select: {
-          id: true, code: true, isUrgent: true, dueOn: true, state: true, labId: true,
+          id: true, code: true, isUrgent: true, dueOn: true, state: true,
+          labId: true, officeId: true,
           holderEmployeeId: true,
           subProduct: { select: { nameEn: true, nameBn: true, standardAsPrinted: true } },
           items: {
@@ -100,7 +101,10 @@ export async function resolveRef(ref: string, viewer: {
       where: {
         employeeId: viewer.employeeId,
         status: "active",
-        office: { labs: { some: { id: sample.labTestOrder.labId } } },
+        // The accountable office. It was always this in effect — the lab was
+        // only a way of naming it — and work an office sends out has no bench
+        // of its own to name (D116).
+        officeId: sample.labTestOrder.officeId ?? undefined,
       },
       select: { id: true },
     });
@@ -153,7 +157,7 @@ export async function resolveRef(ref: string, viewer: {
         },
       },
       consignment: {
-        select: { code: true, sealNo: true, state: true, lab: { select: { nameEn: true } } },
+        select: { code: true, sealNo: true, state: true, office: { select: { nameEn: true } } },
       },
     },
   });
@@ -182,7 +186,7 @@ export async function resolveRef(ref: string, viewer: {
         code: reg.consignment.code,
         sealNo: reg.consignment.sealNo,
         state: reg.consignment.state,
-        labName: reg.consignment.lab.nameEn,
+        labName: reg.consignment.office?.nameEn ?? "—",
       },
       sampleState: sample.state,
     },

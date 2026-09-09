@@ -128,7 +128,6 @@ async function main() {
   console.log(`  physical         ${labs.filter((l) => l.discipline === "physical").length}`);
   console.log(`  chemical         ${labs.filter((l) => l.discipline === "chemical").length}`);
   console.log(`Parameters         ${parameters.length}  from section(s): ${sections.join(", ") || "—"}`);
-  console.log(`Routing rows       ${offices.length * parameters.length}  (${offices.length} offices × ${parameters.length} parameters)`);
 
   if (unmatched.length) {
     console.log(`\n${unmatched.length} organogram unit(s) not matched — left out rather than guessed:`);
@@ -149,44 +148,23 @@ async function main() {
       update: { nameEn: l.nameEn, nameBn: l.nameBn, discipline: l.discipline, officeId: l.officeId, orgUnitId: l.orgUnitId },
     });
   }
-  const labIdBySlug = new Map(
-    (await prisma.lab.findMany({ select: { id: true, slug: true } })).map((l) => [l.slug, l.id]),
-  );
+  // **Capability and routing are no longer seeded** (D116). They used to be:
+  // one capability row per parameter pointed at the head-office section owning
+  // its file, and an office × parameter routing cell for all 23 offices —
+  // 109,802 of them, every one a stand-in, none ever answered. Both were there
+  // because the destination had to be derivable from a full map.
+  //
+  // It is derivable from capability now, and capability is **sparse**: a row
+  // exists only where an office has said it covers a test, and silence means it
+  // does not. Seeding rows would put words in offices' mouths, which is exactly
+  // what D107 had to be written to undo. Offices declare their own at
+  // `/labs/coverage`.
   console.log(`\n✓ labs             ${labs.length}`);
-
-  // Capability: the section whose file the parameter came from can run it.
-  const capabilities = parameters.map((p) => ({
-    labId: labIdBySlug.get(`lab-${SECTION_FOR_SOURCE[p.sourceSection]}`)!,
-    parameterId: p.id,
-    // **A stand-in, and flagged as one.** A test parameter belongs to no
-    // office — the catalogue is institution-wide, and a wing's file is where a
-    // test was written down rather than a claim about who can run it. These
-    // rows exist so the sampling flow resolves before any office has declared
-    // anything, and they must never be read as "only head office can do this".
-    // `/labs/coverage` is where an office replaces them with its own answer.
-    isPlaceholder: true,
-  }));
-  await prisma.labCapability.createMany({ data: capabilities, skipDuplicates: true });
-  console.log(`✓ capabilities     ${capabilities.length}`);
-
-  // The 2D map. Batched: a round trip to the remote database costs ~half a
-  // second, so 16k single writes would be hours.
-  const routings = offices.flatMap((o) =>
-    parameters.map((p) => ({
-      officeId: o.id, parameterId: p.id,
-      labId: labIdBySlug.get(`lab-${SECTION_FOR_SOURCE[p.sourceSection]}`)!,
-      mode: "in_house" as const, isPlaceholder: true,
-      note: "Seeded stand-in — every office routes to the owning head-office section until the mapping module lands.",
-    })),
+  console.log(
+    `\nCapability and routing are not seeded. Each office records what it can\n` +
+      `test at /labs/coverage; until it does, an application naming an untouched\n` +
+      `parameter will say so rather than resolve to somewhere nobody chose.`,
   );
-  const CHUNK = 2000;
-  let written = 0;
-  for (let i = 0; i < routings.length; i += CHUNK) {
-    const r = await prisma.labRouting.createMany({ data: routings.slice(i, i + CHUNK), skipDuplicates: true });
-    written += r.count;
-    console.log(`  … routing ${Math.min(i + CHUNK, routings.length)}/${routings.length}`);
-  }
-  console.log(`✓ routing rows     ${written} written (${routings.length - written} already present)`);
 }
 
 main()

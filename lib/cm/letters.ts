@@ -176,8 +176,8 @@ export async function letterRecipientsFor(applicationId: number) {
     select: {
       id: true,
       code: true,
-      labId: true,
-      lab: { select: { nameEn: true, officeId: true, discipline: true } },
+      officeId: true,
+      office: { select: { nameEn: true } },
     },
     orderBy: { id: "asc" },
   });
@@ -191,15 +191,28 @@ export async function letterRecipientsFor(applicationId: number) {
   }[] = [];
 
   for (const b of boxes) {
-    const wing = await wingHeadForLab(b.labId);
+    if (b.officeId === null) continue; // a box with no destination cannot be addressed
+    // A box goes to an office. Where that office holds a testing wing, the
+    // letter is addressed to the wing head who will run or arrange the work
+    // (D94); a branch has no wing, so its office head receives it — which is
+    // what `office_head` already means.
+    const labs = await prisma.lab.findMany({
+      where: { officeId: b.officeId, isActive: true },
+      select: { id: true },
+    });
+    let wing = null as Awaited<ReturnType<typeof wingHeadForLab>>;
+    for (const l of labs) {
+      wing = await wingHeadForLab(l.id);
+      if (wing && wing.kind !== "vacant") break;
+    }
     let recipient = wing;
     if (!wing || wing.kind === "vacant") {
-      const head = await officeHeadFor(b.lab.officeId);
+      const head = await officeHeadFor(b.officeId);
       if (head) {
         out.push({
-          labId: b.labId,
-          labName: b.lab.nameEn,
-          officeId: b.lab.officeId,
+          labId: b.officeId,
+          labName: b.office?.nameEn ?? "—",
+          officeId: b.officeId,
           boxCode: b.code,
           recipient: { kind: "office_head", ...head },
         });
@@ -207,9 +220,9 @@ export async function letterRecipientsFor(applicationId: number) {
       }
     }
     out.push({
-      labId: b.labId,
-      labName: b.lab.nameEn,
-      officeId: b.lab.officeId,
+      labId: b.officeId,
+      labName: b.office?.nameEn ?? "—",
+      officeId: b.officeId,
       boxCode: b.code,
       recipient,
     });

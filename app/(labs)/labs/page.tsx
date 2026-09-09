@@ -21,7 +21,12 @@ export default async function LabsOverviewPage() {
   await requireInternal("/labs");
   const c = await coverage();
 
-  const pct = c.routingRows ? Math.round((c.routingDecided / c.routingRows) * 100) : 0;
+  // The number that matters is no longer "how much of a map is filled in" —
+  // there is no map to fill (D116). It is how much of the catalogue anybody can
+  // test at all, because a parameter no office covers is an application that
+  // cannot resolve.
+  const covered = c.parameters - c.parametersWithNoCapableOffice;
+  const pct = c.parameters ? Math.round((covered / c.parameters) * 100) : 0;
   const labsWithNothing = c.labs.filter((l) => l.isActive && l.declared === 0);
 
   return (
@@ -57,9 +62,9 @@ export default async function LabsOverviewPage() {
           />
           <Tile
             icon={MapPinned}
-            label="Map decided"
+            label="Tests coverable"
             value={`${pct}%`}
-            note={`${c.routingDecided.toLocaleString("en-BD")} of ${c.routingRows.toLocaleString("en-BD")} cells`}
+            note={`${covered.toLocaleString("en-BD")} of ${c.parameters.toLocaleString("en-BD")} have a capable office`}
             href="/labs/mapping"
           />
           <Tile
@@ -71,17 +76,14 @@ export default async function LabsOverviewPage() {
           />
         </div>
 
-        {c.capabilityDeclared === 0 && (
+        {c.capabilityRows === 0 && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
             <p>
               <strong>Nothing on record is a laboratory&rsquo;s own answer yet.</strong> A test
               parameter belongs to no office — the catalogue is the same everywhere — but the
-              seed had to point capability and routing somewhere so that sampling would resolve,
-              and it pointed all {c.capabilityRows.toLocaleString("en-BD")} capability rows and{" "}
-              {c.routingRows.toLocaleString("en-BD")} routing cells at the head-office section
-              that owns each wing&rsquo;s file. That reads like &ldquo;only head office can run
-              these&rdquo;, which was never meant and is not true, so every one of those rows is
-              flagged as a stand-in until an office replaces it.
+              old model demanded a destination for every one of 109,802 office × parameter cells
+              before anything resolved, and none was ever filled in. It is gone: an office now
+              lists only what it <em>can</em> test, and silence means it cannot.
             </p>
             <p className="mt-2">
               <Link href="/labs/coverage" className="font-medium underline">
@@ -101,14 +103,15 @@ export default async function LabsOverviewPage() {
               <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr className="border-b border-border">
                   <th className="px-5 py-2 font-medium">Office</th>
-                  <th className="px-5 py-2 text-right font-medium">Decided</th>
-                  <th className="px-5 py-2 text-right font-medium">Cells</th>
-                  <th className="px-5 py-2 font-medium">Progress</th>
+                  <th className="px-5 py-2 text-right font-medium">Own bench</th>
+                  <th className="px-5 py-2 text-right font-medium">Sent out</th>
+                  <th className="px-5 py-2 text-right font-medium">Preferences</th>
+                  <th className="px-5 py-2 font-medium">Share of the catalogue</th>
                 </tr>
               </thead>
               <tbody>
                 {c.offices.map((o) => {
-                  const p = o.total ? Math.round((o.decided / o.total) * 100) : 0;
+                  const p = c.parameters ? Math.round((o.total / c.parameters) * 100) : 0;
                   return (
                     <tr key={o.officeId} className="border-b border-border/60 last:border-0">
                       <td className="px-5 py-2">
@@ -120,10 +123,13 @@ export default async function LabsOverviewPage() {
                         </Link>
                       </td>
                       <td className="px-5 py-2 text-right tabular-nums">
-                        {o.decided.toLocaleString("en-BD")}
+                        {o.inHouse ? o.inHouse.toLocaleString("en-BD") : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-5 py-2 text-right tabular-nums">
+                        {o.thirdParty ? o.thirdParty.toLocaleString("en-BD") : <span className="text-muted-foreground">—</span>}
                       </td>
                       <td className="px-5 py-2 text-right tabular-nums text-muted-foreground">
-                        {o.total.toLocaleString("en-BD")}
+                        {o.preferences || "—"}
                       </td>
                       <td className="px-5 py-2">
                         <div className="flex items-center gap-2">
@@ -167,13 +173,6 @@ export default async function LabsOverviewPage() {
                     <td className="px-5 py-2 text-right tabular-nums">
                       {l.declared ? (
                         l.declared.toLocaleString("en-BD")
-                      ) : l.held ? (
-                        <span
-                          title="Seeded stand-ins only — this laboratory has not said anything about itself"
-                          className="cursor-help text-amber-700 dark:text-amber-300"
-                        >
-                          {l.held.toLocaleString("en-BD")} seeded
-                        </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

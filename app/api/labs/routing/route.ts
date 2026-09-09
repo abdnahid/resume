@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { labActor } from "../_actor";
 import { canEditRouting } from "@/lib/labs/access";
-import { setRouting } from "@/lib/labs/mapping";
+import { setPreference } from "@/lib/labs/mapping";
 
 /**
  * Point a set of an office's parameters at a laboratory.
@@ -20,13 +20,15 @@ export async function POST(req: Request) {
   const body = (await req.json()) as Record<string, unknown>;
 
   const officeId = Number(body.officeId);
-  const labId = Number(body.labId);
+  const toOfficeId = body.toOfficeId === null ? null : Number(body.toOfficeId);
   const parameterIds = Array.isArray(body.parameterIds)
     ? body.parameterIds.map(Number).filter(Number.isInteger)
     : [];
 
-  if (!Number.isInteger(officeId) || !Number.isInteger(labId) || !parameterIds.length)
-    return NextResponse.json({ error: "An office, a laboratory and at least one test." }, { status: 400 });
+  if (!Number.isInteger(officeId) || !parameterIds.length)
+    return NextResponse.json({ error: "An office and at least one test." }, { status: 400 });
+  if (toOfficeId !== null && !Number.isInteger(toOfficeId))
+    return NextResponse.json({ error: "Where should it go?" }, { status: 400 });
 
   if (!canEditRouting(actor, officeId))
     return NextResponse.json(
@@ -35,11 +37,10 @@ export async function POST(req: Request) {
     );
 
   try {
-    const r = await setRouting({
+    const r = await setPreference({
       officeId,
-      labId,
+      toOfficeId,
       parameterIds,
-      mode: body.mode === "third_party" ? "third_party" : "in_house",
       note: typeof body.note === "string" ? body.note : null,
     });
     return NextResponse.json({ ok: true, ...r });

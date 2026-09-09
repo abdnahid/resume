@@ -52,12 +52,12 @@ export type SamplingView = {
 export async function samplingView(applicationId: number): Promise<SamplingView> {
   const { plan, problems } = await buildPlanFor(applicationId);
 
-  const labIds = [...new Set(plan.cells.map((c) => c.labId))];
+  const officeIds = [...new Set(plan.cells.map((c) => c.officeId))];
   const parameterIds = [...new Set(plan.cells.flatMap((c) => c.parameterIds))];
   const [labs, parameters, app] = await Promise.all([
     prisma.lab.findMany({
-      where: { id: { in: labIds } },
-      select: { id: true, nameEn: true, discipline: true },
+      where: { id: { in: officeIds } },
+      select: { id: true, nameEn: true },
     }),
     prisma.testParameter.findMany({
       where: { id: { in: parameterIds } },
@@ -68,51 +68,47 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
       select: { bstiOfficeId: true, subProducts: { select: { id: true, subProductId: true } } },
     }),
   ]);
-  const labName = new Map(labs.map((l) => [l.id, l.nameEn]));
-  const labDiscipline = new Map(labs.map((l) => [l.id, String(l.discipline)]));
+  const officeName = new Map(labs.map((o) => [o.id, o.nameEn]));
   const paramName = new Map(parameters.map((p) => [p.id, p.nameEn]));
 
-  // Which cells rest on nothing but the seeded stand-in routing (D66). Shown on
-  // the screen rather than assumed away: a destination nobody has chosen is not
-  // the same fact as one an office decided.
-  const placeholderByCell = new Map<string, boolean>();
+  // How each destination came to be chosen: because the office runs the test
+  // itself, because it is the only one that can, or because this office prefers
+  // it. Shown rather than assumed away — a destination nobody chose is not the
+  // same fact as one an office decided (the point D66's flag used to make).
+  const preferredByCell = new Map<string, boolean>();
   if (app?.bstiOfficeId) {
-    for (const cell of plan.cells) {
-      const rows = await prisma.labRouting.findMany({
-        where: {
-          officeId: app.bstiOfficeId,
-          labId: cell.labId,
-          parameterId: { in: cell.parameterIds },
-        },
-        select: { isPlaceholder: true },
-      });
-      placeholderByCell.set(
-        `${cell.applicationSubProductId}:${cell.labId}`,
-        rows.length > 0 && rows.every((r) => r.isPlaceholder),
+    const prefs = await prisma.routingPreference.findMany({
+      where: { officeId: app.bstiOfficeId, parameterId: { in: parameterIds } },
+      select: { parameterId: true, toOfficeId: true },
+    });
+    const by = new Map(prefs.map((r) => [r.parameterId, r.toOfficeId]));
+    for (const cell of plan.cells)
+      preferredByCell.set(
+        `${cell.applicationSubProductId}:${cell.officeId}`,
+        cell.parameterIds.some((id) => by.get(id) === cell.officeId),
       );
-    }
   }
 
-  // What each lab agreed for this sub-product last time. A suggestion the FDO
-  // can accept or overrule — never written for him, because the number turns on
-  // this consignment's quantity and what the tests destroy.
+  // What each destination office agreed for this sub-product last time. A
+  // suggestion the FDO can accept or overrule — never written for him, because
+  // the number turns on this consignment's quantity and what the tests destroy.
   const remembered = new Map<string, number>();
   const subProductIds = [...new Set(plan.cells.map((c) => c.subProductId))];
   if (subProductIds.length) {
-    const rows = await prisma.labSampleRequirement.findMany({
-      where: { subProductId: { in: subProductIds }, labId: { in: labIds } },
-      select: { labId: true, subProductId: true, samplesPerVariant: true },
+    const rows = await prisma.officeSampleRequirement.findMany({
+      where: { subProductId: { in: subProductIds }, officeId: { in: officeIds } },
+      select: { officeId: true, subProductId: true, samplesPerVariant: true },
     });
-    for (const r of rows) remembered.set(`${r.subProductId}:${r.labId}`, r.samplesPerVariant);
+    for (const r of rows) remembered.set(`${r.subProductId}:${r.officeId}`, r.samplesPerVariant);
   }
 
   const cells: SamplingCell[] = plan.cells.map((c) => ({
     ...c,
-    labName: labName.get(c.labId) ?? `Lab ${c.labId}`,
-    labDiscipline: labDiscipline.get(c.labId) ?? "",
+    labName: officeName.get(c.officeId) ?? `Office ${c.officeId}`,
+    labDiscipline: "",
     parameterNames: c.parameterIds.map((id) => paramName.get(id) ?? `#${id}`),
-    routeIsPlaceholder: placeholderByCell.get(`${c.applicationSubProductId}:${c.labId}`) ?? false,
-    remembered: remembered.get(`${c.subProductId}:${c.labId}`) ?? null,
+    routeIsPlaceholder: !(preferredByCell.get(`${c.applicationSubProductId}:${c.officeId}`) ?? false),
+    remembered: remembered.get(`${c.subProductId}:${c.officeId}`) ?? null,
   }));
 
   const committedRows = await prisma.consignment.findMany({
@@ -122,7 +118,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
       code: true,
       sealNo: true,
       state: true,
-      lab: { select: { nameEn: true } },
+      office: { select: { nameEn: true } },
       registry: {
         select: {
           sample: {
@@ -149,7 +145,10 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
 
   return {
     cells,
-    boxes: plan.boxes.map((b) => ({ ...b, labName: labName.get(b.labId) ?? `Lab ${b.labId}` })),
+    boxes: plan.boxes.map((b) => ({
+      ...b, labId: b.officeId,
+      labName: officeName.get(b.officeId) ?? `Office ${b.officeId}`,
+    })),
     totalSamples: plan.totalSamples,
     problems: [...problems, ...planProblems(plan)],
     missingCount: plan.missing.length,
@@ -160,7 +159,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
             code: c.code,
             sealNo: c.sealNo,
             state: String(c.state),
-            labName: c.lab.nameEn,
+            labName: c.office?.nameEn ?? "—",
             specimens: c.registry.map((s) => ({
               // `ref` and nothing else: it is the only one of the three
               // identifiers that may be printed (D68).

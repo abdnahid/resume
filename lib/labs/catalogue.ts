@@ -14,6 +14,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { priceUrgent, type UrgentFeeSource } from "./urgent-fee";
+import { packageDays } from "./turnaround";
 
 export type ProductRow = {
   id: number;
@@ -92,7 +93,6 @@ export async function productDetail(productId: number) {
     orderBy: [{ ordinal: "asc" }, { id: "asc" }],
     select: {
       id: true, nameEn: true, nameBn: true, standardAsPrinted: true,
-      turnaroundNormalDays: true, turnaroundUrgentDays: true,
       packageFees: {
         select: {
           sourceSection: true,
@@ -105,6 +105,7 @@ export async function productDetail(productId: number) {
         select: {
           feePoisha: true, urgentFeePoisha: true, urgentFeeSource: true,
           discipline: true, sourceSection: true,
+          normalDays: true, urgentDays: true,
         },
       },
     },
@@ -115,8 +116,7 @@ export async function productDetail(productId: number) {
     subProducts: subProducts.map((s) => ({
       id: s.id, nameEn: s.nameEn, nameBn: s.nameBn,
       standardAsPrinted: s.standardAsPrinted,
-      turnaroundNormalDays: s.turnaroundNormalDays,
-      turnaroundUrgentDays: s.turnaroundUrgentDays,
+      ...packageDays(s.parameters),
       packageFees: s.packageFees,
       parameterCount: s.parameters.length,
       normalFeePoisha: s.parameters.reduce((a, p) => a + p.feePoisha, 0),
@@ -138,10 +138,16 @@ export async function subProductDetail(subProductId: number) {
     where: { id: subProductId },
     select: {
       id: true, nameEn: true, nameBn: true, standardAsPrinted: true,
-      turnaroundNormalDays: true, turnaroundUrgentDays: true,
       foldedAt: true, foldedNote: true,
-      product: { select: { id: true, serial: true, nameEn: true } },
-      bds: { select: { number: true, titleEn: true } },
+      // A sub-product has no standard of its own now (D114): it inherits the
+      // product's, and `standardAsPrinted` records what its wing printed where
+      // the two disagree on an edition.
+      product: {
+        select: {
+          id: true, serial: true, nameEn: true,
+          bds: { select: { number: true, titleEn: true } },
+        },
+      },
       packageFees: {
         orderBy: { sourceSection: "asc" },
         select: {
@@ -156,6 +162,7 @@ export async function subProductDetail(subProductId: number) {
         select: {
           id: true, nameEn: true, slug: true,
           feePoisha: true, urgentFeePoisha: true, urgentFeeSource: true,
+          normalDays: true, urgentDays: true,
           discipline: true, sourceSection: true,
           limitText: true, limitKind: true,
           method: { select: { id: true, designation: true } },
@@ -163,7 +170,10 @@ export async function subProductDetail(subProductId: number) {
             orderBy: { ordinal: "asc" },
             select: { id: true, label: true, limitText: true, limitKind: true },
           },
-          _count: { select: { capabilities: true } },
+          // How many offices have said they can run this test — the list the
+          // client asked to see on the parameter (D116), counted from the
+          // other side.
+          _count: { select: { officeCapabilities: true } },
         },
       },
     },

@@ -131,7 +131,7 @@ export default async function ProductPage({
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">{s.parameterCount}</td>
                     <td className="px-4 py-2 text-right text-xs tabular-nums text-muted-foreground">
-                      {s.turnaroundNormalDays ?? "?"}d / {s.turnaroundUrgentDays ?? "?"}d
+                      {s.normalDays ?? "?"}d / {s.urgentDays ?? "?"}d
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums">
                       {formatPoisha(s.normalFeePoisha)}

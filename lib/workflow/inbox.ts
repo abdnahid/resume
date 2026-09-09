@@ -87,14 +87,16 @@ export async function inboxScope(actor: WorkflowActor): Promise<{
  */
 export async function consignmentsForCounter(officeId: number) {
   return prisma.consignment.findMany({
-    where: { lab: { officeId } },
+    // Scoped to the destination **office** — which is what a box is addressed
+    // to, whether that office runs the tests itself or sends them out (D116).
+    where: { officeId },
     select: {
       id: true,
       code: true,
       sealNo: true,
       state: true,
       submittedAt: true,
-      lab: { select: { nameEn: true, discipline: true } },
+      office: { select: { nameEn: true } },
       application: {
         select: {
           id: true,

@@ -392,14 +392,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       if (body.action === "sample-count") {
         const asp = Number(body.applicationSubProductId);
-        const labId = Number(body.labId);
+        // A cell is (sub-product, destination office). The screen still calls
+        // it `labId` on the wire; the destination has been an office since D116.
+        const officeId = Number(body.officeId ?? body.labId);
         const n = Number(body.samplesPerVariant);
-        if (!Number.isInteger(asp) || !Number.isInteger(labId)) {
+        if (!Number.isInteger(asp) || !Number.isInteger(officeId)) {
           return NextResponse.json({ error: "Which cell?" }, { status: 400 });
         }
         await setRequirement({
           applicationSubProductId: asp,
-          labId,
+          officeId,
           samplesPerVariant: n,
           employeeId: actor.employeeId,
           note: typeof body.note === "string" ? body.note : undefined,

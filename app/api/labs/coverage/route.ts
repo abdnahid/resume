@@ -47,19 +47,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
 
       case "package": {
-        // `sendTo` arrives as parameter id → office id. Coerced here rather
-        // than trusted: the service turns each into a laboratory, and a
-        // non-numeric key would silently drop a parameter's destination.
-        const sendTo: Record<number, number> = {};
-        for (const [k, v] of Object.entries((body.sendTo ?? {}) as Record<string, unknown>)) {
-          const pid = Number(k), oid = Number(v);
-          if (Number.isInteger(pid) && Number.isInteger(oid)) sendTo[pid] = oid;
-        }
+        // Only what the office covers: what it runs itself, and what it sends
+        // out and enters the result for. Everything else is *not covered*, and
+        // that is said by the absence of a row (D116) — there is no destination
+        // to record any more.
         const r = await setPackageCoverage({
           officeId,
           subProductId: Number(body.subProductId),
-          here: ints(body.here),
-          sendTo,
+          inHouse: ints(body.inHouse),
+          thirdParty: ints(body.thirdParty),
           employeeId: actor.employeeId,
         });
         return NextResponse.json({ ok: true, ...r });

@@ -76,11 +76,11 @@ export default async function SubProductPage({ params }: { params: Promise<{ id:
               <>
                 Tested against <strong>{sp.standardAsPrinted}</strong> as the wing&rsquo;s file
                 prints it
-                {sp.bds && sp.bds.number !== sp.standardAsPrinted && (
+                {sp.product.bds && sp.product.bds.number !== sp.standardAsPrinted && (
                   <>
                     {" "}
-                    — the published list names <strong>{sp.bds.number}</strong>, and both are kept
-                    rather than one being picked
+                    — the product is identified by <strong>{sp.product.bds.number}</strong>, and
+                    both are kept rather than one being picked
                   </>
                 )}
                 .
@@ -104,8 +104,6 @@ export default async function SubProductPage({ params }: { params: Promise<{ id:
         <PackageEditor
           subProductId={sp.id}
           nameEn={sp.nameEn}
-          turnaroundNormalDays={sp.turnaroundNormalDays}
-          turnaroundUrgentDays={sp.turnaroundUrgentDays}
           packageFees={sp.packageFees}
           parameters={sp.parameters}
           methods={methods}

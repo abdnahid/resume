@@ -424,10 +424,19 @@ model Office {
   factories   Factory[]
 
   labs             Lab[]
-  labRoutings      LabRouting[]
   subProductScopes OfficeSubProductScope[]
-  applications     Application[]
-  sampleLetters    SampleLetter[]
+
+  capabilities       ParameterCapability[]
+  preferencesFrom    RoutingPreference[]       @relation("PreferenceFrom")
+  preferencesTo      RoutingPreference[]       @relation("PreferenceTo")
+  consignments       Consignment[]
+  testOrders         LabTestOrder[]
+  /// What this office has told field officers it wants, per sub-product.
+  sampleRequirements OfficeSampleRequirement[]
+  /// The counts entered against one application's visit.
+  visitRequirements  SampleRequirement[]
+  applications       Application[]
+  sampleLetters      SampleLetter[]
 }
 
 // ─── Address ──────────────────────────────────────────────────────────────────
@@ -593,36 +602,37 @@ model Employee {
   idCards          IdCard[]
 
   // New profile sub-tables
-  spouse               Spouse?
-  children             Child[]
-  languages            Language[]
-  curriculars          Curricular[]
-  disciplinaryActions  DisciplinaryAction[]
-  heldApplications     Application[]           @relation("ApplicationHolder")
-  officeScopesDeclared OfficeSubProductScope[] @relation("OfficeScopeDeclaredBy")
-  movementsSent        ApplicationMovement[]   @relation("MovementFrom")
-  movementsReceived    ApplicationMovement[]   @relation("MovementTo")
+  spouse                   Spouse?
+  children                 Child[]
+  languages                Language[]
+  curriculars              Curricular[]
+  disciplinaryActions      DisciplinaryAction[]
+  heldApplications         Application[]             @relation("ApplicationHolder")
+  officeScopesDeclared     OfficeSubProductScope[]   @relation("OfficeScopeDeclaredBy")
+  capabilitiesDeclared     ParameterCapability[]     @relation("CapabilityDeclaredBy")
+  sampleRequirementsAgreed OfficeSampleRequirement[] @relation("OfficeRequirementAgreedBy")
+  movementsSent            ApplicationMovement[]     @relation("MovementFrom")
+  movementsReceived        ApplicationMovement[]     @relation("MovementTo")
 
   // ─ Samples and lab testing ─
-  subProductsDeclared   ApplicationSubProduct[]    @relation("SubProductDeclaredBy")
-  skusDeclared          ApplicationSku[]           @relation("SkuDeclaredBy")
-  subProductsStruckOut  ApplicationSubProduct[]    @relation("SubProductStruckOut")
-  skusStruckOut         ApplicationSku[]           @relation("SkuStruckOut")
-  sampleRequirementsSet LabSampleRequirement[]     @relation("SampleRequirementAgreedBy")
-  consignmentsPacked    Consignment[]              @relation("ConsignmentPackedBy")
-  consignmentsOpened    Consignment[]              @relation("ConsignmentOpenedBy")
-  samplesSealed         SampleRegistration[]       @relation("SampleSealedBy")
-  labTestOrdersHeld     LabTestOrder[]             @relation("LabTestOrderHolder")
-  shortfallsRaised      ShortfallRound[]           @relation("ShortfallRaisedBy")
-  inspectionsProposed   InspectionPlan[]           @relation("InspectionProposedBy")
-  inspectionsApproved   InspectionPlan[]           @relation("InspectionApprovedBy")
-  reportsPrepared       InspectionReport[]         @relation("ReportPreparedBy")
-  developmentNotices    FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRaisedBy")
-  lettersIssued         SampleLetter[]             @relation("LetterIssuedBy")
-  lettersAddressed      SampleLetter[]             @relation("LetterAddressedTo")
-  reportsApproved       InspectionReport[]         @relation("ReportApprovedBy")
-  inspectionTeams       InspectionTeamMember[]
-  testResultsEntered    TestResult[]               @relation("TestResultEnteredBy")
+  subProductsDeclared  ApplicationSubProduct[]    @relation("SubProductDeclaredBy")
+  skusDeclared         ApplicationSku[]           @relation("SkuDeclaredBy")
+  subProductsStruckOut ApplicationSubProduct[]    @relation("SubProductStruckOut")
+  skusStruckOut        ApplicationSku[]           @relation("SkuStruckOut")
+  consignmentsPacked   Consignment[]              @relation("ConsignmentPackedBy")
+  consignmentsOpened   Consignment[]              @relation("ConsignmentOpenedBy")
+  samplesSealed        SampleRegistration[]       @relation("SampleSealedBy")
+  labTestOrdersHeld    LabTestOrder[]             @relation("LabTestOrderHolder")
+  shortfallsRaised     ShortfallRound[]           @relation("ShortfallRaisedBy")
+  inspectionsProposed  InspectionPlan[]           @relation("InspectionProposedBy")
+  inspectionsApproved  InspectionPlan[]           @relation("InspectionApprovedBy")
+  reportsPrepared      InspectionReport[]         @relation("ReportPreparedBy")
+  developmentNotices   FactoryDevelopmentNotice[] @relation("DevelopmentNoticeRaisedBy")
+  lettersIssued        SampleLetter[]             @relation("LetterIssuedBy")
+  lettersAddressed     SampleLetter[]             @relation("LetterAddressedTo")
+  reportsApproved      InspectionReport[]         @relation("ReportApprovedBy")
+  inspectionTeams      InspectionTeamMember[]
+  testResultsEntered   TestResult[]               @relation("TestResultEnteredBy")
 }
 
 // ─── Pay scale (versioned) ───────────────────────────────────────────────────
@@ -1743,6 +1753,11 @@ model Bds {
   refBySubParameter TestSubParameter[] @relation("SubParameterRefBds")
   standardFor       ProductStandard[]
 
+  /// The product this standard identifies, where it identifies one — the other
+  /// side of `Product.bdsId`. A product may still require several standards;
+  /// this is the one it is known by.
+  identifies Product? @relation("ProductIdentity")
+
   purchases BdsPurchase[]
 
   createdAt DateTime @default(now())
@@ -2151,6 +2166,19 @@ model Product {
   /// because a manufacturer knows what they make, not what BSTI calls it.
   genericNames String[]
 
+  /// **The standard that identifies this product**, unique across the
+  /// catalogue. Verified achievable: no BDS number is claimed by two products.
+  ///
+  /// It is the *identity*, not the whole requirement. 24 of the 315 are
+  /// certified against several parts of one specification — IEC 61215 Parts 1
+  /// to 2 plus IEC 61730 for a photovoltaic module, BDS 1034 Parts 1–5 for
+  /// winding wires — and **all of them are still required** (D48). Those live
+  /// in `standards`; this names the part the product is known by. Splitting
+  /// them into separate products would make a manufacturer apply eight times
+  /// for one solar panel.
+  bdsId Int? @unique
+  bds   Bds? @relation("ProductIdentity", fields: [bdsId], references: [id])
+
   categoryId Int
   category   ProductCategory @relation(fields: [categoryId], references: [id])
 
@@ -2555,8 +2583,19 @@ enum UrgentFeeSource {
   manual
 }
 
-enum LabRoutingMode {
+/// How an office covers a test it has declared.
+///
+/// **There is deliberately no third-party laboratory table.** The client's rule
+/// (2026-09-09): the system records *that* an office sends this test out and
+/// enters the result through its own examiner, not *which* company runs it. The
+/// accountable unit is always BSTI — the principle D65 established, and simpler
+/// for it, because naming the outside lab is a fact about one consignment
+/// rather than about a capability.
+enum CapabilityManner {
+  /// Run on the office's own bench.
   in_house
+  /// Sent to an accredited outside laboratory; the office's examiner receives
+  /// the result and enters it. The office is still the accountable destination.
   third_party
 }
 
@@ -2608,14 +2647,10 @@ model SubProduct {
   /// an open question for the wing, and overwriting either answer would hide it.
   standardAsPrinted String?
 
-  /// The catalogue row for the product's standard, when it resolves.
-  bdsId Int?
-  bds   Bds? @relation(fields: [bdsId], references: [id])
-
-  /// Working days quoted for the whole package. Note these are per package and
-  /// not per parameter, so a partial selection has no computable date yet.
-  turnaroundNormalDays Int?
-  turnaroundUrgentDays Int?
+  /// **Turnaround is per parameter now** (D115) — see `TestParameter.normalDays`.
+  /// A package's own turnaround is the longest of the tests it contains, and
+  /// the figure each wing published for it is kept verbatim on
+  /// `SubProductPackageFee`.
 
   ordinal Int @default(0)
 
@@ -2646,16 +2681,17 @@ model SubProduct {
 
   parameters         TestParameter[]
   applicationEntries ApplicationSubProduct[]
-  labRequirements    LabSampleRequirement[]
   testOrders         LabTestOrder[]
   packageFees        SubProductPackageFee[]
   officeScopes       OfficeSubProductScope[]
+  officeRequirements OfficeSampleRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  bds       Bds?     @relation(fields: [bdsId], references: [id])
+  bdsId     Int?
 
   @@unique([productId, nameEn])
-  @@index([bdsId])
 }
 
 /// What one wing published for one package, kept as printed.
@@ -2750,6 +2786,18 @@ model TestParameter {
   /// must never be recomputed over — neither is knowable from the number alone.
   urgentFeeSource UrgentFeeSource @default(doubled_assumed)
 
+  /// Working days for **this test**, normal and urgent.
+  ///
+  /// They used to sit on the sub-product, as a figure for the whole package,
+  /// which D62 recorded as a limitation: "these are per package and not per
+  /// parameter, so a partial selection has no computable date yet". Moving them
+  /// down is what makes a partial selection datable — a package's turnaround
+  /// becomes the longest of the tests it actually contains, which is what a
+  /// turnaround *is*. The wing's published package figure is still kept
+  /// verbatim on `SubProductPackageFee`.
+  normalDays Int?
+  urgentDays Int?
+
   /// Which wing owns this test. Comes from the file it was imported from —
   /// one file per lab — not from anything in the row itself.
   discipline LabDiscipline
@@ -2766,10 +2814,10 @@ model TestParameter {
 
   ordinal Int @default(0)
 
-  subParameters TestSubParameter[]
-  capabilities  LabCapability[]
-  routings      LabRouting[]
-  orderItems    LabTestOrderItem[]
+  subParameters      TestSubParameter[]
+  officeCapabilities ParameterCapability[]
+  preferences        RoutingPreference[]
+  orderItems         LabTestOrderItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2837,53 +2885,17 @@ model Lab {
 
   isActive Boolean @default(true)
 
-  capabilities       LabCapability[]
-  routings           LabRouting[]
+  officeCapabilities ParameterCapability[]
   consignments       Consignment[]
   testOrders         LabTestOrder[]
   sampleRequirements SampleRequirement[]
   sampleLetters      SampleLetter[]
-  labRequirements    LabSampleRequirement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([officeId])
   @@index([discipline])
-}
-
-/// What a lab can actually run. Sparse — only the true rows, each lab
-/// maintaining its own. This is the ground truth that keeps `LabRouting` from
-/// nominating a destination that cannot do the test.
-model LabCapability {
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
-
-  parameterId Int
-  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
-
-  isActive Boolean @default(true)
-
-  /// True while the row is the seed's stand-in rather than something a
-  /// laboratory has said about itself.
-  ///
-  /// **A test parameter belongs to no office.** The catalogue is institution
-  /// wide: a wing's file is where a parameter was *written down*, not a claim
-  /// about who can run it. `seed:labs` had to point the rows somewhere to keep
-  /// the sampling flow resolving, so it pointed them at the head-office section
-  /// that owns each source file — and that looked exactly like a statement that
-  /// head office alone can run all 4,767 tests, which is not true and was never
-  /// meant. The flag is what separates the two, the same discipline as
-  /// `LabRouting.isPlaceholder` and the seeded bank branch details.
-  ///
-  /// Cleared when an office declares its own coverage at `/labs/coverage`.
-  isPlaceholder Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@id([labId, parameterId])
-  @@index([parameterId])
 }
 
 /// The 2D map: for a sample received at this office, which lab runs this
@@ -2934,22 +2946,40 @@ model OfficeSubProductScope {
   @@index([subProductId])
 }
 
-model LabRouting {
+/// **Which offices can test a parameter, and how.** Sparse ground truth: a row
+/// exists only where an office has said it covers this test, and silence means
+/// it does not. That inversion is the client's (2026-09-09) and is what makes
+/// the data entry finite — an office lists what it *can* do and never has to
+/// answer for the 4,774 tests it cannot.
+///
+/// **Keyed on the office, not the laboratory**, because an office may cover a
+/// test it has no bench for: Faridpur holds only a chemistry lab and can still
+/// send a physical test out under `third_party` and enter the result. Keyed on
+/// the lab, that capability would have had nowhere to live and the organogram
+/// would have had to grow a laboratory that does not exist.
+///
+/// `labId` names the bench when the work is in-house, resolved from the
+/// parameter's discipline and, at head office, from its section. It is null for
+/// `third_party`, which is the honest answer: no bench of ours runs it.
+model ParameterCapability {
   officeId Int
   office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
 
   parameterId Int
   parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
 
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id])
+  manner CapabilityManner @default(in_house)
 
-  mode LabRoutingMode @default(in_house)
+  labId Int?
+  lab   Lab? @relation(fields: [labId], references: [id])
 
-  /// True while the row is the seeded stand-in rather than something an office
-  /// has confirmed. Every row starts this way and the mapping module clears it,
-  /// so nobody mistakes a placeholder for a decision.
-  isPlaceholder Boolean @default(true)
+  isActive Boolean @default(true)
+
+  /// Who said so, and when. A capability is somebody's assertion about their
+  /// own laboratory, so it carries a name.
+  declaredAt           DateTime  @default(now())
+  declaredByEmployeeId String?
+  declaredBy           Employee? @relation("CapabilityDeclaredBy", fields: [declaredByEmployeeId], references: [id])
 
   note String?
 
@@ -2959,6 +2989,68 @@ model LabRouting {
   @@id([officeId, parameterId])
   @@index([parameterId])
   @@index([labId])
+}
+
+/// Where an office **prefers** to send a test it cannot run itself.
+///
+/// Optional, and that is the whole change from `LabRouting`. The old map
+/// demanded an answer for every office × parameter cell — 109,802 of them, all
+/// seeded stand-ins and none ever answered — because the destination had to be
+/// derivable from it. The destination now derives from `ParameterCapability`
+/// instead, and this only breaks a tie: D64's point still holds that referral
+/// is administrative, so Barisal may prefer Cumilla over a nearer, capable
+/// Khulna, and it can say so without anyone filling in a grid.
+///
+/// **No row means no preference**, and the field officer chooses from the
+/// capable offices at sampling time. He may override one that exists.
+model RoutingPreference {
+  /// The office the application was received at.
+  officeId Int
+  office   Office @relation("PreferenceFrom", fields: [officeId], references: [id], onDelete: Cascade)
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  /// Where it prefers to send this test. Must hold the capability — checked on
+  /// the way in, and again when a sample is actually routed.
+  toOfficeId Int
+  toOffice   Office @relation("PreferenceTo", fields: [toOfficeId], references: [id], onDelete: Cascade)
+
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([officeId, parameterId])
+  @@index([parameterId])
+  @@index([toOfficeId])
+}
+
+/// How many specimens a destination **office** wants of a sub-product.
+///
+/// The office-level counterpart of `LabSampleRequirement`, which was keyed on
+/// the laboratory. A destination is an office now, and a box is addressed to
+/// one — including where the office has no bench of its own and sends the work
+/// out (D65, `third_party`).
+model OfficeSampleRequirement {
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)
+
+  subProductId Int
+  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
+
+  samplesPerVariant Int
+
+  /// When this was last confirmed, and by whom. A stale figure should be
+  /// visible as stale rather than quietly authoritative.
+  agreedAt           DateTime  @default(now())
+  agreedByEmployeeId String?
+  agreedBy           Employee? @relation("OfficeRequirementAgreedBy", fields: [agreedByEmployeeId], references: [id])
+
+  note String?
+
+  @@id([officeId, subProductId])
+  @@index([subProductId])
 }
 
 // ─── Samples, consignments and the CM/lab cut ─────────────────────────────────
@@ -3092,8 +3184,13 @@ model SampleRequirement {
   applicationSubProductId Int
   applicationSubProduct   ApplicationSubProduct @relation(fields: [applicationSubProductId], references: [id], onDelete: Cascade)
 
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id])
+  /// The destination **office**. A box is addressed to an office, which may
+  /// cover the test on its own bench or send it out (D116).
+  officeId Int?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  labId Int?
+  lab   Lab? @relation(fields: [labId], references: [id])
 
   /// Per variant, not per application: the FDO multiplies by the number of
   /// variants, and getting that arithmetic wrong is the other thing that goes
@@ -3108,35 +3205,8 @@ model SampleRequirement {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@unique([applicationSubProductId, labId])
-  @@index([labId])
-}
-
-/// What a lab said it needs, last time anyone asked (D69).
-///
-/// Written from the FDO's entry rather than by a data-entry project: the first
-/// application for a sub-product costs a phone call, and every one after it
-/// arrives pre-filled. The lab owns and may correct its own rows, exactly like
-/// `LabCapability`.
-model LabSampleRequirement {
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
-
-  subProductId Int
-  subProduct   SubProduct @relation(fields: [subProductId], references: [id], onDelete: Cascade)
-
-  samplesPerVariant Int
-
-  /// When this was last confirmed, and by whom. A stale figure should be
-  /// visible as stale rather than quietly authoritative.
-  agreedAt           DateTime  @default(now())
-  agreedByEmployeeId String?
-  agreedBy           Employee? @relation("SampleRequirementAgreedBy", fields: [agreedByEmployeeId], references: [id])
-
-  note String?
-
-  @@id([labId, subProductId])
-  @@index([subProductId])
+  @@unique([applicationSubProductId, officeId])
+  @@index([officeId])
 }
 
 /// The sealed box. One per (application, destination lab).
@@ -3157,9 +3227,17 @@ model Consignment {
   applicationId Int
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
-  /// The destination lab, and therefore the office whose counter receives it.
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id])
+  /// **The destination office** — whose counter receives the box, and who is
+  /// accountable for the testing whether it runs on their own bench or goes to
+  /// an accredited outside laboratory.
+  officeId Int?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  /// The bench, when there is one. Null where the office covers the test under
+  /// `third_party` and holds no laboratory of that discipline — Faridpur has no
+  /// physical lab and can still be the destination for a physical test.
+  labId Int?
+  lab   Lab? @relation(fields: [labId], references: [id])
 
   state ConsignmentState @default(packed)
 
@@ -3190,7 +3268,8 @@ model Consignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@unique([applicationId, labId])
+  @@unique([applicationId, officeId])
+  @@index([officeId, state])
   @@index([labId, state])
 }
 
@@ -3280,8 +3359,12 @@ model LabTestOrder {
 
   code String @unique
 
-  labId Int
-  lab   Lab @relation(fields: [labId], references: [id])
+  /// The accountable office. See `Consignment.officeId`.
+  officeId Int?
+  office   Office? @relation(fields: [officeId], references: [id])
+
+  labId Int?
+  lab   Lab? @relation(fields: [labId], references: [id])
 
   /// The catalogue row, not the application's selection of it.
   subProductId Int
@@ -3305,7 +3388,7 @@ model LabTestOrder {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  @@index([labId, state])
+  @@index([officeId, state])
   @@index([subProductId])
 }
 

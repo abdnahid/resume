@@ -94,9 +94,7 @@ export default async function RegistryPage() {
                     <td className="px-5 py-2.5 text-right text-xs tabular-nums text-muted-foreground">
                       {l.declared
                         ? `${l.declared.toLocaleString("en-BD")} tests declared`
-                        : l.held
-                          ? `${l.held.toLocaleString("en-BD")} seeded stand-ins`
-                          : "nothing declared"}
+                        : "nothing declared"}
                     </td>
                     <td className="w-40 px-5 py-2.5 text-right">
                       <LabToggle labId={l.labId} isActive={l.isActive} canEdit={canEdit} />

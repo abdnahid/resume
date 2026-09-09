@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; **Session 10 records the mixed physical/chemical routing scenario — several candidate destinations per parameter, and two third-party labs — which is the next design discussion and is not built.** |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference.** |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -1113,7 +1113,8 @@ Product (one of the mandatory 315)
   needed is **Barisal → Barishal**: the organogram spells it one way and the
   office register the other.
 
-- **Capability and routing are two tables, not one map** (D64). Referral is an
+- **[SUPERSEDED by D116 — kept because the reasoning still holds]** Capability
+  and routing were two tables, not one map (D64). Referral is an
   administrative fact and must be stored, not derived — Barisal may send what it
   cannot test to Cumilla rather than a nearer, capable Khulna. But a map holding
   a destination directly can name a lab that cannot run the test and nothing
@@ -1153,9 +1154,49 @@ Product (one of the mandatory 315)
   not, and deleting would take `LabCapability` and every `LabRouting` row with
   it. Nothing was repointed — all 22 held no capability and no routing cells.
 
+### The model, as it stands after D114–D118
+
+- **`Product → SubProduct → TestParameter → TestSubParameter`**, one-to-many
+  down, exactly one parent up. Unchanged; the client confirmed it 2026-09-09.
+- **A product is identified by a unique BDS number** (D114). `Product.bdsId` is
+  `@unique` — verified: no BDS is claimed by two products. It is the identity,
+  not the whole requirement: 24 products are certified against several parts of
+  one specification and D48 still needs all of them, so those stay in
+  `ProductStandard`. **Sub-products inherit it**; `SubProduct.bdsId` is gone and
+  `standardAsPrinted` remains, because 43 products have a wing citing a
+  different edition.
+- **A parameter carries fee, urgent fee, method, limit and now its own
+  turnaround** (D115). `packageDays()` in `lib/labs/turnaround.ts` derives a
+  package's duration as the **longest** of its tests — which is what a
+  turnaround is, and what finally makes a partial selection datable.
+- **Capability is an office's, and sparse** (D116). `ParameterCapability`
+  `(officeId, parameterId, manner, labId?)`. A row exists only where an office
+  has said it covers a test; **silence means it does not**. `manner` is
+  `in_house` or `third_party`.
+- **There is no third-party laboratory table, deliberately.** The system records
+  *that* an office sends a test out and enters the result through its own
+  examiner, not *which* company runs it — the accountable unit is always BSTI.
+  That is D65's principle, and it is what lets **Faridpur cover a physical test
+  with no physical bench**.
+- **Keyed on the office, not the lab**, for exactly that reason. `labFor()` in
+  `lib/labs/coverage.ts` names the bench for in-house work — discipline at a
+  branch, section at head office — and null is the honest answer for work sent
+  out.
+- **`RoutingPreference` is optional and only breaks a tie** (D116). No row means
+  the field officer chooses from the capable offices. D64's point survives —
+  referral is administrative, so Barisal may prefer Cumilla over a nearer,
+  capable Khulna — but nobody fills in a grid to say so.
+- **A destination is an office** (D117). `Consignment` and `LabTestOrder` are
+  addressed to one, with the bench named when there is one. The alternative was
+  to invent a nominal laboratory per discipline at every office, in a module
+  whose 46 labs came from the organogram with none invented.
+- **Nothing is seeded any more.** `seed:labs` creates the laboratories and
+  stops. Seeding capability would put words in offices' mouths, which is what
+  D107 had to be written to undo.
+
 ### The laboratory module — `/labs`
 
-Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
+Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
 `access.ts` are Prisma-free (D9); `catalogue.ts`, `mapping.ts` and
 `coverage.ts` are the server half.
 
@@ -1176,7 +1217,7 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   | Screen | The fact | Who writes it |
   |---|---|---|
   | `/labs/catalogue` | what a test *is* and what it costs | superadmin |
-  | `/labs/coverage` | **the entry form** — what this office handles, runs, and sends away | that office |
+  | `/labs/coverage` | **the entry form** — what this office handles and can test | that office |
   | `/labs/registry` | what a laboratory can *run*, test by test | that lab's own office |
   | `/labs/mapping` | where a sample *goes*, cell by cell | that office |
 
@@ -1225,7 +1266,12 @@ Decisions D102–D110. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   Silently moving an office's samples somewhere it never chose would be worse
   than telling it — the arbitrariness D64 respects cuts both ways.
 
-- **`/labs/coverage` is the way the map is meant to be filled in** (D108);
+- **The form asks full or partial, and drills in only for partial** (D118).
+  Within the drill-down each test is *our bench*, *sent out*, or *not ours*, and
+  a test the office has no bench for defaults to **sent out**. **Nothing asks
+  where the rest goes** — that was the old model's question, and it is what made
+  the form infinite.
+- **`/labs/coverage` is the way capability is meant to be recorded** (D108);
   `/labs/mapping` and `/labs/registry` are the cell-by-cell views over the same
   two tables. 4,774 parameters × 23 offices is not a grid anybody completes one
   cell at a time, so the office answers at the level it thinks in — products,

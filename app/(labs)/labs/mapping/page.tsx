@@ -5,7 +5,7 @@ import FullBleedContainer from "@/components/FullBleedContainer";
 import { requireInternal } from "@/lib/auth-guard";
 import { actorFor } from "@/lib/workflow/inbox";
 import { editableOffices } from "@/lib/labs/access";
-import { labOptions, mapFor, officeOptions } from "@/lib/labs/mapping";
+import { mapFor, officeOptions } from "@/lib/labs/mapping";
 import { productRows } from "@/lib/labs/catalogue";
 import { prisma } from "@/lib/prisma";
 import { LABS_NAV } from "../_components/nav";
@@ -35,10 +35,9 @@ export default async function MappingPage({
   const sp = await searchParams;
   const subProductId = Number(sp.subProduct);
 
-  const [actor, offices, labs, products] = await Promise.all([
+  const [actor, offices, products] = await Promise.all([
     actorFor(viewer),
     officeOptions(),
-    labOptions(),
     productRows(),
   ]);
   const mayEdit = editableOffices({
@@ -85,11 +84,15 @@ export default async function MappingPage({
             </p>
             <h1 className="mt-1 font-display text-3xl font-medium">Where each test is sent</h1>
             <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              An application can be filed at any office; the laboratory is chosen by who can
-              actually run the test. A sample received at Khulna may have some parameters tested
-              at Khulna, some sent to Faridpur and some to head office — and which is which is
-              this office&rsquo;s own decision, not a rule about distance. Each office fills in
-              its own column.
+              An application can be filed at any office; where each test goes is decided by who
+              can actually run it. A sample received at Faridpur may have some parameters tested
+              at Faridpur, some at any of Khulna, Dhaka or Chittagong, and some sent to an
+              accredited outside laboratory. Offices record what they cover at{" "}
+              <Link href="/labs/coverage" className="text-primary hover:underline">
+                My office
+              </Link>
+              ; here you can see the whole picture and set where this office prefers to send what
+              it cannot run.
             </p>
           </header>
 
@@ -110,10 +113,9 @@ export default async function MappingPage({
             <MapGrid
               subProduct={chosen.subProduct}
               parameters={chosen.parameters}
-              routings={chosen.routings}
               capabilities={chosen.capabilities}
+              preferences={chosen.preferences}
               offices={offices.map((o) => ({ id: o.id, nameEn: o.nameEn, labCount: o._count.labs }))}
-              labs={labs}
               editableOfficeIds={mayEdit}
               preselectedOfficeId={Number(sp.office) || actor.officeId}
             />
@@ -121,13 +123,11 @@ export default async function MappingPage({
 
           {chosen && (
             <p className="max-w-4xl text-xs leading-relaxed text-muted-foreground">
-              A destination has to hold the capability before it can be chosen — that is why
-              capability and routing are two lists and not one map. Record what a laboratory can
-              run on{" "}
-              <Link href="/labs/registry" className="text-primary hover:underline">
-                its own page
-              </Link>
-              , then point offices at it here.
+              A preference is optional and only breaks a tie. Where several offices can run a
+              test and none is preferred, the field officer chooses when he seals the samples;
+              where only one can, there is nothing to choose. A preference pointing at an office
+              that has not declared the test is allowed — it would otherwise deadlock on whoever
+              filled in their form first — and refused, by name, before any sample moves.
             </p>
           )}
         </div>

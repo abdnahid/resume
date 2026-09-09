@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { labActor } from "../_actor";
 import { canEditCapability } from "@/lib/labs/access";
-import { setCapability } from "@/lib/labs/mapping";
+import { dropCapability, setCapability } from "@/lib/labs/mapping";
 
 /**
  * Record — or withdraw — what a laboratory can run.
@@ -21,24 +21,38 @@ export async function POST(req: Request) {
   const actor = await labActor();
   const body = (await req.json()) as Record<string, unknown>;
 
-  const labId = Number(body.labId);
+  // The office may be named directly, or reached through one of its labs —
+  // the registry screen works from a bench, the coverage form from the office.
+  let officeId = Number(body.officeId);
+  if (!Number.isInteger(officeId)) {
+    const lab = await prisma.lab.findUnique({
+      where: { id: Number(body.labId) }, select: { officeId: true },
+    });
+    if (!lab) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    officeId = lab.officeId;
+  }
   const parameterIds = Array.isArray(body.parameterIds)
     ? body.parameterIds.map(Number).filter(Number.isInteger)
     : [];
-  if (!Number.isInteger(labId) || !parameterIds.length)
-    return NextResponse.json({ error: "A laboratory and at least one test." }, { status: 400 });
+  if (!parameterIds.length)
+    return NextResponse.json({ error: "At least one test." }, { status: 400 });
 
-  const lab = await prisma.lab.findUnique({ where: { id: labId }, select: { officeId: true } });
-  if (!lab) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  if (!canEditCapability(actor, lab.officeId))
+  if (!canEditCapability(actor, officeId))
     return NextResponse.json(
-      { error: "Only this laboratory's own office records what it can run." },
+      { error: "Only this office records what it can test." },
       { status: 403 },
     );
 
   try {
-    const r = await setCapability({ labId, parameterIds, isActive: body.isActive !== false });
+    if (body.isActive === false) {
+      const r = await dropCapability(officeId, parameterIds);
+      return NextResponse.json({ ok: true, ...r });
+    }
+    const r = await setCapability({
+      officeId, parameterIds,
+      manner: body.manner === "third_party" ? "third_party" : "in_house",
+      employeeId: actor.employeeId,
+    });
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

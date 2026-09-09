@@ -14,6 +14,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { assertEditable } from "./shortfall";
+import { packageDays } from "@/lib/labs/turnaround";
 
 /** The sub-products offered for a product, with what each would cost to test. */
 export async function choicesFor(productId: number) {
@@ -28,9 +29,11 @@ export async function choicesFor(productId: number) {
       nameEn: true,
       nameBn: true,
       standardAsPrinted: true,
-      turnaroundNormalDays: true,
-      turnaroundUrgentDays: true,
-      parameters: { select: { feePoisha: true, discipline: true } },
+      // Turnaround belongs to the tests now (D115), so a package's duration is
+      // the longest of the ones it contains.
+      parameters: {
+        select: { feePoisha: true, discipline: true, normalDays: true, urgentDays: true },
+      },
     },
   });
 
@@ -39,8 +42,7 @@ export async function choicesFor(productId: number) {
     nameEn: r.nameEn,
     nameBn: r.nameBn,
     standardAsPrinted: r.standardAsPrinted,
-    turnaroundNormalDays: r.turnaroundNormalDays,
-    turnaroundUrgentDays: r.turnaroundUrgentDays,
+    ...packageDays(r.parameters),
     parameterCount: r.parameters.length,
     // The grand total, summed across labs. A wing's file carries only its own
     // subtotal (D62), so this is the first place the whole figure exists.

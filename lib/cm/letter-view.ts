@@ -88,13 +88,7 @@ export async function applicantLetterFor(applicationId: number): Promise<Applica
         code: true,
         sealNo: true,
         submittedAt: true,
-        lab: {
-          select: {
-            nameEn: true,
-            discipline: true,
-            office: { select: { nameEn: true, nameBn: true, addressBn: true } },
-          },
-        },
+        office: { select: { nameEn: true, nameBn: true, addressBn: true } },
         _count: { select: { registry: true } },
       },
       orderBy: { id: "asc" },
@@ -139,10 +133,12 @@ export async function applicantLetterFor(applicationId: number): Promise<Applica
     boxes: consignments.map((c) => ({
       code: c.code,
       sealNo: c.sealNo,
-      labName: c.lab.nameEn,
-      discipline: String(c.lab.discipline),
-      officeName: c.lab.office.nameBn ?? c.lab.office.nameEn,
-      officeAddress: c.lab.office.addressBn ?? null,
+      // The destination is an office. It may run the tests on its own bench or
+      // send them out; either way that is where the box is carried (D116).
+      labName: c.office?.nameEn ?? "—",
+      discipline: "",
+      officeName: c.office?.nameBn ?? c.office?.nameEn ?? "—",
+      officeAddress: c.office?.addressBn ?? null,
       specimenCount: c._count.registry,
       submittedAt: c.submittedAt,
     })),

@@ -8,8 +8,8 @@ import type { ProductRow } from "@/lib/labs/catalogue";
 type Param = {
   id: number; nameEn: string; discipline: string; sourceSection: string;
   held: boolean;
-  /** A seeded stand-in stands against this test — not this lab's own answer. */
-  seeded: boolean;
+  /** The office covers it, but by sending it out rather than on this bench. */
+  sentOut: boolean;
 };
 
 /**
@@ -69,13 +69,13 @@ export default function CapabilityEditor({
       const res = await fetch("/api/labs/capability", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ labId, parameterIds: ids, isActive }),
+        body: JSON.stringify({ labId, parameterIds: ids, isActive, manner: "in_house" }),
       });
-      const json = (await res.json()) as { error?: string; orphanedRoutings?: number };
+      const json = (await res.json()) as { error?: string; orphanedPreferences?: number };
       if (!res.ok) { setError(json.error ?? "That did not save."); return; }
-      if (json.orphanedRoutings)
+      if (json.orphanedPreferences)
         setSaved(
-          `Saved. ${json.orphanedRoutings} routing cells now point here for tests this lab no longer runs — they will be refused rather than followed.`,
+          `Saved. ${json.orphanedPreferences} offices prefer to send tests here that this one no longer runs — those will be refused rather than followed.`,
         );
     }
     setDraft({});
@@ -221,12 +221,12 @@ export default function CapabilityEditor({
                   className="h-4 w-4 accent-[var(--primary)]"
                 />
                 <span className={held(p) ? "" : "text-muted-foreground"}>{p.nameEn}</span>
-                {p.seeded && !p.held && (
+                {p.sentOut && !p.held && (
                   <span
-                    title="A seeded stand-in points here. Tick the box to make it this laboratory's own answer, or leave it and record the real destination on the map."
-                    className="cursor-help rounded-full border border-dashed border-amber-400 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-300"
+                    title="This office covers the test by sending it to an accredited outside laboratory and entering the result — no bench of ours runs it."
+                    className="cursor-help rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground"
                   >
-                    seeded
+                    sent out
                   </span>
                 )}
                 <span className="ml-auto text-xs text-muted-foreground">{p.discipline}</span>

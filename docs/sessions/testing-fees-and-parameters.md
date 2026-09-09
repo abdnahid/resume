@@ -2430,3 +2430,117 @@ order they matter:
 4. **How does a third-party consignment reach the lab**, when D72 has the
    applicant carrying every box to a BSTI counter?
 5. **Which fee convention wins** when a wing prices per sub-parameter.
+
+---
+
+## Session 11 — 2026-09-09 (Linux machine) — the model the client asked for
+
+Session 10 recorded the routing scenario and asked four questions. This session
+got the answers and rebuilt on them.
+
+### The four answers
+
+1. **Third party is a *manner*, not a laboratory.** "The system should have data
+   about the 3rd party option. Not any specific 3rd party. Just to know that
+   this office does this parameter test on 3rd party labs and will take test
+   result from 3rd party and enter into the system by examiner." So no
+   `ThirdPartyLab` table — and it is what lets **Faridpur cover a physical test
+   with no physical bench**, which session 10 had flagged as the scenario's one
+   impossibility. The contradiction dissolved rather than needing a fix.
+2. **A product is identified by a unique BDS number**, and its sub-products
+   inherit it. Verified achievable before building: **no BDS is claimed by two
+   products**. The 24 multi-part products keep their other parts as required
+   standards (D48) — splitting them would make a manufacturer apply eight times
+   for one solar panel.
+3. **The form asks full or partial and drills in only for partial.**
+4. **Capability is the fact; an office may record a preference; the FDO may
+   override it.** Answered when the question was first put.
+
+### What was removed
+
+| Gone | Rows |
+|---|---|
+| `LabCapability` | 4,776 — all but 2 seeded stand-ins |
+| `LabRouting` | 109,802 — all but 5 seeded stand-ins |
+| `LabSampleRequirement` | 3 |
+| `SubProduct.bdsId`, `SubProduct.turnaround*` | 452 / 491 |
+
+Both tables existed because the destination had to be **derivable from a full
+map**, so both had to be complete before anything resolved, and neither ever
+was. Capability is sparse now: a row exists only where an office has said it
+covers a test, and **silence means it does not**. That is the whole reason the
+data entry is finite — nobody answers for the 4,774 tests they do not run.
+
+### What was added
+
+`ParameterCapability(officeId, parameterId, manner, labId?)`,
+`RoutingPreference(officeId, parameterId, toOfficeId)`,
+`OfficeSampleRequirement`, `Product.bdsId @unique`,
+`TestParameter.normalDays`/`urgentDays`.
+
+**Keyed on the office, not the laboratory**, and that is the load-bearing part.
+Keyed on the lab, Faridpur's third-party physical capability has nowhere to
+live, and the organogram would have had to grow a laboratory that does not
+exist — in a module whose 46 labs were seeded from the organogram with **none
+invented**. It follows that a *destination* is an office too, so `Consignment`
+and `LabTestOrder` are addressed to one with the bench named where there is one
+(D117). `/s/<ref>` lost nothing: its examiner check was always "posted to the
+office that owns this lab", and the lab was only a way of naming the office.
+
+### Migrated in three pushes, losing nothing anybody had entered
+
+Add → backfill → drop, because the alternative is dropping columns the backfill
+still needs to read. 491 packages' turnaround copied onto 4,774 parameters; 315
+products stamped with an identifying standard; **Barishal's 2 declared
+capabilities and 5 routing decisions carried across** as capability and
+preference; 114,578 seeded stand-ins dropped, which D107 had already said were
+never a claim about anybody.
+
+### Proved against the client's own scenario
+
+Ceramic Tiles, filed at Faridpur:
+
+```
+resolveDestinations at Faridpur — before any preference:
+   Resistance to staining              → Faridpur (in_house)
+   c) Resistance to household chemicals → Faridpur (third_party)
+   ⚖ a) Resistance to low concentrations  choose: Khulna / Dhaka / Chittagong /
+                                                  Cumilla / Rajshahi
+   ⚖ b) Resistance to high concentrations choose: … same five
+
+after Faridpur prefers Khulna:
+   1 → Faridpur (in_house) · 2 → Khulna (in_house) · 1 → Faridpur (third_party)
+   unresolved 0, problems 0 → 3 boxes for one application
+```
+
+The `third_party` line is the case that could not be represented at all before.
+
+### Lessons that cost something
+
+- **A table that must be complete before anything works will never be
+  complete.** `LabRouting` was 109,802 cells and nobody filled in one of them in
+  five sessions. Sparse ground truth — where absence is an answer — was the
+  shape all along; D64 reached for two tables when the real problem was that one
+  of them was dense.
+- **The impossibility in a scenario is sometimes the model's, not the
+  client's.** Session 10 flagged "Faridpur has no physical laboratory" as
+  something the client had to settle. The client's own answer made the question
+  disappear.
+- **`prisma db push` cannot add and drop in one step when the backfill reads the
+  dropped column.** Three pushes: add nullable, backfill and check, then drop.
+  Reading the data-loss warning each time is what caught `SampleRequirement`
+  never having been backfilled.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean, committed and pushed.
+
+**Not built, and it is the next thing:** the field officer has no screen for
+choosing among capable offices. `resolveDestinations()` names the tie and
+refuses to guess, which is right — but a package with several capable offices
+and no preference cannot be sealed until the sampling screen offers the choice.
+
+Also outstanding: `lab_incharge` still has no users, and the physical sheet of
+`chemical-physical-mixed-test.xlsx` is still unimported — it prices per
+*sub-parameter* where the textile file prices per parameter, which is session
+10's open question and would misprice the package by ৳210 if loaded as-is.

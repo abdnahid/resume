@@ -24,7 +24,7 @@ import { AlertTriangle, Boxes, Loader2, Lock, QrCode, Save } from "lucide-react"
 
 export type Cell = {
   applicationSubProductId: number;
-  labId: number;
+  officeId: number;
   subProductName: string;
   labName: string;
   labDiscipline: string;
@@ -73,7 +73,7 @@ export default function SamplingPanel({
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       cells.map((c) => [
-        `${c.applicationSubProductId}:${c.labId}`,
+        `${c.applicationSubProductId}:${c.officeId}`,
         c.samplesPerVariant === null ? "" : String(c.samplesPerVariant),
       ]),
     ),
@@ -94,7 +94,7 @@ export default function SamplingPanel({
    * in step without a `useEffect` that would fight the officer's typing.
    */
   const valueFor = (c: Cell) => {
-    const key = `${c.applicationSubProductId}:${c.labId}`;
+    const key = `${c.applicationSubProductId}:${c.officeId}`;
     return draft[key] ?? (c.samplesPerVariant === null ? "" : String(c.samplesPerVariant));
   };
 
@@ -107,9 +107,9 @@ export default function SamplingPanel({
       const raw = valueFor(c);
       const n = raw.trim() === "" ? null : Number(raw);
       const count = n !== null && Number.isInteger(n) && n > 0 ? n * c.variantCount : null;
-      const prev = perLab.get(c.labId);
+      const prev = perLab.get(c.officeId);
       perLab.set(
-        c.labId,
+        c.officeId,
         count === null || prev === null ? (prev === undefined && count !== null ? count : null) : (prev ?? 0) + count,
       );
       total = count === null || total === null ? null : total + count;
@@ -216,7 +216,7 @@ export default function SamplingPanel({
             </thead>
             <tbody>
               {cells.map((c) => {
-                const key = `${c.applicationSubProductId}:${c.labId}`;
+                const key = `${c.applicationSubProductId}:${c.officeId}`;
                 const raw = valueFor(c);
                 const n = raw.trim() === "" ? null : Number(raw);
                 const count = n !== null && Number.isInteger(n) && n > 0 ? n * c.variantCount : null;
@@ -258,7 +258,7 @@ export default function SamplingPanel({
                                 "sample-count",
                                 {
                                   applicationSubProductId: c.applicationSubProductId,
-                                  labId: c.labId,
+                                  officeId: c.officeId,
                                   samplesPerVariant: Number(raw),
                                 },
                                 key,

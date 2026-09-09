@@ -3,18 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, Check } from "lucide-react";
-import {
-  buildMatrix, cellLabel, labShortName, officeShortName,
-  type MatrixLab,
-} from "@/lib/labs/grid";
+import { buildMatrix, officeShortName } from "@/lib/labs/grid";
 
 type Parameter = {
   id: number; nameEn: string; discipline: string; sourceSection: string;
   feePoisha: number; urgentFeePoisha: number;
-};
-type Routing = {
-  officeId: number; parameterId: number; labId: number;
-  mode: string; isPlaceholder: boolean; note: string | null;
+  normalDays: number | null; urgentDays: number | null;
 };
 
 /**
@@ -32,15 +26,14 @@ type Routing = {
  * here is days earlier than finding out there.
  */
 export default function MapGrid({
-  subProduct, parameters, routings, capabilities, offices, labs,
+  subProduct, parameters, capabilities, preferences, offices,
   editableOfficeIds, preselectedOfficeId,
 }: {
   subProduct: { id: number; nameEn: string; product: { nameEn: string } };
   parameters: Parameter[];
-  routings: Routing[];
-  capabilities: { labId: number; parameterId: number; isPlaceholder: boolean }[];
+  capabilities: { officeId: number; parameterId: number; manner: string; labId: number | null }[];
+  preferences: { officeId: number; parameterId: number; toOfficeId: number }[];
   offices: { id: number; nameEn: string; labCount: number }[];
-  labs: MatrixLab[];
   /** null means every office (superadmin); [] means none. */
   editableOfficeIds: number[] | null;
   preselectedOfficeId: number | null;
@@ -55,75 +48,45 @@ export default function MapGrid({
   const firstEditable =
     editable === null
       ? (preselectedOfficeId ?? offices[0]?.id ?? null)
-      : (editable.includes(preselectedOfficeId ?? -1) ? preselectedOfficeId : editable[0]) ?? null;
+      : ((editable.includes(preselectedOfficeId ?? -1) ? preselectedOfficeId : editable[0]) ?? null);
 
   const [officeId, setOfficeId] = useState<number | null>(firstEditable);
 
-  const labById = useMemo(() => new Map(labs.map((l) => [l.id, l])), [labs]);
-  const capable = useMemo(
-    () => new Set(capabilities.map((c) => `${c.labId}:${c.parameterId}`)),
-    [capabilities],
-  );
-  /** Declared by the laboratory itself, rather than left over from the seed. */
-  const declared = useMemo(
-    () =>
-      new Set(
-        capabilities.filter((c) => !c.isPlaceholder).map((c) => `${c.labId}:${c.parameterId}`),
-      ),
-    [capabilities],
-  );
   const cells = useMemo(
-    () => buildMatrix({ offices, parameters, routings, capable, labs: labById }),
-    [offices, parameters, routings, capable, labById],
+    () => buildMatrix({ capabilities, preferences, fromOfficeId: officeId }),
+    [capabilities, preferences, officeId],
   );
 
-  /**
-   * Every open laboratory is offerable, and each says where it stands.
-   *
-   * Restricting the list to labs that have already declared the test would
-   * deadlock the whole institution on whoever filled their coverage form
-   * first — Barisal cannot name Khulna until Khulna has spoken, and Khulna is
-   * in the same position about Barisal. So the choice is open and the state is
-   * shown: `declared` when that lab has said so itself, `seeded` when the row
-   * is only the stand-in the seed wrote, `pending` when nobody has said
-   * anything. A pending route is refused at the moment a sample would move,
-   * by name, which is the check that matters (D64).
-   */
-  const optionsFor = (parameterId: number) =>
-    labs
-      .filter((l) => l.isActive)
-      .map((l) => ({
-        lab: l,
-        state: declared.has(`${l.id}:${parameterId}`)
-          ? ("declared" as const)
-          : capable.has(`${l.id}:${parameterId}`)
-            ? ("seeded" as const)
-            : ("pending" as const),
-      }))
-      .sort((a, b) => {
-        const rank = { declared: 0, seeded: 1, pending: 2 };
-        return rank[a.state] - rank[b.state] || a.lab.nameEn.localeCompare(b.lab.nameEn);
-      });
+  /** Which offices can take a given test — the list the client asked for. */
+  const capableFor = (parameterId: number) =>
+    offices.filter((o) => cells.has(`${o.id}:${parameterId}`));
 
-  const brokenCount = [...cells.values()].filter((c) => c.broken).length;
-  const placeholderTotal = [...cells.values()].filter((c) => c.isPlaceholder).length;
+  const prefBy = useMemo(
+    () =>
+      new Map(
+        preferences.filter((p) => p.officeId === officeId).map((p) => [p.parameterId, p.toOfficeId]),
+      ),
+    [preferences, officeId],
+  );
 
-  async function assign(parameterIds: number[], labId: number) {
+  const uncoverable = parameters.filter((p) => capableFor(p.id).length === 0);
+
+  async function prefer(parameterIds: number[], toOfficeId: number | null) {
     if (!officeId) return;
     setError(null); setSaved(null);
     const res = await fetch("/api/labs/routing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ officeId, parameterIds, labId }),
+      body: JSON.stringify({ officeId, parameterIds, toOfficeId }),
     });
-    const json = (await res.json()) as {
-      error?: string; written?: number; pending?: number; labName?: string;
-    };
+    const json = (await res.json()) as { error?: string; written?: number; pending?: number };
     if (!res.ok) { setError(json.error ?? "That did not save."); return; }
     setSaved(
-      json.pending
-        ? `${json.written} routed — but ${json.labName} has not declared ${json.pending} of them, so those will be refused until it does.`
-        : `${json.written} test${json.written === 1 ? "" : "s"} routed.`,
+      toOfficeId === null
+        ? `Preference cleared — the field officer will choose.`
+        : json.pending
+          ? `Saved, but that office has not said it can run ${json.pending} of these, so those will be refused until it does.`
+          : `Preference saved for ${json.written} test${json.written === 1 ? "" : "s"}.`,
     );
     start(() => router.refresh());
   }
@@ -142,21 +105,20 @@ export default function MapGrid({
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <Legend className="bg-secondary text-secondary-foreground">tested here</Legend>
-        <Legend className="bg-primary/10 text-primary">sent elsewhere</Legend>
-        <Legend className="border border-dashed border-amber-400 text-amber-700 dark:text-amber-300">
-          still the seeded stand-in
-        </Legend>
-        <Legend className="bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200">
-          unusable
-        </Legend>
+        <Legend className="bg-secondary text-secondary-foreground">own bench</Legend>
+        <Legend className="bg-primary/10 text-primary">sent out</Legend>
+        <Legend className="ring-2 ring-primary ring-offset-1">preferred</Legend>
         <span className="ml-auto tabular-nums">
-          {placeholderTotal} of {offices.length * parameters.length} cells not yet decided
-          {brokenCount > 0 && <> · {brokenCount} unusable</>}
+          {capabilities.length} of {offices.length * parameters.length} cells covered
+          {uncoverable.length > 0 && (
+            <span className="ml-2 text-amber-700 dark:text-amber-300">
+              · {uncoverable.length} test{uncoverable.length === 1 ? "" : "s"} nobody can run
+            </span>
+          )}
         </span>
       </div>
 
-      {/* ── the map ────────────────────────────────────────────────────────── */}
+      {/* ── who can test what ─────────────────────────────────────────────── */}
       <section className="overflow-x-auto rounded-2xl border border-border bg-card">
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -173,11 +135,6 @@ export default function MapGrid({
                   title={o.nameEn}
                 >
                   {officeShortName(o.nameEn)}
-                  {o.labCount === 0 && (
-                    <span className="ml-1 text-muted-foreground" title="This office has no laboratory">
-                      ·
-                    </span>
-                  )}
                 </th>
               ))}
             </tr>
@@ -190,30 +147,27 @@ export default function MapGrid({
                 </td>
                 {offices.map((o) => {
                   const c = cells.get(`${o.id}:${p.id}`);
-                  const lab = c?.labId ? labById.get(c.labId) : null;
-                  if (!c || !lab)
+                  if (!c)
                     return (
-                      <td key={o.id} className="px-2 py-1.5 text-muted-foreground">
+                      <td key={o.id} className={`px-2 py-1.5 text-muted-foreground ${o.id === officeId ? "bg-secondary/50" : ""}`}>
                         —
                       </td>
                     );
                   return (
                     <td key={o.id} className={`px-1 py-1 ${o.id === officeId ? "bg-secondary/50" : ""}`}>
                       <span
-                        title={`${lab.nameEn}${c.isPlaceholder ? " — seeded stand-in, not a decision" : ""}${
-                          c.broken ? " — cannot run this test, or is closed" : ""
-                        }`}
+                        title={
+                          c.manner === "third_party"
+                            ? `${o.nameEn} covers this by sending it to an accredited outside laboratory`
+                            : `${o.nameEn} runs this on its own bench`
+                        }
                         className={`block truncate rounded px-1.5 py-0.5 ${
-                          c.broken
-                            ? "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200"
-                            : c.isPlaceholder
-                              ? "border border-dashed border-amber-400 text-amber-700 dark:text-amber-300"
-                              : c.away
-                                ? "bg-primary/10 text-primary"
-                                : "bg-secondary text-secondary-foreground"
-                        }`}
+                          c.manner === "third_party"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-secondary text-secondary-foreground"
+                        } ${c.preferred ? "ring-2 ring-primary ring-offset-1" : ""}`}
                       >
-                        {cellLabel(lab, o.id)}
+                        {c.manner === "third_party" ? "sent out" : "own"}
                       </span>
                     </td>
                   );
@@ -224,16 +178,28 @@ export default function MapGrid({
         </table>
       </section>
 
-      {/* ── the one column somebody may change ─────────────────────────────── */}
+      {uncoverable.length > 0 && (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <strong>
+            {uncoverable.length} test{uncoverable.length === 1 ? "" : "s"} in this package no
+            office has claimed.
+          </strong>{" "}
+          An application naming this sub-product cannot resolve until one does —{" "}
+          {uncoverable.slice(0, 3).map((p) => `“${p.nameEn}”`).join(", ")}
+          {uncoverable.length > 3 && `, and ${uncoverable.length - 3} more`}.
+        </p>
+      )}
+
+      {/* ── one office's preferences ──────────────────────────────────────── */}
       {!canEditAny ? (
         <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          You can read the map but not change it. Where an office&rsquo;s samples go is decided
-          by that office — its head or its lab in-charge — or by a superadmin.
+          You can read the map but not change it. Where an office&rsquo;s samples go is decided by
+          that office — its head or its lab in-charge — or by a superadmin.
         </p>
       ) : (
         <section className="rounded-2xl border border-border bg-card">
           <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
-            <h2 className="text-sm font-semibold">Set destinations for</h2>
+            <h2 className="text-sm font-semibold">Where should</h2>
             <select
               value={officeId ?? ""}
               onChange={(e) => setOfficeId(Number(e.target.value))}
@@ -245,66 +211,60 @@ export default function MapGrid({
                   <option key={o.id} value={o.id}>{o.nameEn}</option>
                 ))}
             </select>
-            <span className="text-xs text-muted-foreground">
-              samples received at this office, for <strong>{subProduct.nameEn}</strong>
-            </span>
+            <h2 className="text-sm font-semibold">send each of these?</h2>
           </div>
 
-          <BulkBar
-            parameters={parameters}
-            labs={labs}
-            capable={capable}
-            officeId={officeId}
-            pending={pending}
-            onAssign={assign}
-          />
+          <p className="border-b border-border bg-secondary/30 px-5 py-2.5 text-xs text-muted-foreground">
+            A preference only breaks a tie. Leave it unset and the field officer picks from the
+            capable offices when he seals the samples — which is right where there is nothing to
+            choose between them, and wrong where this office has always sent a test to one
+            particular place.
+          </p>
 
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr className="border-b border-border">
                 <th className="px-5 py-2 font-medium">Test</th>
-                <th className="px-5 py-2 font-medium">Wing</th>
-                <th className="px-5 py-2 font-medium">Sent to</th>
+                <th className="px-5 py-2 font-medium">Can be run at</th>
+                <th className="px-5 py-2 font-medium">Preferred</th>
               </tr>
             </thead>
             <tbody>
               {parameters.map((p) => {
-                const c = officeId ? cells.get(`${officeId}:${p.id}`) : undefined;
-                const opts = optionsFor(p.id);
+                const capable = capableFor(p.id);
+                const here = officeId !== null && cells.has(`${officeId}:${p.id}`);
                 return (
                   <tr key={p.id} className="border-b border-border/60 last:border-0">
                     <td className="px-5 py-2">{p.nameEn}</td>
-                    <td className="px-5 py-2 text-xs text-muted-foreground">{p.discipline}</td>
+                    <td className="px-5 py-2 text-xs text-muted-foreground">
+                      {capable.length === 0 ? (
+                        <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+                          <AlertTriangle className="h-3.5 w-3.5" /> nobody
+                        </span>
+                      ) : (
+                        capable.map((o) => officeShortName(o.nameEn)).join(", ")
+                      )}
+                    </td>
                     <td className="px-5 py-2">
-                      <div className="flex items-center gap-2">
+                      {here ? (
+                        <span className="text-xs text-muted-foreground">
+                          run here — nothing to choose
+                        </span>
+                      ) : (
                         <select
-                          value={c?.labId ?? ""}
-                          disabled={pending || !officeId}
-                          onChange={(e) => assign([p.id], Number(e.target.value))}
-                          className={`rounded-lg border bg-background px-2 py-1 text-sm ${
-                            c?.isPlaceholder ? "border-dashed border-amber-400" : "border-border"
-                          }`}
+                          value={prefBy.get(p.id) ?? ""}
+                          disabled={pending || !officeId || capable.length === 0}
+                          onChange={(e) =>
+                            prefer([p.id], e.target.value ? Number(e.target.value) : null)
+                          }
+                          className="rounded-lg border border-border bg-background px-2 py-1 text-sm disabled:opacity-40"
                         >
-                          {!c && <option value="">— not routed —</option>}
-                          {opts.map(({ lab: l, state }) => (
-                            <option key={l.id} value={l.id}>
-                              {labShortName(l.nameEn)} · {officeShortName(l.officeName)}
-                              {state === "seeded" ? "  (seeded)" : state === "pending" ? "  (not declared)" : ""}
-                            </option>
+                          <option value="">— the officer chooses —</option>
+                          {capable.map((o) => (
+                            <option key={o.id} value={o.id}>{officeShortName(o.nameEn)}</option>
                           ))}
                         </select>
-                        {c?.isPlaceholder && (
-                          <span className="text-xs text-amber-700 dark:text-amber-300">stand-in</span>
-                        )}
-                        {c?.broken && (
-                          <span
-                            title="The destination has not declared it can run this test, so a sample would be refused"
-                            className="flex items-center gap-1 text-xs text-red-700 dark:text-red-300"
-                          >
-                            <AlertTriangle className="h-3.5 w-3.5" /> waiting on that lab
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </td>
                   </tr>
                 );
@@ -312,80 +272,6 @@ export default function MapGrid({
             </tbody>
           </table>
         </section>
-      )}
-    </div>
-  );
-}
-
-/**
- * "Send everything this lab can do to this lab."
- *
- * The realistic first move for an office: its own laboratory takes what it can
- * and the rest is decided one line at a time. Offering it saves ninety
- * dropdowns, and it cannot over-reach — a lab is only offered the tests it has
- * declared, and the service refuses the rest anyway.
- */
-function BulkBar({
-  parameters, labs, capable, officeId, pending, onAssign,
-}: {
-  parameters: Parameter[];
-  labs: MatrixLab[];
-  capable: Set<string>;
-  officeId: number | null;
-  pending: boolean;
-  onAssign: (parameterIds: number[], labId: number) => void;
-}) {
-  const [labId, setLabId] = useState<number | "">("");
-  const [all, setAll] = useState(false);
-  const chosen = labs.find((l) => l.id === labId);
-  // Either the tests that lab already holds, or — when the office knows better
-  // than the record does — the whole package, which is the ordinary case for an
-  // office naming the neighbour it has always sent samples to.
-  const covered = !chosen
-    ? []
-    : all
-      ? parameters.map((p) => p.id)
-      : parameters.filter((p) => capable.has(`${chosen.id}:${p.id}`)).map((p) => p.id);
-
-  return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border bg-secondary/30 px-5 py-3 text-sm">
-      <span className="text-muted-foreground">Send everything</span>
-      <select
-        value={labId}
-        onChange={(e) => setLabId(e.target.value ? Number(e.target.value) : "")}
-        className="rounded-lg border border-border bg-background px-2 py-1"
-      >
-        <option value="">choose a laboratory…</option>
-        {labs
-          .filter((l) => l.isActive)
-          .map((l) => (
-            <option key={l.id} value={l.id}>
-              {labShortName(l.nameEn)} · {officeShortName(l.officeName)}
-            </option>
-          ))}
-      </select>
-      <label className="flex cursor-pointer items-center gap-1.5 text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={all}
-          onChange={(e) => setAll(e.target.checked)}
-          className="h-3.5 w-3.5 accent-[var(--primary)]"
-        />
-        can run — or <span className="text-foreground">the whole package</span>
-      </label>
-      <button
-        type="button"
-        disabled={pending || !officeId || !covered.length}
-        onClick={() => chosen && onAssign(covered, chosen.id)}
-        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
-      >
-        Apply to {covered.length} test{covered.length === 1 ? "" : "s"}
-      </button>
-      {chosen && covered.length === 0 && (
-        <span className="text-xs text-amber-700 dark:text-amber-300">
-          {labShortName(chosen.nameEn)} has declared none of these — tick the box to send the
-          whole package anyway.
-        </span>
       )}
     </div>
   );

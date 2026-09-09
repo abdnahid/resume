@@ -28,7 +28,7 @@ export type SubProductChoice = {
   standardAsPrinted: string | null;
   parameterCount: number;
   testFeePoisha: number;
-  turnaroundNormalDays: number | null;
+  normalDays: number | null;
 };
 
 export type ChosenSubProduct = {
@@ -360,8 +360,8 @@ export default function SubProductStep({
                             )}
                             <span className="mt-0.5 block text-xs text-muted-foreground">
                               {c.parameterCount} test{c.parameterCount === 1 ? "" : "s"}
-                              {c.turnaroundNormalDays
-                                ? ` · ${c.turnaroundNormalDays} working days`
+                              {c.normalDays
+                                ? ` · ${c.normalDays} working days`
                                 : ""}
                               {on && on.variantCount > 0
                                 ? ` · ${on.variantCount} variant${on.variantCount === 1 ? "" : "s"} listed`

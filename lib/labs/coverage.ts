@@ -22,9 +22,7 @@
  * because that is what D64 checks and what a consignment is addressed to.
  */
 import { prisma } from "@/lib/prisma";
-
-/** How much of a package an office can do. Derived, never stored. */
-export type CoverageLevel = "full" | "partial" | "none" | "unanswered";
+import type { CapabilityManner } from "@/generated/prisma/client";
 
 /**
  * The head-office section that owns each wing's file.
@@ -165,22 +163,27 @@ export async function setSubProductScope(args: {
 
 // ── Step 3: what this office can actually run ───────────────────────────────
 
+/** How an office covers one test, or that it does not. */
 export type ParameterState = {
   id: number;
   nameEn: string;
   discipline: string;
   sourceSection: string;
-  /** True when this office's own bench holds it, and not as a stand-in. */
-  hereCapable: boolean;
-  /** Where it currently goes, and whether that is a real decision. */
-  destinationLabId: number | null;
-  destinationOfficeId: number | null;
-  destinationIsPlaceholder: boolean;
-  /** True when the destination has not declared it can run this. */
-  destinationPending: boolean;
-  /** Null when this office has no bench of the right kind at all. */
+  normalDays: number | null;
+  urgentDays: number | null;
+  /** `in_house`, `third_party`, or null where this office does not cover it. */
+  manner: CapabilityManner | null;
+  /** The bench, when the work is in-house here. */
+  labId: number | null;
+  /** Null when this office has no bench of the right kind — third party only. */
   ownLabId: number | null;
+  /** Every other office that has said it can run this test. */
+  elsewhere: { officeId: number; manner: CapabilityManner }[];
+  /** This office's standing preference for where to send it, if any. */
+  preferredOfficeId: number | null;
 };
+
+export type CoverageLevel = "full" | "partial" | "none" | "unanswered";
 
 export type PackageState = {
   subProductId: number;
@@ -192,12 +195,18 @@ export type PackageState = {
 };
 
 /**
- * The state of every package in an office's scope — what it can do, what it
- * sends away, and what nobody has answered yet.
+ * The state of every package in an office's scope.
  *
  * The level is **derived** from the capability rows rather than stored beside
- * them. A stored level would be a second copy of the same fact, and the two
- * would disagree the first time somebody edited one parameter on the map.
+ * them. A stored level would be a second copy of the same fact and would
+ * disagree the first time somebody edited one parameter.
+ *
+ * `unanswered` and `none` are different: an office that has taken a product on
+ * and said nothing about it is not the same as one that has looked and cannot
+ * do any of it. The first is work outstanding; the second is a fact — and under
+ * the new model (D116) the second is recorded by *silence*, so the two are told
+ * apart by whether the package is in scope at all and whether any sibling
+ * parameter has been answered.
  */
 export async function coverageFor(officeId: number, subProductIds?: number[]) {
   const scope = await prisma.officeSubProductScope.findMany({
@@ -216,7 +225,10 @@ export async function coverageFor(officeId: number, subProductIds?: number[]) {
         product: { select: { id: true, nameEn: true, serial: true } },
         parameters: {
           orderBy: [{ ordinal: "asc" }, { id: "asc" }],
-          select: { id: true, nameEn: true, discipline: true, sourceSection: true },
+          select: {
+            id: true, nameEn: true, discipline: true, sourceSection: true,
+            normalDays: true, urgentDays: true,
+          },
         },
       },
     }),
@@ -224,52 +236,50 @@ export async function coverageFor(officeId: number, subProductIds?: number[]) {
   ]);
 
   const parameterIds = subProducts.flatMap((s) => s.parameters.map((p) => p.id));
-  const [caps, routes] = await Promise.all([
-    prisma.labCapability.findMany({
+  const [caps, prefs] = await Promise.all([
+    prisma.parameterCapability.findMany({
       where: { parameterId: { in: parameterIds }, isActive: true },
-      select: { labId: true, parameterId: true, isPlaceholder: true },
+      select: { officeId: true, parameterId: true, manner: true, labId: true },
     }),
-    prisma.labRouting.findMany({
+    prisma.routingPreference.findMany({
       where: { officeId, parameterId: { in: parameterIds } },
-      select: { parameterId: true, labId: true, isPlaceholder: true },
+      select: { parameterId: true, toOfficeId: true },
     }),
   ]);
 
-  const labById = new Map(labs.map((l) => [l.id, l]));
-  // Real capability only: a stand-in is not somebody saying they can run it.
-  const realCap = new Set(
-    caps.filter((c) => !c.isPlaceholder).map((c) => `${c.labId}:${c.parameterId}`),
-  );
-  const anyCap = new Set(caps.map((c) => `${c.labId}:${c.parameterId}`));
-  const routeBy = new Map(routes.map((r) => [r.parameterId, r]));
+  const mine = new Map(caps.filter((c) => c.officeId === officeId).map((c) => [c.parameterId, c]));
+  const others = new Map<number, { officeId: number; manner: CapabilityManner }[]>();
+  for (const c of caps) {
+    if (c.officeId === officeId) continue;
+    if (!others.has(c.parameterId)) others.set(c.parameterId, []);
+    others.get(c.parameterId)!.push({ officeId: c.officeId, manner: c.manner });
+  }
+  const prefBy = new Map(prefs.map((p) => [p.parameterId, p.toOfficeId]));
 
   return subProducts.map<PackageState>((sp) => {
     const parameters = sp.parameters.map<ParameterState>((p) => {
       const own = labFor(labs, officeId, p);
-      const route = routeBy.get(p.id);
-      const destLab = route ? labById.get(route.labId) ?? null : null;
+      const held = mine.get(p.id);
       return {
         id: p.id, nameEn: p.nameEn, discipline: p.discipline, sourceSection: p.sourceSection,
-        hereCapable: own ? realCap.has(`${own.id}:${p.id}`) : false,
-        destinationLabId: destLab?.id ?? null,
-        destinationOfficeId: destLab?.officeId ?? null,
-        destinationIsPlaceholder: route?.isPlaceholder ?? true,
-        destinationPending: destLab ? !anyCap.has(`${destLab.id}:${p.id}`) : false,
+        normalDays: p.normalDays, urgentDays: p.urgentDays,
+        manner: held?.manner ?? null,
+        labId: held?.labId ?? null,
         ownLabId: own?.id ?? null,
+        elsewhere: others.get(p.id) ?? [],
+        preferredOfficeId: prefBy.get(p.id) ?? null,
       };
     });
 
-    const here = parameters.filter((p) => p.hereCapable).length;
+    const covered = parameters.filter((p) => p.manner !== null).length;
     const level: CoverageLevel =
       parameters.length === 0
         ? "unanswered"
-        : here === parameters.length
+        : covered === parameters.length
           ? "full"
-          : here > 0
+          : covered > 0
             ? "partial"
-            : parameters.every((p) => !p.destinationIsPlaceholder)
-              ? "none"
-              : "unanswered";
+            : "unanswered";
 
     return {
       subProductId: sp.id, subProductName: sp.nameEn,
@@ -280,29 +290,25 @@ export async function coverageFor(officeId: number, subProductIds?: number[]) {
 }
 
 /**
- * Record an office's answer for one package.
+ * Record what this office covers for one package.
  *
- * `here` is the parameters this office runs itself; everything else needs a
- * destination office. Both halves are written in one transaction, because a
- * package that is half declared and half routed is worse than one nobody has
- * touched — it looks answered.
+ * **Only what it can do.** `inHouse` runs on its own bench, `thirdParty` is
+ * sent to an accredited outside laboratory and the result entered by this
+ * office's examiner — and everything named in neither is simply *not covered*,
+ * which the absence of a row says. That inversion is the client's (D116) and is
+ * the whole reason the form is finite: an office never has to answer for a test
+ * it does not do, and never has to name where it goes.
  *
- * **A destination that has not declared the capability is allowed, and
- * reported.** The alternative is a deadlock: Barisal knows perfectly well that
- * Khulna runs a test, but cannot say so until somebody at Khulna has filled in
- * their own form, and Khulna is in the same position about Barisal. So the row
- * is written and named back to the caller as pending. Nothing is lost by
- * this — `resolveDestinations()` still refuses to follow such a row, by name,
- * long before a sample moves (D64).
+ * Written in one transaction, because a package half declared and half not
+ * looks answered.
  */
 export async function setPackageCoverage(args: {
   officeId: number;
   subProductId: number;
-  /** Parameter ids this office runs on its own bench. */
-  here: number[];
-  /** Parameter id → the office it is sent to, for everything else. */
-  sendTo: Record<number, number>;
+  inHouse: number[];
+  thirdParty: number[];
   employeeId: string | null;
+  note?: string | null;
 }) {
   const [parameters, labs] = await Promise.all([
     prisma.testParameter.findMany({
@@ -313,70 +319,56 @@ export async function setPackageCoverage(args: {
   ]);
   if (!parameters.length) throw new Error("That package has no test parameters.");
 
-  const hereSet = new Set(args.here);
-  const capOn: { labId: number; parameterId: number }[] = [];
-  const capOff: { labId: number; parameterId: number }[] = [];
-  const routes: { parameterId: number; labId: number }[] = [];
+  const inHouse = new Set(args.inHouse);
+  const thirdParty = new Set(args.thirdParty);
+  const both = [...inHouse].filter((id) => thirdParty.has(id));
+  if (both.length)
+    throw new Error("A test is either run here or sent out — it cannot be both.");
+
+  const rows: { parameterId: number; manner: CapabilityManner; labId: number | null }[] = [];
   const problems: string[] = [];
+  const drop: number[] = [];
 
   for (const p of parameters) {
-    const own = labFor(labs, args.officeId, p);
-
-    if (hereSet.has(p.id)) {
+    if (inHouse.has(p.id)) {
+      const own = labFor(labs, args.officeId, p);
       if (!own) {
         problems.push(
-          `“${p.nameEn}” is a ${p.discipline} test and this office has no ${p.discipline} laboratory, so it cannot be run here.`,
+          `“${p.nameEn}” is a ${p.discipline} test and this office has no ${p.discipline} laboratory. Mark it as sent out instead.`,
         );
         continue;
       }
-      capOn.push({ labId: own.id, parameterId: p.id });
-      routes.push({ parameterId: p.id, labId: own.id });
-      continue;
+      rows.push({ parameterId: p.id, manner: "in_house", labId: own.id });
+    } else if (thirdParty.has(p.id)) {
+      // No bench is needed, and that is the case this exists for.
+      rows.push({ parameterId: p.id, manner: "third_party", labId: null });
+    } else {
+      drop.push(p.id);
     }
-
-    // Not run here: withdraw any capability this office had claimed, so that
-    // changing the answer from "we do this" to "we send it away" actually
-    // changes both halves rather than leaving a stale claim behind.
-    if (own) capOff.push({ labId: own.id, parameterId: p.id });
-
-    const toOfficeId = args.sendTo[p.id];
-    if (!toOfficeId) {
-      problems.push(`“${p.nameEn}” has nowhere to go — choose an office for it.`);
-      continue;
-    }
-    const dest = labFor(labs, toOfficeId, p);
-    if (!dest) {
-      problems.push(
-        `The office chosen for “${p.nameEn}” has no ${p.discipline} laboratory to receive it.`,
-      );
-      continue;
-    }
-    routes.push({ parameterId: p.id, labId: dest.id });
   }
-
   if (problems.length) throw new Error(problems.join(" "));
 
   await prisma.$transaction([
-    ...capOn.map((c) =>
-      prisma.labCapability.upsert({
-        where: { labId_parameterId: { labId: c.labId, parameterId: c.parameterId } },
-        create: { ...c, isActive: true, isPlaceholder: false },
-        update: { isActive: true, isPlaceholder: false },
-      }),
-    ),
-    ...capOff.map((c) =>
-      prisma.labCapability.deleteMany({ where: { labId: c.labId, parameterId: c.parameterId } }),
-    ),
-    ...routes.map((r) =>
-      prisma.labRouting.upsert({
+    ...rows.map((r) =>
+      prisma.parameterCapability.upsert({
         where: { officeId_parameterId: { officeId: args.officeId, parameterId: r.parameterId } },
         create: {
-          officeId: args.officeId, parameterId: r.parameterId, labId: r.labId,
-          mode: "in_house", isPlaceholder: false,
+          officeId: args.officeId, parameterId: r.parameterId,
+          manner: r.manner, labId: r.labId,
+          declaredByEmployeeId: args.employeeId, note: args.note?.trim() || null,
         },
-        update: { labId: r.labId, isPlaceholder: false },
+        update: {
+          manner: r.manner, labId: r.labId, isActive: true,
+          declaredAt: new Date(), declaredByEmployeeId: args.employeeId,
+          note: args.note?.trim() || null,
+        },
       }),
     ),
+    // Withdrawing is a delete, not a flag: absence is what "we do not do this"
+    // means now, and a row saying `isActive: false` reads as a claim.
+    prisma.parameterCapability.deleteMany({
+      where: { officeId: args.officeId, parameterId: { in: drop } },
+    }),
     prisma.officeSubProductScope.upsert({
       where: {
         officeId_subProductId: { officeId: args.officeId, subProductId: args.subProductId },
@@ -389,17 +381,7 @@ export async function setPackageCoverage(args: {
     }),
   ]);
 
-  // Which of the destinations just written are waiting on another office.
-  const destLabIds = [...new Set(routes.map((r) => r.labId))];
-  const declared = new Set(
-    (
-      await prisma.labCapability.findMany({
-        where: { labId: { in: destLabIds }, parameterId: { in: parameters.map((p) => p.id) } },
-        select: { labId: true, parameterId: true },
-      })
-    ).map((c) => `${c.labId}:${c.parameterId}`),
-  );
-  const pending = routes.filter((r) => !declared.has(`${r.labId}:${r.parameterId}`));
-
-  return { capable: capOn.length, routed: routes.length, pending: pending.length };
+  return { inHouse: rows.filter((r) => r.manner === "in_house").length,
+           thirdParty: rows.filter((r) => r.manner === "third_party").length,
+           notCovered: drop.length };
 }

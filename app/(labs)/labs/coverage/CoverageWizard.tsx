@@ -6,7 +6,7 @@ import { AlertTriangle, Check, ChevronDown, Search, X } from "lucide-react";
 import StepNavButton from "@/components/StepNavButton";
 import { officeShortName } from "@/lib/labs/grid";
 import type { ProductRow } from "@/lib/labs/catalogue";
-import type { PackageState } from "@/lib/labs/coverage";
+import type { PackageState, ParameterState } from "@/lib/labs/coverage";
 
 type Office = {
   id: number; nameEn: string; labCount: number;
@@ -340,11 +340,16 @@ function StepVariants({
  * Saved a package at a time, because an office with forty products has two
  * hundred of these and that is several sittings.
  */
+/**
+ * Full, partial, or nothing yet — and the drill-down only where it is partial.
+ *
+ * Saved a package at a time, because an office with forty products has two
+ * hundred of these and that is several sittings.
+ */
 function StepCapability({
-  officeId, offices, ownLabs, packages,
+  officeId, ownLabs, packages,
 }: {
   officeId: number;
-  offices: Office[];
   ownLabs: { id: number; nameEn: string; discipline: string }[];
   packages: PackageState[];
 }) {
@@ -362,46 +367,37 @@ function StepCapability({
       <div className="rounded-xl border border-border bg-card px-5 py-3 text-sm">
         <strong>{answered}</strong> of {packages.length} packages answered.{" "}
         <span className="text-muted-foreground">
-          Each one saves on its own, so you can stop and come back.
+          Each one saves on its own, so you can stop and come back. You only say what you{" "}
+          <em>can</em> test — anything you leave out is simply not yours, and the system finds an
+          office that can.
         </span>
       </div>
       {packages.map((p) => (
-        <PackageRow
-          key={p.subProductId}
-          pkg={p}
-          officeId={officeId}
-          offices={offices}
-          ownLabs={ownLabs}
-        />
+        <PackageRow key={p.subProductId} pkg={p} officeId={officeId} ownLabs={ownLabs} />
       ))}
     </>
   );
 }
 
-/** The offices that could actually receive a test of this kind. */
-function receivers(offices: Office[], selfId: number, discipline: string) {
-  return offices.filter((o) => o.id !== selfId && o.disciplines.includes(discipline));
-}
-
 const LEVEL_STYLE: Record<string, string> = {
   full: "bg-secondary text-secondary-foreground",
   partial: "bg-primary/10 text-primary",
-  none: "bg-primary/10 text-primary",
   unanswered: "border border-dashed border-amber-400 text-amber-700 dark:text-amber-300",
 };
 const LEVEL_LABEL: Record<string, string> = {
-  full: "All tests here",
-  partial: "Some here, some sent",
-  none: "All sent elsewhere",
+  full: "All of it",
+  partial: "Some of it",
   unanswered: "Not answered",
 };
 
+/** What an office does with one test. Absence of a row is the third answer. */
+type Cover = "in_house" | "third_party" | "none";
+
 function PackageRow({
-  pkg, officeId, offices, ownLabs,
+  pkg, officeId, ownLabs,
 }: {
   pkg: PackageState;
   officeId: number;
-  offices: Office[];
   ownLabs: { id: number; nameEn: string; discipline: string }[];
 }) {
   const router = useRouter();
@@ -409,85 +405,47 @@ function PackageRow({
   const [open, setOpen] = useState(pkg.level === "unanswered");
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [bulkNote, setBulkNote] = useState<string | null>(null);
 
-  // "full" | "partial" | "none" as the operator's answer, seeded from what is
-  // already recorded. A package with no bench for it cannot be answered "full",
-  // and the control says so rather than being silently ignored.
-  const [choice, setChoice] = useState<"full" | "partial" | "none">(
-    pkg.level === "full" ? "full" : pkg.level === "partial" ? "partial" : "none",
+  const [choice, setChoice] = useState<"full" | "partial">(
+    pkg.level === "partial" ? "partial" : "full",
   );
-  const [here, setHere] = useState<Record<number, boolean>>(
-    Object.fromEntries(pkg.parameters.map((p) => [p.id, p.hereCapable])),
-  );
-  const [sendTo, setSendTo] = useState<Record<number, number>>(
+  // Per-test answers, seeded from what is recorded. A test the office has no
+  // bench for defaults to "sent out" rather than to nothing: that is Faridpur's
+  // case exactly, and it is the answer the model exists to allow.
+  const [cover, setCover] = useState<Record<number, Cover>>(
     Object.fromEntries(
-      pkg.parameters
-        .filter((p) => p.destinationOfficeId !== null && !p.destinationIsPlaceholder)
-        .map((p) => [p.id, p.destinationOfficeId as number]),
+      pkg.parameters.map((p) => [
+        p.id,
+        (p.manner ?? (p.ownLabId ? "in_house" : "third_party")) as Cover,
+      ]),
     ),
   );
 
-  const noBench = pkg.parameters.filter((p) => p.ownLabId === null);
-  const canBeFull = noBench.length === 0;
+  const effective = (p: ParameterState): Cover =>
+    choice === "full"
+      ? (cover[p.id] === "none" ? (p.ownLabId ? "in_house" : "third_party") : cover[p.id])
+      : (cover[p.id] ?? "none");
 
-  const effectiveHere = (id: number) =>
-    choice === "full" ? true : choice === "none" ? false : (here[id] ?? false);
+  const noBench = pkg.parameters.filter((p) => p.ownLabId === null);
 
   async function save() {
     setError(null); setNote(null);
-    const hereIds = pkg.parameters.filter((p) => effectiveHere(p.id)).map((p) => p.id);
-    const rest = pkg.parameters.filter((p) => !effectiveHere(p.id));
-    const missing = rest.filter((p) => !sendTo[p.id]);
-    if (missing.length) {
-      setError(
-        `Choose where ${missing.length} test${missing.length === 1 ? "" : "s"} ` +
-          `go${missing.length === 1 ? "es" : ""} — starting with “${missing[0].nameEn}”.`,
-      );
-      return;
-    }
+    const inHouse = pkg.parameters.filter((p) => effective(p) === "in_house").map((p) => p.id);
+    const thirdParty = pkg.parameters.filter((p) => effective(p) === "third_party").map((p) => p.id);
     const res = await fetch("/api/labs/coverage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        step: "package", officeId, subProductId: pkg.subProductId,
-        here: hereIds,
-        sendTo: Object.fromEntries(rest.map((p) => [p.id, sendTo[p.id]])),
-      }),
+      body: JSON.stringify({ step: "package", officeId, subProductId: pkg.subProductId, inHouse, thirdParty }),
     });
-    const json = (await res.json()) as { error?: string; pending?: number; routed?: number };
+    const json = (await res.json()) as {
+      error?: string; inHouse?: number; thirdParty?: number; notCovered?: number;
+    };
     if (!res.ok) { setError(json.error ?? "That did not save."); return; }
     setNote(
-      json.pending
-        ? `Saved. ${json.pending} of ${json.routed} destinations are waiting on the other office to confirm it runs the test — the route will not work until it does.`
-        : "Saved.",
+      `Saved — ${json.inHouse} on your own bench, ${json.thirdParty} sent out` +
+        (json.notCovered ? `, ${json.notCovered} not yours.` : "."),
     );
     start(() => router.refresh());
-  }
-
-  /**
-   * Send everything not done here to one office — the ordinary case.
-   *
-   * Only what that office can actually receive: four offices have a chemistry
-   * bench and no physical one, and quietly assigning a physical test to one of
-   * them would fail on save with a wall of messages. The rest are left blank
-   * and named, which is the rare split the client described.
-   */
-  function sendAllTo(toOfficeId: number) {
-    const office = offices.find((o) => o.id === toOfficeId);
-    const rest = pkg.parameters.filter((p) => !effectiveHere(p.id));
-    const takes = rest.filter((p) => office?.disciplines.includes(p.discipline));
-    const leaves = rest.filter((p) => !office?.disciplines.includes(p.discipline));
-
-    setSendTo((s) => ({
-      ...s,
-      ...Object.fromEntries(takes.map((p) => [p.id, toOfficeId])),
-    }));
-    setBulkNote(
-      leaves.length
-        ? `${officeShortName(office?.nameEn ?? "")} has no ${[...new Set(leaves.map((p) => p.discipline))].join(" or ")} laboratory, so ${leaves.length} test${leaves.length === 1 ? "" : "s"} still need${leaves.length === 1 ? "s" : ""} an office.`
-        : null,
-    );
   }
 
   return (
@@ -502,11 +460,9 @@ function PackageRow({
           <span className="block truncate text-sm font-medium">{pkg.subProductName}</span>
           <span className="block truncate text-xs text-muted-foreground">{pkg.productName}</span>
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {pkg.parameters.length} tests
-        </span>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${LEVEL_STYLE[pkg.level]}`}>
-          {LEVEL_LABEL[pkg.level]}
+        <span className="shrink-0 text-xs text-muted-foreground">{pkg.parameters.length} tests</span>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${LEVEL_STYLE[pkg.level] ?? LEVEL_STYLE.unanswered}`}>
+          {LEVEL_LABEL[pkg.level] ?? LEVEL_LABEL.unanswered}
         </span>
       </button>
 
@@ -515,22 +471,19 @@ function PackageRow({
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["full", "We can run all of these"],
-                ["partial", "Some of them"],
-                ["none", "None — send them away"],
+                ["full", "We can cover all of these"],
+                ["partial", "Only some of them"],
               ] as const
             ).map(([k, label]) => (
               <label
                 key={k}
                 className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm ${
                   choice === k ? "border-primary bg-primary/5 text-primary" : "border-border"
-                } ${k === "full" && !canBeFull ? "cursor-not-allowed opacity-40" : ""}`}
+                }`}
               >
                 <input
-                  type="radio"
-                  className="sr-only"
+                  type="radio" className="sr-only"
                   checked={choice === k}
-                  disabled={k === "full" && !canBeFull}
                   onChange={() => setChoice(k)}
                 />
                 {label}
@@ -538,99 +491,68 @@ function PackageRow({
             ))}
           </div>
 
-          {!canBeFull && (
-            <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {noBench.length > 0 && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
               {noBench.length} of these are {noBench[0]?.discipline} tests and this office has no{" "}
-              {noBench[0]?.discipline} laboratory, so they must be sent away.
-              {ownLabs.length > 0 && (
-                <> Your benches: {ownLabs.map((l) => l.nameEn).join(", ")}.</>
-              )}
+              {noBench[0]?.discipline} laboratory, so covering them means sending them to an
+              accredited outside laboratory and entering the result here.
+              {ownLabs.length > 0 && <> Your benches: {ownLabs.map((l) => l.nameEn).join(", ")}.</>}
             </p>
           )}
 
-          {choice !== "full" && (
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-secondary/40 px-3 py-2 text-sm">
-                <span className="text-muted-foreground">Send everything not done here to</span>
-                <select
-                  defaultValue=""
-                  onChange={(e) => e.target.value && sendAllTo(Number(e.target.value))}
-                  className="rounded border border-border bg-background px-2 py-1 text-sm"
-                >
-                  <option value="">choose an office…</option>
-                  {offices
-                    .filter((o) => o.id !== officeId && o.disciplines.length > 0)
-                    .map((o) => (
-                      <option key={o.id} value={o.id}>{officeShortName(o.nameEn)}</option>
-                    ))}
-                </select>
-                <span className="text-xs text-muted-foreground">
-                  — the usual case. Anything it cannot receive is left for you to place below.
-                </span>
-              </div>
-              {bulkNote && (
-                <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {bulkNote}
-                </p>
-              )}
-
-              <table className="w-full text-sm">
-                <tbody>
-                  {pkg.parameters.map((p) => {
-                    const mine = effectiveHere(p.id);
-                    return (
-                      <tr key={p.id} className="border-b border-border/60 last:border-0">
-                        <td className="py-1.5 pr-3">
-                          {choice === "partial" ? (
-                            <label className="flex cursor-pointer items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={mine}
-                                disabled={p.ownLabId === null}
-                                onChange={(e) =>
-                                  setHere((h) => ({ ...h, [p.id]: e.target.checked }))
-                                }
-                                className="h-4 w-4 accent-[var(--primary)]"
-                              />
-                              <span className={p.ownLabId === null ? "text-muted-foreground" : ""}>
-                                {p.nameEn}
-                              </span>
-                            </label>
-                          ) : (
-                            <span>{p.nameEn}</span>
-                          )}
-                        </td>
-                        <td className="w-12 py-1.5 text-xs text-muted-foreground">
-                          {p.discipline}
-                        </td>
-                        <td className="w-56 py-1.5 text-right">
-                          {mine ? (
-                            <span className="text-xs text-muted-foreground">tested here</span>
-                          ) : (
-                            <select
-                              value={sendTo[p.id] ?? ""}
-                              onChange={(e) =>
-                                setSendTo((s) => ({ ...s, [p.id]: Number(e.target.value) }))
+          {choice === "partial" && (
+            <table className="mt-4 w-full text-sm">
+              <tbody>
+                {pkg.parameters.map((p) => {
+                  const v = effective(p);
+                  return (
+                    <tr key={p.id} className="border-b border-border/60 last:border-0">
+                      <td className="py-1.5 pr-3">{p.nameEn}</td>
+                      <td className="w-12 py-1.5 text-xs text-muted-foreground">{p.discipline}</td>
+                      <td className="w-72 py-1.5 text-right">
+                        <div className="flex justify-end gap-1">
+                          {(
+                            [
+                              ["in_house", "Our bench", p.ownLabId !== null],
+                              ["third_party", "Sent out", true],
+                              ["none", "Not ours", true],
+                            ] as const
+                          ).map(([k, label, allowed]) => (
+                            <button
+                              key={k}
+                              type="button"
+                              disabled={!allowed}
+                              onClick={() => setCover((c) => ({ ...c, [p.id]: k }))}
+                              title={
+                                allowed
+                                  ? undefined
+                                  : `This office has no ${p.discipline} laboratory.`
                               }
-                              className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
+                              className={`rounded-md border px-2 py-0.5 text-xs disabled:opacity-30 ${
+                                v === k
+                                  ? "border-primary bg-primary/10 text-primary"
+                                  : "border-border text-muted-foreground hover:text-foreground"
+                              }`}
                             >
-                              <option value="">— where? —</option>
-                              {receivers(offices, officeId, p.discipline).map((o) => (
-                                <option key={o.id} value={o.id}>
-                                  {officeShortName(o.nameEn)}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {choice === "full" && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              All {pkg.parameters.length} tests recorded as yours —{" "}
+              {pkg.parameters.filter((p) => effective(p) === "in_house").length} on your own bench
+              and {pkg.parameters.filter((p) => effective(p) === "third_party").length} sent out.
+            </p>
           )}
 
           {error && (

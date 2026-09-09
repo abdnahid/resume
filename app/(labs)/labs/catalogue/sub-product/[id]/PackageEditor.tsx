@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Check, Pencil, RefreshCw, X } from "lucide-react";
 import { formatPoisha } from "@/lib/payments/money";
+import { packageDays } from "@/lib/labs/turnaround";
 import {
   URGENT_SOURCE_LABEL, URGENT_SOURCE_NOTE, urgentFeeIsProvisional,
   type UrgentFeeSource,
@@ -16,13 +17,15 @@ type Parameter = {
   feePoisha: number;
   urgentFeePoisha: number;
   urgentFeeSource: UrgentFeeSource;
+  normalDays: number | null;
+  urgentDays: number | null;
   discipline: string;
   sourceSection: string;
   limitText: string | null;
   limitKind: string;
   method: { id: number; designation: string } | null;
   subParameters: SubParameter[];
-  _count: { capabilities: number };
+  _count: { officeCapabilities: number };
 };
 type PackageFee = {
   sourceSection: string;
@@ -56,13 +59,10 @@ const toPoisha = (v: string) => Math.round(Number(v) * 100);
  * keystroke in a table of ninety rows is not a thing anyone would notice.
  */
 export default function PackageEditor({
-  subProductId, nameEn, turnaroundNormalDays, turnaroundUrgentDays,
-  packageFees, parameters, methods, canEdit,
+  subProductId, nameEn, packageFees, parameters, methods, canEdit,
 }: {
   subProductId: number;
   nameEn: string;
-  turnaroundNormalDays: number | null;
-  turnaroundUrgentDays: number | null;
   packageFees: PackageFee[];
   parameters: Parameter[];
   methods: { id: number; designation: string }[];
@@ -72,7 +72,10 @@ export default function PackageEditor({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
-  const [days, setDays] = useState<{ n: string; u: string } | null>(null);
+
+  // A package's turnaround is the longest of the tests it contains (D115) —
+  // they run in parallel and the report waits for the slowest bench.
+  const { normalDays, urgentDays } = packageDays(parameters);
 
   const normalTotal = parameters.reduce((a, p) => a + p.feePoisha, 0);
   const urgentTotal = parameters.reduce((a, p) => a + p.urgentFeePoisha, 0);
@@ -130,60 +133,16 @@ export default function PackageEditor({
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Turnaround
             </p>
-            {days ? (
-              <div className="mt-1.5 flex items-center gap-2">
-                <input
-                  type="number" min={1} value={days.n}
-                  onChange={(e) => setDays({ ...days, n: e.target.value })}
-                  className="w-16 rounded border border-border bg-background px-2 py-1 text-sm"
-                />
-                <span className="text-sm text-muted-foreground">/</span>
-                <input
-                  type="number" min={1} value={days.u}
-                  onChange={(e) => setDays({ ...days, u: e.target.value })}
-                  className="w-16 rounded border border-border bg-background px-2 py-1 text-sm"
-                />
-                <button
-                  type="button" disabled={pending}
-                  onClick={async () => {
-                    const ok = await send(`/api/labs/sub-products/${subProductId}`, {
-                      turnaroundNormalDays: days.n ? Number(days.n) : null,
-                      turnaroundUrgentDays: days.u ? Number(days.u) : null,
-                    });
-                    if (ok) setDays(null);
-                  }}
-                  className="rounded p-1 text-primary hover:bg-secondary"
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-                <button type="button" onClick={() => setDays(null)} className="rounded p-1 hover:bg-secondary">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : (
-              <p className="mt-1 flex items-center gap-2 font-display text-2xl font-medium tabular-nums">
-                {turnaroundNormalDays ?? "?"}d
-                <span className="text-base text-muted-foreground">/</span>
-                {turnaroundUrgentDays ?? "?"}d
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDays({
-                        n: String(turnaroundNormalDays ?? ""),
-                        u: String(turnaroundUrgentDays ?? ""),
-                      })
-                    }
-                    className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </p>
-            )}
+            <p className="mt-1 font-display text-2xl font-medium tabular-nums">
+              {normalDays ?? "?"}d
+              <span className="text-base text-muted-foreground"> / </span>
+              {urgentDays ?? "?"}d
+            </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              normal / urgent. Changing these re-prices the package: an urgent turnaround that is
-              not shorter carries no surcharge.
+              normal / urgent, and <strong>derived</strong>: the days belong to each test now, so
+              a package takes as long as its slowest one. Edit a test below to change it — which
+              also re-prices, since a package whose urgent turnaround is not shorter carries no
+              surcharge.
             </p>
           </div>
         </div>
@@ -239,9 +198,10 @@ export default function PackageEditor({
               <th className="px-4 py-2.5 font-medium">Test</th>
               <th className="px-4 py-2.5 font-medium">Standard limit</th>
               <th className="px-4 py-2.5 font-medium">Method</th>
+              <th className="px-4 py-2.5 text-right font-medium">Days</th>
               <th className="px-4 py-2.5 text-right font-medium">Normal</th>
               <th className="px-4 py-2.5 text-right font-medium">Urgent</th>
-              <th className="px-4 py-2.5 font-medium">Labs</th>
+              <th className="px-4 py-2.5 font-medium">Offices</th>
               {canEdit && <th className="px-4 py-2.5" />}
             </tr>
           </thead>
@@ -299,6 +259,9 @@ export default function PackageEditor({
                   <td className="px-4 py-2 text-xs text-muted-foreground">
                     {p.method?.designation ?? "—"}
                   </td>
+                  <td className="px-4 py-2 text-right text-xs tabular-nums text-muted-foreground">
+                    {p.normalDays ?? "?"}d / {p.urgentDays ?? "?"}d
+                  </td>
                   <td className="px-4 py-2 text-right tabular-nums">{formatPoisha(p.feePoisha)}</td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {formatPoisha(p.urgentFeePoisha)}
@@ -314,10 +277,10 @@ export default function PackageEditor({
                     </span>
                   </td>
                   <td className="px-4 py-2 text-xs tabular-nums">
-                    {p._count.capabilities ? (
-                      `${p._count.capabilities}`
+                    {p._count.officeCapabilities ? (
+                      `${p._count.officeCapabilities}`
                     ) : (
-                      <span className="text-amber-600 dark:text-amber-400" title="No laboratory has declared it can run this test, so it cannot be routed anywhere">
+                      <span className="text-amber-600 dark:text-amber-400" title="No office has said it can run this test, so an application naming it cannot resolve">
                         none
                       </span>
                     )}
