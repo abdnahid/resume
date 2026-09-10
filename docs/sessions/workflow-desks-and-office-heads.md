@@ -1776,6 +1776,27 @@ and until it exists `import:desks` is the only writer and marks everything it
 does as inferred. That is the next step, and it is also the answer to "which of
 21 identically-titled Metrology posts is his" — only a person can say.
 
+### Documentation left stale by this session, and corrected
+
+Three statements in `CLAUDE.md` and `BUILD-PLAN.md` were true until D122 landed
+and false the moment it did — all of them reasoning *from* the single column:
+
+- D57's own entry, which recorded "one person cannot be both office admin and
+  office head — accepted deliberately". Now marked reversed.
+- The payroll note under office heads, which explained why
+  `import:office-heads` displaces `officeadmin` to the accounts desk. **That
+  workaround is now obsolete**: a person may hold both, so the 14 offices could
+  have their head hold payroll again and the script should stop moving it.
+  Neither has been done — the displacement is harmless and reversing it is a
+  data change nobody has asked for — but the note says so rather than reading as
+  current design.
+- The account-menu note, which cited the single enum while actually talking
+  about *desks*. Roles and desks are different things and only one person holds
+  two desks; the sentence now says which it means.
+
+A decision that amends an older one leaves the older one's *reasoning* lying
+around in prose, and prose does not typecheck.
+
 ### Resume here
 
 **Still open:** the re-seating screen. Without it the 305 inferred seats cannot

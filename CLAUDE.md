@@ -187,8 +187,10 @@ and a theme class in `app/globals.css`.
   employment data, and the navbar only calls it when the session says
   `INTERNAL`, so no client provokes the refusal.
 - **The account menu shows the desks you hold; it does not switch between
-  them.** Nobody holds two today — `User.role` is a single enum, and a post held
-  in additional charge (D74) is the only second desk anyone can have. So it
+  them.** Nobody holds two today — a post held in additional charge (D74) is the
+  only second **desk** anyone can have, and only one person has one. (Roles are
+  a different thing and a person may hold several since D122; this is about
+  desks.) So it
   marks what you act from rather than offering a control that would do nothing.
   When someone genuinely holds two, the row appears on its own and wiring the
   choice through to `toDesk()` is the work that follows — a behaviour change,
@@ -222,6 +224,11 @@ else is INTERNAL only.
 
 - **`accountType` gates routes. `role` is internal-only.** Never gate an
   internal route on `role` alone — clients carry the inert `role: client`.
+- **Ask `hasRole()`, never compare `role`** (D122). `User.roles` is the
+  authority and `User.role` is only its highest-precedence member; comparing the
+  primary grants the top role and silently refuses every other one the person
+  holds. The **session cookie carries the primary only**, so a check on a
+  secondary role must go through `getViewer()`, which reads the row.
 - **Enforced in two places, on purpose.** `middleware.ts` reads `accountType`
   from better-auth's signed `session_data` cookie and refuses at the edge;
   every internal layout also calls `requireInternal()` from `lib/auth-guard.ts`,
@@ -415,14 +422,17 @@ office, whatever wing he comes from. **At head office it is the CM wing's
 seniormost officer, not the building's** — the Director (CM) post is vacant, so
 DD (CM) acts in it, which is why D57 made this a role and not a designation.
 
-**Payroll was not collateral damage.** `User.role` is a single enum, so granting
-`office_head` to someone holding `officeadmin` silently removes their payroll
-authority — and the natural head was the officeadmin at 14 of 23 offices. The
-two are different jobs (payroll can be run by the accounts head, by any
-officer), so the script moves `officeadmin` to the office's accounts desk where
-one exists and **reports the office rather than guessing** where none does.
-Payroll still runs everywhere meanwhile, because a superadmin is not
-office-scoped.
+**Payroll was not collateral damage — and the workaround is now obsolete.**
+`User.role` was a single enum until D122, so granting `office_head` to someone
+holding `officeadmin` silently removed their payroll authority, and the natural
+head was the officeadmin at **14 of 23 offices**. The script therefore moves
+`officeadmin` to the office's accounts desk where one exists and **reports the
+office rather than guessing** where none does.
+**A person may now hold both** (D122), so that displacement is no longer
+necessary: the 14 offices could have their head hold `officeadmin` again, and
+`import:office-heads` should stop moving it. Neither has been done — the
+displacement is harmless and reversing it is a data change nobody has asked
+for.
 
 **15 offices have no local payroll admin** and need one nominated at
 `/hr/listing/roles`: Barishal, Sylhet, Chittagong, Rangpur, Mymensingh, Cumilla,
