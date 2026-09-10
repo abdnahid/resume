@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -1264,6 +1264,20 @@ Product (one of the mandatory 315)
   the field officer chooses from the capable offices. D64's point survives —
   referral is administrative, so Barisal may prefer Cumilla over a nearer,
   capable Khulna — but nobody fills in a grid to say so.
+- **A destination is an office** (D117) — so look one up in `Office`, never in
+  `Lab`. `screen.ts` went on querying `prisma.lab` with an office id after the
+  migration: 23 offices numbered 1–23 against 46 laboratories numbered 1–46, so
+  **every id collided**, the `?? \`Office ${id}\`` fallback never fired, and the
+  field officer's sampling screen named every box after an unrelated bench —
+  Barishal read as *Textile, Head Office*. The post-seal half of the same file
+  read the name through the relation and was right, so **the name changed at the
+  moment of sealing**. Fixed 2026-09-10.
+- **An office's short name is the city, and the city is not unique.** *Head
+  Office, BSTI, Dhaka* and *DMI, BSTI, Dhaka* both end in Dhaka, which gave the
+  23-column map two columns headed the same on the screen where an office picks
+  a destination. Use `officeShortNames(offices)` — it falls back to the office's
+  own first segment where a city is shared — not `officeShortName()` alone, in
+  anything that renders a list.
 - **A destination is an office** (D117). `Consignment` and `LabTestOrder` are
   addressed to one, with the bench named when there is one. The alternative was
   to invent a nominal laboratory per discipline at every office, in a module

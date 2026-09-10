@@ -35,6 +35,33 @@ export function officeShortName(nameEn: string): string {
   return parts[parts.length - 1] || nameEn;
 }
 
+/**
+ * Short names for a set of offices, **disambiguated**.
+ *
+ * The city alone is not unique: *Head Office, BSTI, Dhaka* and *DMI, BSTI,
+ * Dhaka* both end in it, so the 23-column map had two columns headed "Dhaka" —
+ * on the very screen where an office picks where its samples go. Where a city
+ * is shared, the office's own first segment is used instead, which is what
+ * distinguishes them in speech as well.
+ */
+export function officeShortNames(
+  offices: { id: number; nameEn: string }[],
+): Map<number, string> {
+  const byCity = new Map<string, number[]>();
+  for (const o of offices) {
+    const city = officeShortName(o.nameEn);
+    if (!byCity.has(city)) byCity.set(city, []);
+    byCity.get(city)!.push(o.id);
+  }
+  const out = new Map<number, string>();
+  for (const o of offices) {
+    const city = officeShortName(o.nameEn);
+    const first = o.nameEn.split(",")[0].trim();
+    out.set(o.id, byCity.get(city)!.length > 1 && first ? first : city);
+  }
+  return out;
+}
+
 /** "Chemistry Lab, Khulna" → "Chemistry Lab"; the city is already the column. */
 export function labShortName(nameEn: string): string {
   return nameEn.split(",")[0].trim() || nameEn;

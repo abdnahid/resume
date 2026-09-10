@@ -54,8 +54,16 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
 
   const officeIds = [...new Set(plan.cells.map((c) => c.officeId))];
   const parameterIds = [...new Set(plan.cells.flatMap((c) => c.parameterIds))];
-  const [labs, parameters, app] = await Promise.all([
-    prisma.lab.findMany({
+  const [offices, parameters, app] = await Promise.all([
+    // **Offices, not laboratories.** A destination has been an office since
+    // D117, and this survived the migration querying `lab` by an office id.
+    // There are 23 offices numbered 1–23 and 46 laboratories numbered 1–46, so
+    // every id collided and the `?? \`Office ${id}\`` fallback never fired:
+    // every destination and box on this screen was named after an unrelated
+    // bench — Barishal read as "Textile, Head Office". Worse, the post-seal
+    // half of this file reads the name through the relation and was right, so
+    // the name changed at the moment of sealing.
+    prisma.office.findMany({
       where: { id: { in: officeIds } },
       select: { id: true, nameEn: true },
     }),
@@ -68,7 +76,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
       select: { bstiOfficeId: true, subProducts: { select: { id: true, subProductId: true } } },
     }),
   ]);
-  const officeName = new Map(labs.map((o) => [o.id, o.nameEn]));
+  const officeName = new Map(offices.map((o) => [o.id, o.nameEn]));
   const paramName = new Map(parameters.map((p) => [p.id, p.nameEn]));
 
   // How each destination came to be chosen: because the office runs the test

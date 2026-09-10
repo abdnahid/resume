@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { AlertTriangle, Check } from "lucide-react";
-import { buildMatrix, officeShortName } from "@/lib/labs/grid";
+import { buildMatrix, officeShortNames } from "@/lib/labs/grid";
 
 type Parameter = {
   id: number; nameEn: string; discipline: string; sourceSection: string;
@@ -56,6 +56,11 @@ export default function MapGrid({
     () => buildMatrix({ capabilities, preferences, fromOfficeId: officeId }),
     [capabilities, preferences, officeId],
   );
+  // The city alone is not unique — Head Office and DMI are both "Dhaka" — and
+  // two identical column headings on the screen that picks a destination is
+  // the worst place for it.
+  const shortName = useMemo(() => officeShortNames(offices), [offices]);
+  const short = (o: { id: number; nameEn: string }) => shortName.get(o.id) ?? o.nameEn;
 
   /** Which offices can take a given test — the list the client asked for. */
   const capableFor = (parameterId: number) =>
@@ -134,7 +139,7 @@ export default function MapGrid({
                   }`}
                   title={o.nameEn}
                 >
-                  {officeShortName(o.nameEn)}
+                  {short(o)}
                 </th>
               ))}
             </tr>
@@ -242,7 +247,7 @@ export default function MapGrid({
                           <AlertTriangle className="h-3.5 w-3.5" /> nobody
                         </span>
                       ) : (
-                        capable.map((o) => officeShortName(o.nameEn)).join(", ")
+                        capable.map((o) => short(o)).join(", ")
                       )}
                     </td>
                     <td className="px-5 py-2">
@@ -261,7 +266,7 @@ export default function MapGrid({
                         >
                           <option value="">— the officer chooses —</option>
                           {capable.map((o) => (
-                            <option key={o.id} value={o.id}>{officeShortName(o.nameEn)}</option>
+                            <option key={o.id} value={o.id}>{short(o)}</option>
                           ))}
                         </select>
                       )}

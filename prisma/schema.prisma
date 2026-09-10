@@ -2898,26 +2898,14 @@ model Lab {
   @@index([discipline])
 }
 
-/// The 2D map: for a sample received at this office, which lab runs this
-/// parameter.
-///
-/// Referral is an administrative fact, not a distance calculation — Barisal may
-/// send what it cannot test to Cumilla rather than to a capable Khulna — so it
-/// is stored, not derived. Each office and wing maintains its own rows.
-///
-/// `labId` is always the **accountable BSTI unit**. When `mode` is
-/// `third_party` the sample is physically tested outside, and that lab's
-/// examiner selects the accredited laboratory, writes to it, and enters the
-/// result. Custody never leaves BSTI even when the sample does.
 /// Which packages an office says it deals with — the working set behind the
 /// coverage form, and the office's own statement of what it handles.
 ///
-/// **It is not derivable, which is why it is stored.** Every office already has
-/// a routing row for every one of the 4,767 parameters (the seed wrote all
-/// 109,641), so routing cannot say what an office has actually looked at. And
-/// "we have no capability for this and send it away" is a different fact from
-/// "this is not something we deal with at all" — the first has destinations,
-/// the second has nothing.
+/// **It is not derivable, which is why it is stored.** Capability says what an
+/// office *can test*; this says what it has *taken on*, and the two are
+/// different facts. An office that has looked at a package and can do none of
+/// it leaves no capability row at all (D116), which is indistinguishable from
+/// never having looked — except for this.
 ///
 /// A product is in an office's scope when at least one of its sub-products is:
 /// a product with no variants selected means nothing, so it is not stored
@@ -2926,7 +2914,7 @@ model Lab {
 ///
 /// **This does not gate which applications an office receives.** Jurisdiction
 /// still does that, from the factory's district (D28). Whether it should is an
-/// open question with the client.
+/// open question with the client (D109).
 model OfficeSubProductScope {
   officeId Int
   office   Office @relation(fields: [officeId], references: [id], onDelete: Cascade)

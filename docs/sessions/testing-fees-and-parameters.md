@@ -2873,3 +2873,80 @@ of this piece — a dev server was running on :3000 and shares `.next`, which is
 the documented collision. `✓ Compiled successfully` was reached; only page-data
 collection failed, and `npx tsc --noEmit` is clean. The full build passed
 earlier in the session on the same tree plus the registry work.
+
+---
+
+## Session 15 — 2026-09-10 (Linux machine) — the three left on the table
+
+Aligned with the Windows machine's session 14 (`3cff385`…`63b61ce`): the lab
+registry, the discipline grouping, Faridpur's office head, the dev switcher.
+`git pull` was already up to date, `npm install`, `prisma generate` and
+`tsc --noEmit` clean, and **no schema change** came across.
+
+Session 14 closed with three things "found while reading, not yet fixed". Two
+were regressions from session 11's lab→office migration — mine — so they were
+fixed rather than left for a third machine.
+
+### The one that mattered
+
+`lib/samples/screen.ts` queried `prisma.lab.findMany({ where: { id: { in:
+officeIds } } })`. Confirmed against live data before touching it:
+
+```
+office  1 Divisional Office, BSTI, Barishal    → showed "Textile, Head Office"
+office  2 Divisional Office, BSTI, Sylhet      → showed "Electrical & Electronics, Head Office"
+office  3 Divisional Office, BSTI, Chittagong  → showed "Civil Physical, Head Office"
+```
+
+23 offices numbered 1–23 against 46 laboratories numbered 1–46, so **every id
+collided** and the `?? \`Office ${id}\`` fallback never fired once. The field
+officer sealing boxes saw every destination named after an unrelated bench —
+and because the post-seal half of the same file reads the name through the
+relation, **the name changed at the moment of sealing**. One word, `lab` →
+`office`, and the comment that says why it must stay that way.
+
+### Two columns headed "Dhaka"
+
+`officeShortName()` returns the last comma-separated segment, which is the city
+— and *Head Office, BSTI, Dhaka* and *DMI, BSTI, Dhaka* share it. `officeShortNames(offices)`
+disambiguates against the whole set, falling back to the office's own first
+segment where a city is shared: **Head Office** and **DMI**. 23 offices, 0
+duplicate headings.
+
+### The orphaned schema comment, and a near-miss
+
+The `LabRouting` doc block survived its table being dropped in session 11 and
+had come to sit immediately above `OfficeSubProductScope`, reading as its
+description. Removing it took **that model's own comment with it** — the two
+were one contiguous block and the script that found "the comment above the
+model" found both. Caught by reading `git diff` before committing, which is the
+only reason it is not a silent loss of the reasoning behind D109. Restored, with
+its stale reference to "a routing row for every one of the 4,767 parameters"
+corrected — there are no routing rows now.
+
+### Lessons that cost something
+
+- **"Delete the comment block above X" is not a safe instruction when two
+  blocks are adjacent.** Nothing separates one doc comment from the next but a
+  blank line, and the stale block had lost its own model.
+- **A fallback that never fires is not a fallback.** ``?? `Office ${id}` `` was
+  written to make a missing name obvious and instead guaranteed a wrong one,
+  because the lookup always found *something*. Where two id spaces overlap, a
+  lookup cannot report a miss.
+
+### Resume here
+
+Unchanged and still outstanding:
+
+1. **The field officer cannot choose among capable offices.**
+   `resolveDestinations()` computes `choices`, `buildPlanFor()` drops them
+   before `screen.ts` sees them, so there is nothing to render a picker from.
+   This is the last thing between the model and a sealed box.
+2. **`lab_incharge` has no users**, so only an office head or superadmin can
+   fill in `/labs/coverage`.
+3. **The dev account switcher is still in the tree** (`components/dev/`,
+   `app/api/dev/switch/`) and both files are to be deleted when testing is done.
+
+Live coverage as of this session: **27 capability rows across 4 offices** — head
+office 9, Khulna 9, Faridpur 7, Barishal 2 — 3 of them `third_party`, and 5
+preferences. 4,768 of 4,779 parameters still have no capable office.
