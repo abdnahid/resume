@@ -81,12 +81,15 @@ export default function FileBoard({
   flows,
   down,
   up,
+  hasDesk,
   canReceive,
 }: {
   rows: BoardRow[];
   flows: Record<number, FlowStep[]>;
   down: Desk[];
   up: Desk[];
+  /** False when the viewer holds no organogram post, so there is no chain at all. */
+  hasDesk: boolean;
   canReceive: boolean;
 }) {
   const [bucket, setBucket] = useState<BucketKey | "all">("all");
@@ -225,7 +228,7 @@ export default function FileBoard({
 
                 <div className="sm:text-right">
                 {a.bucket === "mine" ? (
-                  <PassPanel applicationId={a.id} down={down} up={up} />
+                  <PassPanel applicationId={a.id} down={down} up={up} hasDesk={hasDesk} />
                 ) : a.bucket === "unclaimed" && canReceive ? (
                   <ReceiveButton applicationId={a.id} />
                 ) : a.withApplicant ? (

@@ -1497,3 +1497,87 @@ delivered.
   two reports and now the submission letter all need a CM Wing officer's eye.
 - 15 offices have no local payroll admin, needing nomination at
   `/hr/listing/roles`.
+
+---
+
+## Session 3 — 2026-09-10 (Windows machine) — a head who could receive and not pass
+
+### User
+
+> I am testing an application submitted to faridpur office. Application arrived
+> at office head of faridpur office but after receiving he is not being able to
+> click pass-down
+
+### It was not the cross-section problem
+
+The obvious suspect was the one this file and `CLAUDE.md` both flag: `candidates()`
+restricts even an office head to `sectionUnitId === sender.sectionUnitId`, so a
+head from one wing cannot pass a file into the service's section, and D58 needs
+amending. **That is not what happened**, and it could not have been: a branch
+office is one flat section. All ten desked Faridpur staff — Executive, CM,
+Metrology, Chemistry Lab and Administration alike — resolve to section 313,
+`Faridpur`. The amendment is still owed at head office and nowhere else yet.
+
+### What it was
+
+**MD. KAMAL HOSSAIN (20065010042) held no organogram post at all.**
+`orgPostId` and `actingOrgPostId` both null, so `toDesk()` gave him
+`sectionUnitId: null`, and `canPassTo()` refuses on a null section before it
+ever looks at grade. Candidates in both directions: nought.
+
+He is grade 6, designation উপপরিচালক, and **Executive (Faridpur) holds exactly
+one post — Deputy Director (CM), grade 6, vacant.** The seat was standing empty
+in front of him. `npm run import:office-head-desks` seated him on it and filled
+the English designation he was missing from the post itself, which is the
+behaviour that script already had:
+
+```
+Seated:
+  20065010042 MD. KAMAL HOSSAIN
+      District Office, BSTI, Faridpur
+      → Deputy Director (CM) (post 1021) in Executive (Faridpur)
+      English designation was not recorded; taken from the post: Deputy Director (CM)
+```
+
+Candidates went 0 → 10, and both files on his desk — #25 `CM-2026-000025` and
+#26 `CM-2026-000026` — can move.
+
+**Why he was missed:** this file records every office head as seated on
+2026-09-05, and 21 of 23 still are. The role was granted to him after that run.
+The script is idempotent and only fills a null `orgPostId`, so **re-running it is
+the fix whenever a head changes** — nothing else has to be remembered.
+
+The one head who remains unseated is head office's Md. Alauddin Hussain, which
+is correct and documented: he holds Director (CM) in additional charge
+(`actingOrgPostId`, D74), so he has a section by that route.
+
+### The part that cost the time
+
+The button was disabled with a `title` of **"No more junior desk in this
+section"** — a hover tooltip, and wrong. He had no section, which is an
+administrative fault somebody must repair, not a fact about the chain ending.
+`candidates()` returns `[]` for both and the screen could not tell them apart.
+
+So the board now distinguishes them, and says the administrative one **on the
+page rather than in a `title`** — a tooltip is invisible on a touch screen and
+easy to miss on any screen, which is how a five-minute fix became a database
+investigation. `deskOf()` answers it in one lookup the page already had the
+actor for.
+
+### Lessons that cost something
+
+- **Two causes behind one empty list is a bug in the message, not the logic.**
+  `candidates()` was right to return nothing; the screen was wrong to explain it
+  as though only one thing could have caused it.
+- **A documented known gap is a bad first hypothesis.** The cross-section
+  restriction is real, written down twice, and had nothing to do with this. The
+  data said so in one query.
+- **An idempotent importer is a repair tool, not a migration.**
+  `import:office-head-desks` fills only a null seat, so it is safe to run any
+  time a head changes — worth reaching for before reasoning about the chain.
+
+### Resume here
+
+Unchanged from the labs log: the field officer has no screen for choosing among
+capable offices, and `lab_incharge` has no users. D58's cross-section amendment
+is still owed, and still only bites at head office.

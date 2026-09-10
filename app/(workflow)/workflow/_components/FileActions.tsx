@@ -59,10 +59,13 @@ export function PassPanel({
   applicationId,
   down,
   up,
+  hasDesk,
 }: {
   applicationId: number;
   down: Desk[];
   up: Desk[];
+  /** False when the viewer holds no organogram post, so there is no chain at all. */
+  hasDesk: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState<"down" | "up" | null>(null);
@@ -106,7 +109,13 @@ export function PassPanel({
             setTo("");
             setError(null);
           }}
-          title={down.length === 0 ? "No more junior desk in this section" : undefined}
+          title={
+            down.length === 0
+              ? hasDesk
+                ? "No more junior desk in this section"
+                : "You hold no organogram post, so there is no section to pass within"
+              : undefined
+          }
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ArrowDown className="h-3.5 w-3.5" strokeWidth={2} />
@@ -120,13 +129,32 @@ export function PassPanel({
             setTo("");
             setError(null);
           }}
-          title={up.length === 0 ? "No more senior desk in this section" : undefined}
+          title={
+            up.length === 0
+              ? hasDesk
+                ? "No more senior desk in this section"
+                : "You hold no organogram post, so there is no section to pass within"
+              : undefined
+          }
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition hover:bg-secondary/50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ArrowUp className="h-3.5 w-3.5" strokeWidth={2} />
           Send up
         </button>
       </div>
+
+      {/* **Said on the page, not only in a `title`.** A disabled button with a
+          hover tooltip is invisible on a touch screen and easy to miss on any
+          screen — Faridpur's office head met exactly this on 2026-09-10 and
+          the tooltip he could not see would have been wrong anyway. Holding no
+          post is an administrative fault somebody has to fix, so it is worth a
+          line of its own; the chain simply ending is not. */}
+      {!hasDesk && (
+        <p className="mt-2 text-right text-xs text-amber-700 dark:text-amber-300">
+          You hold no post in the organogram, so this file has no section to move within. An
+          administrator has to seat you before it can go anywhere.
+        </p>
+      )}
 
       {open && (
         <div className="mt-3 w-full max-w-md rounded-xl border border-border bg-card p-4 text-left">

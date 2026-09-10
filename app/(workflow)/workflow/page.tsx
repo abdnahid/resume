@@ -2,7 +2,7 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { requireInternal } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import {
-  actorFor, inboxScope, unclaimed, inProgress, heldBy, touchedBy, flowsFor, candidates,
+  actorFor, inboxScope, unclaimed, inProgress, heldBy, touchedBy, flowsFor, candidates, deskOf,
 } from "@/lib/workflow/inbox";
 import { roundsForMany } from "@/lib/cm/shortfall";
 import { plansForMany } from "@/lib/cm/inspection";
@@ -60,6 +60,18 @@ export default async function WorkflowPage() {
           candidates(actor.employeeId, actor.officeId, "up"),
         ])
       : [[], []];
+
+  // **Why the lists are empty is two different facts.** `candidates()` returns
+  // nothing both when the chain genuinely ends with you and when you hold no
+  // organogram post at all — and the second is an administrative fault someone
+  // has to fix, not a fact about the file. 251 of 731 employees hold no desk,
+  // and an office head among them receives files and can pass them to nobody
+  // (the D76 shape, arrived at by a missing seat rather than a retirement).
+  // Faridpur's head sat exactly there on 2026-09-10 while the button's tooltip
+  // said "no more junior desk in this section", which was true of nothing.
+  const holderDesk =
+    actor.employeeId && mine.length > 0 ? await deskOf(actor.employeeId) : null;
+  const hasDesk = holderDesk?.sectionUnitId != null;
 
   // A file appears once. "With you" wins over every other reading of it, and a
   // file already listed as this office's is not repeated as one you handled —
@@ -251,7 +263,7 @@ export default async function WorkflowPage() {
               : "Nothing is waiting for you. Applications are received by the office head, who passes them down for processing — you will see a file here once one reaches your desk."}
           </p>
         ) : (
-          <FileBoard rows={rows} flows={flows} down={down} up={up} canReceive={!!scope} />
+          <FileBoard rows={rows} flows={flows} down={down} up={up} hasDesk={hasDesk} canReceive={!!scope} />
         )}
       </main>
     </>
