@@ -47,7 +47,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 | Log | Covers |
 |---|---|
 | `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench. |
-| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
+| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; **Session 3 (2026-09-10) makes a person able to hold several roles, amending D57.** |
 
 Two rules from the spec that carry real weight:
 
@@ -1408,15 +1408,18 @@ Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   neither; offering them offers a destination the save then refuses. The bulk
   "send everything to…" assigns what that office can take and **names what it
   cannot**, which is the rare split.
-- **`lab_incharge` is a role** (D105) and has **no users today**, exactly like
-  `one_stop`. Granting it at `/hr/listing/roles` is the first step; until then
-  an office head or a superadmin does the work.
+- **`lab_entry` is a role** (D105, renamed by D123) and has **no users today**,
+  exactly like `one_stop`. Granting it at `/hr/listing/roles` is the first step;
+  until then an office head or a superadmin does the work. **It is scoped to its
+  own office and nowhere else** — every check in `lib/labs/access.ts` compares
+  `actor.officeId` against the office being edited, and only a superadmin works
+  across offices.
 
 - **The module is built and entry has started.** Barishal made the first real
   coverage entries on 2026-09-08 — U-PVC Pipe, two tests on its own chemistry
   bench and three sent to Rangpur — which is the whole flow working end to end.
   Everything else is still a stand-in. The order for the rest is: grant
-  `lab_incharge`, then each office works through `/labs/coverage`. Nothing is
+  `lab_entry`, then each office works through `/labs/coverage`. Nothing is
   blocked meanwhile, because the stand-ins still resolve. **`/labs` is where the
   live count lives**; figures written here go stale the moment an office types.
 
@@ -1574,10 +1577,24 @@ can reuse them.
   retired officer's hands must still be movable out of them. Office scoping is
   `employeesOfOffice()`, which asks where somebody works and not whether they
   still do, so without this a retiree holding a desk stayed in the picker.
+- **A person may hold several roles** (D122). `User.roles` is the authority and
+  `User.role` is the highest-precedence member of it, kept in step by
+  `setRoles()` in `lib/roles-service.ts` and **nowhere else**. Ask
+  `hasRole(subject, "x")` — never compare `role`, which grants the top role and
+  silently refuses every other one the person holds.
+  **`hasRole()` falls back to the primary when `roles` was not selected**, so a
+  query that forgot the array is never *more* permissive than before, only
+  less. That is what made the change safe to land without sweeping all 83
+  comparison sites: precedence puts `superadmin` first, so only checks for a
+  **non-top** role could newly be wrong, and those were converted by hand.
+  **The session cookie carries the primary only** — a secondary-role check must
+  go through `getViewer()`, which reads the row.
 - **`office_head` is its own role.** It receives an office's submitted
   applications; `officeadmin` does not. Payroll authority and file-routing
-  authority are different jobs. `User.role` is one enum, so nobody is both —
-  accepted deliberately (D57).
+  authority are different jobs. Until D122 `User.role` was one
+  enum, so nobody could be both — and granting `office_head` silently removed
+  `officeadmin`, which is why `import:office-heads` had to move payroll to
+  another desk at 14 of 23 offices. A person may now hold both.
 - **A desk that has handled a file keeps seeing it** (D77). `touchedBy()` reads
   the movement log, so standing is a *fact about the file* rather than a
   permission somebody granted — and it carries no power, because every action

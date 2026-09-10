@@ -47,7 +47,7 @@ export default async function LabPage({
   const labOfficeId = lab.office.id;
 
   const canEdit = canEditCapability(
-    { role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId },
+    { role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId },
     lab.office.id,
   );
 

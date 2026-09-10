@@ -94,7 +94,7 @@ export default function CapabilityEditor({
         {!canEdit && (
           <p className="mt-1 text-xs text-muted-foreground">
             Read-only for you. A laboratory&rsquo;s capability is recorded by its own office —
-            its head or its lab in-charge — or by a superadmin.
+            its head or its lab entry officer — or by a superadmin.
           </p>
         )}
       </div>

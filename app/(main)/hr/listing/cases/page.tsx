@@ -2,6 +2,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getCases } from "@/lib/salary/cases";
+import { getViewer } from "@/lib/auth-guard";
+import { hasAnyRole } from "@/lib/roles";
 import { getEmployees } from "@/lib/db";
 import { getSalaryHeads } from "@/lib/salary/queries";
 import CaseManager from "./_components/CaseManager";
@@ -14,9 +16,11 @@ import CaseManager from "./_components/CaseManager";
  * redirect is the cheap half.
  */
 export default async function CasesPage() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  const role = (session?.user as { role?: string })?.role ?? "employee";
-  if (role !== "superadmin" && role !== "case_officer") redirect("/hr/listing");
+  // **`getViewer()`, not the session.** The cookie carries the primary role
+  // only, and a case officer who is also an office admin has `officeadmin` as
+  // theirs — so the session would refuse them their own register (D122).
+  const viewer = await getViewer();
+  if (!hasAnyRole(viewer, "superadmin", "case_officer")) redirect("/hr/listing");
 
   const [cases, employees, heads] = await Promise.all([
     getCases(),

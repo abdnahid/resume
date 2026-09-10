@@ -14,14 +14,22 @@
  * | what a lab can run | that lab's office | only the lab knows, and nobody else can find out |
  * | where a sample goes | that office | D64 — referral is arbitrary and the office decides it, which is the whole reason it is stored rather than derived |
  *
+ * **Everything below is scoped to the actor's own office**, and only a
+ * superadmin works across offices — the client's rule, 2026-09-10. `lab_entry`
+ * is the role for it (renamed from `lab_incharge` on 2026-09-10).
+ *
  * Reading is open to every member of staff. The catalogue is the published fee
  * schedule and the map is where samples go; an FDO planning a visit and an
  * examiner expecting a box both have reason to look, and neither has a reason
  * to be refused.
  */
 
+import { hasAnyRole, hasRole } from "@/lib/roles";
+
 export type LabActor = {
   role: string;
+  /** Every role held (D122). */
+  roles?: string[];
   employeeId: string | null;
   /** The office they are posted to, which is what scopes every write below. */
   officeId: number | null;
@@ -35,7 +43,7 @@ export type LabActor = {
  * figure is the wing's published one in any case.
  */
 export function canEditCatalogue(actor: LabActor): boolean {
-  return actor.role === "superadmin";
+  return hasRole(actor, "superadmin");
 }
 
 /**
@@ -43,14 +51,14 @@ export function canEditCatalogue(actor: LabActor): boolean {
  *
  * Its own office, or a superadmin. `LabCapability` is sparse ground truth
  * (D64): a lab that has no working AAS cannot run heavy metals this month, and
- * head office cannot know that. The lab in-charge is the role for it; an office
+ * head office cannot know that. The lab entry officer is the role for it; an office
  * head may do it too, because 22 offices have labs and only some will have
  * somebody in the specialised role.
  */
 export function canEditCapability(actor: LabActor, labOfficeId: number): boolean {
-  if (actor.role === "superadmin") return true;
+  if (hasRole(actor, "superadmin")) return true;
   if (actor.officeId !== labOfficeId) return false;
-  return actor.role === "lab_incharge" || actor.role === "office_head";
+  return hasAnyRole(actor, "lab_entry", "office_head");
 }
 
 /**
@@ -61,9 +69,9 @@ export function canEditCapability(actor: LabActor, labOfficeId: number): boolean
  * the reason is administrative rather than geographic (D64).
  */
 export function canEditRouting(actor: LabActor, officeId: number): boolean {
-  if (actor.role === "superadmin") return true;
+  if (hasRole(actor, "superadmin")) return true;
   if (actor.officeId !== officeId) return false;
-  return actor.role === "lab_incharge" || actor.role === "office_head";
+  return hasAnyRole(actor, "lab_entry", "office_head");
 }
 
 /**
@@ -74,13 +82,13 @@ export function canEditRouting(actor: LabActor, officeId: number): boolean {
  * office that routes to it.
  */
 export function canEditRegistry(actor: LabActor): boolean {
-  return actor.role === "superadmin";
+  return hasRole(actor, "superadmin");
 }
 
 /**
  * The coverage form — an office declaring what it can test and where the rest
  * goes. It writes capability *and* routing, so it needs both permissions, and
- * they happen to have the same holders: that office's head or lab in-charge,
+ * they happen to have the same holders: that office's head or lab entry officer,
  * or a superadmin.
  */
 export function canEditCoverage(actor: LabActor, officeId: number): boolean {
@@ -89,7 +97,7 @@ export function canEditCoverage(actor: LabActor, officeId: number): boolean {
 
 /** The offices whose routing column this actor may edit — null means all. */
 export function editableOffices(actor: LabActor): number[] | null {
-  if (actor.role === "superadmin") return null;
+  if (hasRole(actor, "superadmin")) return null;
   if (actor.officeId === null) return [];
   return canEditRouting(actor, actor.officeId) ? [actor.officeId] : [];
 }

@@ -41,7 +41,7 @@ export default async function MappingPage({
     productRows(),
   ]);
   const mayEdit = editableOffices({
-    role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId,
+    role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId,
   });
 
   const chosen = Number.isInteger(subProductId) ? await mapFor(subProductId) : null;

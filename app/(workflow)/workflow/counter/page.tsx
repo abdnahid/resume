@@ -4,6 +4,7 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, consignmentsForCounter } from "@/lib/workflow/inbox";
 import { prisma } from "@/lib/prisma";
+import { hasAnyRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,9 @@ const navItems = [
 export default async function CounterPage() {
   const viewer = await requireInternal("/workflow/counter");
   const actor = await actorFor(viewer);
-  if (actor.role !== "one_stop" && actor.role !== "superadmin") notFound();
+  // Asked of the whole set: a counter clerk at a small office may also be its
+  // head, and with one column granting the second removed the first (D122).
+  if (!hasAnyRole(actor, "one_stop", "superadmin")) notFound();
   if (!actor.officeId) notFound();
 
   const [office, boxes] = await Promise.all([

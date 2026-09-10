@@ -39,7 +39,7 @@ export default async function SubProductPage({ params }: { params: Promise<{ id:
   if (!sp) notFound();
 
   const canEdit = canEditCatalogue({
-    role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId,
+    role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId,
   });
 
   return (

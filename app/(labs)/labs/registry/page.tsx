@@ -31,7 +31,7 @@ export default async function RegistryPage() {
   const viewer = await requireInternal("/labs/registry");
   const [actor, c] = await Promise.all([actorFor(viewer), coverage()]);
   const canEdit = canEditRegistry({
-    role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId,
+    role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId,
   });
 
   const byOffice = new Map<string, typeof c.labs>();

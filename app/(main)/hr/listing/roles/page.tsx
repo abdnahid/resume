@@ -20,7 +20,7 @@ export default async function RolesPage() {
       nameBn: true,
       designationBn: true,
       category: true,
-      user: { select: { role: true } },
+      user: { select: { role: true, roles: true } },
       office: { select: { id: true, nameEn: true } },
     },
     orderBy: { id: "asc" },
@@ -42,6 +42,7 @@ export default async function RolesPage() {
         designationBn: e.designationBn,
         category: e.category,
         role: e.user?.role ?? "employee",
+        roles: e.user?.roles?.length ? e.user.roles : [e.user?.role ?? "employee"],
         officeId: e.office.id,
         officeName: e.office.nameEn,
       }))}

@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasAnyRole } from "@/lib/roles";
 import type { VerdictClauseType } from "@/lib/salary/compute";
 
 export const CASE_FORUMS = [
@@ -73,8 +74,13 @@ export async function requireCaseHandler(): Promise<CaseGate> {
       response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
     };
   }
-  const role = (session.user as { role?: string }).role ?? "employee";
-  if (role !== "superadmin" && role !== "case_officer") {
+  // The row, not the cookie: the session carries the primary role only, and a
+  // case officer who is also an office admin has `officeadmin` as theirs (D122).
+  const holder = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, roles: true },
+  });
+  if (!hasAnyRole(holder, "superadmin", "case_officer")) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -83,7 +89,7 @@ export async function requireCaseHandler(): Promise<CaseGate> {
       ),
     };
   }
-  return { ok: true, username: session.user.username ?? "", role };
+  return { ok: true, username: session.user.username ?? "", role: holder?.role ?? "employee" };
 }
 
 // ─── Reads ───────────────────────────────────────────────────────────────────

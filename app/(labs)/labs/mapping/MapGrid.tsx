@@ -199,7 +199,7 @@ export default function MapGrid({
       {!canEditAny ? (
         <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           You can read the map but not change it. Where an office&rsquo;s samples go is decided by
-          that office — its head or its lab in-charge — or by a superadmin.
+          that office — its head or its lab entry officer — or by a superadmin.
         </p>
       ) : (
         <section className="rounded-2xl border border-border bg-card">

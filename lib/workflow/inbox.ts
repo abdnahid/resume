@@ -10,12 +10,15 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { employeesOfOffice } from "@/lib/salary/payroll";
+import { hasRole } from "@/lib/roles";
 import { eligibleDesks, rank, type Desk, type Direction } from "./chain";
 
 /** Roles that may act on a file at all. */
 export type WorkflowActor = {
   userId: string;
   role: string;
+  /** Every role held (D122) — ask `hasRole()`, not `role`. */
+  roles: string[];
   employeeId: string | null;
   officeId: number | null;
 };
@@ -32,10 +35,12 @@ export type WorkflowActor = {
 export async function actorFor(viewer: {
   id: string;
   role: string;
+  roles?: string[];
   employeeId: string | null;
 }): Promise<WorkflowActor> {
+  const roles = viewer.roles?.length ? viewer.roles : [viewer.role];
   if (!viewer.employeeId) {
-    return { userId: viewer.id, role: viewer.role, employeeId: null, officeId: null };
+    return { userId: viewer.id, role: viewer.role, roles, employeeId: null, officeId: null };
   }
   const e = await prisma.employee.findUnique({
     where: { id: viewer.employeeId },
@@ -47,6 +52,7 @@ export async function actorFor(viewer: {
   return {
     userId: viewer.id,
     role: viewer.role,
+    roles,
     employeeId: viewer.employeeId,
     officeId: e?.postings[0]?.officeId ?? e?.officeId ?? null,
   };
@@ -64,7 +70,7 @@ export async function inboxScope(actor: WorkflowActor): Promise<{
   pinned: boolean;
 } | null> {
   if (actor.role === "superadmin") return { officeId: null, pinned: false };
-  if (actor.role === "office_head") {
+  if (hasRole(actor, "office_head")) {
     if (!actor.officeId) return null;
     return { officeId: actor.officeId, pinned: true };
   }
@@ -409,7 +415,7 @@ export async function canViewApplication(
   });
   if (!app) return false;
 
-  if (actor.role === "office_head" && actor.officeId && app.bstiOfficeId === actor.officeId) {
+  if (hasRole(actor, "office_head") && actor.officeId && app.bstiOfficeId === actor.officeId) {
     return true;
   }
   if (!actor.employeeId) return false;
@@ -524,7 +530,7 @@ export async function pass(
     throw new Error("Only whoever is holding this file can pass it on.");
   }
 
-  const asHead = actor.role === "office_head" && actor.employeeId === app.holderEmployeeId;
+  const asHead = hasRole(actor, "office_head") && actor.employeeId === app.holderEmployeeId;
   const allowed = await candidates(app.holderEmployeeId, app.bstiOfficeId, direction, { asHead });
   const target = allowed.find((d) => d.employeeId === toEmployeeId);
   if (!target) {

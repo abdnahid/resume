@@ -30,6 +30,7 @@ type Row = {
   designationBn: string | null;
   category: string;
   role: string;
+  roles: string[];
   officeId: number;
   officeName: string;
 };
@@ -53,7 +54,8 @@ export default function RoleManager({
 
   const counts = useMemo(() => {
     const c = new Map<string, number>();
-    for (const e of employees) c.set(e.role, (c.get(e.role) ?? 0) + 1);
+    for (const e of employees)
+      for (const r of e.roles.length ? e.roles : [e.role]) c.set(r, (c.get(r) ?? 0) + 1);
     return c;
   }, [employees]);
 
@@ -62,7 +64,7 @@ export default function RoleManager({
     return employees
       .filter((e) => {
         if (officeFilter && String(e.officeId) !== officeFilter) return false;
-        if (roleFilter && e.role !== roleFilter) return false;
+        if (roleFilter && !(e.roles.length ? e.roles : [e.role]).includes(roleFilter)) return false;
         if (!q) return true;
         return (
           e.id.includes(q) ||
@@ -78,8 +80,19 @@ export default function RoleManager({
       .slice(0, 200);
   }, [employees, search, officeFilter, roleFilter]);
 
-  async function assign(e: Row, role: string) {
-    if (role === e.role) return;
+  /**
+   * Grant or remove one role, sending the **whole set** (D122).
+   *
+   * Sent whole rather than as a delta for the reason inspection team members
+   * are replaced rather than merged: a set diffed on save leaves somebody
+   * holding a role because nobody remembered to take it off.
+   */
+  async function toggle(e: Row, role: string) {
+    const held = e.roles.length ? e.roles : [e.role];
+    const next = held.includes(role) ? held.filter((r) => r !== role) : [...held, role];
+    // Everybody is at least an employee; clearing the last role would leave a
+    // person with none, which no screen and no guard knows how to read.
+    const roles = next.length ? next : ["employee"];
     setSaving(e.id);
     setError(null);
     setNotice(null);
@@ -87,11 +100,13 @@ export default function RoleManager({
       const res = await fetch(`/api/roles/${e.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ roles }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not assign the role");
-      setNotice(`${e.nameEn} is now ${ROLES.find((r) => r.value === role)?.label ?? role}.`);
+      setNotice(
+        `${e.nameEn}: ${roles.map((r) => ROLES.find((x) => x.value === r)?.label ?? r).join(", ")}.`,
+      );
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -194,21 +209,30 @@ export default function RoleManager({
                 </div>
                 <span className="text-xs text-slate-500 w-56 shrink-0 truncate">{e.officeName}</span>
                 <span className="text-[10px] text-slate-400 w-20 shrink-0">{e.category}</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-medium w-28 text-center shrink-0 ${ROLE_STYLE[e.role] ?? ""}`}
-                >
-                  {ROLES.find((r) => r.value === e.role)?.label ?? e.role}
-                </span>
-                <select
-                  value={e.role}
-                  disabled={saving === e.id}
-                  onChange={(ev) => assign(e, ev.target.value)}
-                  className={`${INPUT} w-40 shrink-0 cursor-pointer disabled:opacity-50`}
-                >
-                  {ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
+                {/* **The whole set, as chips.** A dropdown could only ever say
+                    one thing, which is what made granting a second role remove
+                    the first (D122). */}
+                <div className="flex flex-wrap gap-1 justify-end shrink-0 w-[30rem]">
+                  {ROLES.map((r) => {
+                    const held = (e.roles.length ? e.roles : [e.role]).includes(r.value);
+                    return (
+                      <button
+                        key={r.value}
+                        type="button"
+                        title={r.hint}
+                        disabled={saving === e.id}
+                        onClick={() => toggle(e, r.value)}
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors disabled:opacity-50 ${
+                          held
+                            ? `${ROLE_STYLE[r.value] ?? "bg-slate-100"} border-transparent`
+                            : "border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-600"
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ))
           )}

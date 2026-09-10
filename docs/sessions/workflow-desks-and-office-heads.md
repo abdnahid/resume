@@ -1639,3 +1639,97 @@ the thing is meant to be used.
 Worth recording as a working note: building an impersonation tool is the case
 where the sandbox pushes back hardest, and the way through is a browser rather
 than a cleverer shell command.
+
+---
+
+## Session 3 — 2026-09-10 (Linux machine) — a person may hold several roles
+
+### User
+
+> during role assignment I noticed a bug. Currently only one role can be assigned
+> per employee. Actually an employee might be assigned multiple role. He can be
+> an office admin, office head and lab_incharge also. Rare but can happen. […]
+> Lets change the role called lab_incharge to lab_entry. Whoever has that role in
+> that office can work on lab routing of his office only. Only the super-admin
+> can do all.
+
+### D57 was wrong, and its cost was already in the tree
+
+D57 accepted one role per user deliberately, on the reading that payroll
+authority and file-routing authority are different jobs and therefore different
+people. The client's correction is that rarely they are the same person — and
+the price of the old reading had already been paid: granting `office_head`
+silently removed `officeadmin`, so `import:office-heads` had to **move payroll
+to another desk at 14 of 23 offices** to avoid it. That workaround exists
+because of the missing column.
+
+### What made it safe to land
+
+83 role comparisons across 72 files, in the authorisation layer of a system that
+runs live payroll. A blind sweep was not on.
+
+Two properties made a targeted change sufficient:
+
+- **`hasRole()` falls back to the primary when the set was not selected.**
+  `role` is always a member of `roles`, so a query that forgot the array is
+  never *more* permissive than before — only less, and only for a secondary
+  role. There is no window in which anything is over-permitted.
+- **`User.role` is the highest-precedence member**, superadmin first. So every
+  guard that only ever asks about superadmin is unaffected, and **only a check
+  for a non-top role could newly be wrong**.
+
+That reduced 83 sites to five that actually needed converting: `office_head` ×3
+in `inbox.ts`, `one_stop` on the counter, `case_officer` in the register, and
+the labs module. Each was done by hand and read.
+
+**The session cookie carries the primary only**, because better-auth's
+additional fields are scalars. So a secondary-role check must go through
+`getViewer()` — which reads the row rather than the cookie, exactly as it was
+built to do. The case register was moved onto it for that reason.
+
+### Verified end to end, then rolled back
+
+```
+before: MD. ABDUL HANNAN — role=office_head roles=[office_head]
+after:  role=officeadmin roles=[office_head,officeadmin,lab_entry]
+  hasRole office_head true, officeadmin true, lab_entry true
+  primary of the set: officeadmin      superadmin? false
+  ✓ refused: This is the only superadmin. Promote someone else…
+rolled back: role=office_head roles=[office_head]
+```
+
+The screen's dropdown became a row of chips. A dropdown could only ever say one
+thing, which is precisely what made granting a second role remove the first —
+and the whole set is sent on every toggle rather than a delta, for the reason
+inspection team members are replaced rather than merged: a diff leaves somebody
+holding a role because nobody remembered to take it off.
+
+### `lab_entry`
+
+Renamed from `lab_incharge`, and the per-office rule the client stated was
+already what `lib/labs/access.ts` enforced — every check compares
+`actor.officeId` against the office being edited, and only a superadmin returns
+`null` from `editableOffices()`. The rename makes the name say what the code
+does. Nobody held the old role, so nothing had to be migrated.
+
+**It needed two `db push`es.** Prisma tries to alter the enum and add the
+`roles` column in one step and fails with `column "roles" does not exist`.
+Column first, backfill, then the enum.
+
+### Lessons that cost something
+
+- **A guard's fallback direction decides whether a migration is safe.** Falling
+  back to the primary makes an un-migrated query *less* permissive; falling back
+  to "allow" would have made the same change a security incident spread across
+  72 files.
+- **The workaround is evidence of the missing feature.** `import:office-heads`
+  moving payroll to the accounts desk was written as a careful accommodation. It
+  was a single-valued column showing through, and it can now be revisited.
+
+### Resume here
+
+**Not done, and reported to the client rather than guessed at:** the designation
+/ desk text mismatch and the section-attachment question. The measurements are
+in the reply — 36 titles identical, 103 differing only by the bracketed section,
+342 genuinely different — and the second and third groups need different
+answers, so neither was changed.

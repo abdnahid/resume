@@ -46,14 +46,15 @@ enum Role {
   /// the only role besides superadmin that may record a verdict. Carries no
   /// other administrative power.
   case_officer
-  /// The officer who maintains a laboratory's own reference data — what the lab
+  /// The officer who enters a laboratory's own reference data — what the lab
   /// can actually run (`LabCapability`) and, for its office, where a parameter
   /// it cannot run is sent (`LabRouting`). Its own job, because a lab's
   /// capability is a fact only the lab knows, and the client's instruction from
   /// the outset was that "each office and wing will enter their own data".
   /// Carries no authority over files, payroll or the fee schedule: what a test
-  /// *costs* is the wing's published price and stays superadmin's.
-  lab_incharge
+  /// *costs* is the wing's published price and stays superadmin's. Scoped to
+  /// their own office and nowhere else; only a superadmin works across offices.
+  lab_entry
   /// The One Stop Service Centre counter, one per office (D93). Receives the
   /// sealed boxes an applicant carries in. Its **only** write in the whole flow
   /// is "received / not received": payment is read-only to it, so a counter
@@ -327,7 +328,25 @@ model User {
   /// `mobile` instead, which keeps an 11-digit mobile from ever colliding with
   /// an 11-digit employee ID.
   username      String?  @unique
+  /// The **primary** role — the highest-precedence one in `roles`, kept in step
+  /// by `setRoles()` and by nothing else. It is what the session cookie carries
+  /// and what a screen shows; it is **not** the authority.
   role          Role     @default(employee)
+
+  /// Every role this person holds. **This is the authority** (D122).
+  ///
+  /// One column was accepted deliberately in D57, on the reading that payroll
+  /// authority and file-routing authority are different jobs and so different
+  /// people. The client corrected that 2026-09-10: rare, but one person can be
+  /// the office admin, the office head and the lab entry officer at once — and
+  /// with a single column, granting the second silently removed the first.
+  /// `import:office-heads` had to move `officeadmin` to another desk to avoid
+  /// exactly that, at 14 of 23 offices.
+  ///
+  /// Authorisation must ask `hasRole()`, never compare `role`. A check against
+  /// the primary alone is not wrong so much as **half right**: it grants the
+  /// top role and silently refuses every other one the person holds.
+  roles Role[]
 
   accountType AccountType @default(INTERNAL)
 

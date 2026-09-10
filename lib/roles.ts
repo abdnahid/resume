@@ -17,7 +17,7 @@ export const ASSIGNABLE_ROLES = [
   "office_head",
   "case_officer",
   "one_stop",
-  "lab_incharge",
+  "lab_entry",
   "data_entry",
   "employee",
 ] as const;
@@ -43,9 +43,9 @@ export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }
     hint: "Receives sealed samples at their office. Payment is read-only to them.",
   },
   {
-    value: "lab_incharge",
-    label: "Lab in-charge",
-    hint: "Maintains their office's lab capability and where its samples are sent",
+    value: "lab_entry",
+    label: "Lab data entry",
+    hint: "Records what their own office can test, and where the rest is sent",
   },
   { value: "data_entry", label: "Data entry", hint: "Records only" },
   { value: "employee", label: "Employee", hint: "Their own profile" },
@@ -58,4 +58,64 @@ export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }
  */
 export function roleLabel(role: string): string {
   return ROLE_LABELS.find((r) => r.value === role)?.label ?? role;
+}
+
+/**
+ * **A person may hold several roles** (D122), and authorisation must ask this
+ * rather than compare `User.role`.
+ *
+ * One column was accepted deliberately in D57 — payroll authority and
+ * file-routing authority are different jobs — until the client pointed out
+ * (2026-09-10) that rarely they are the same person: an office admin who is
+ * also the office head and enters the lab data. With one column, granting the
+ * second silently removed the first, which is why `import:office-heads` had to
+ * move `officeadmin` to another desk at 14 of 23 offices.
+ *
+ * **It falls back to the primary when the set was not selected**, which makes
+ * the change safe by construction: `role` is always a member of `roles`, so a
+ * caller that forgot to select the array is never *more* permissive than
+ * before — only less, and only for a secondary role. It can therefore be rolled
+ * out one query at a time without a window where something is over-permitted.
+ *
+ * The session cookie carries the primary only. **Authorisation on a secondary
+ * role must go through `getViewer()`**, which reads the row.
+ */
+export function hasRole(
+  subject: { role?: string | null; roles?: readonly string[] | null } | null | undefined,
+  role: string,
+): boolean {
+  if (!subject) return false;
+  if (subject.roles?.length) return subject.roles.includes(role);
+  return subject.role === role;
+}
+
+/** True if the subject holds any of these. */
+export function hasAnyRole(
+  subject: { role?: string | null; roles?: readonly string[] | null } | null | undefined,
+  ...roles: string[]
+): boolean {
+  return roles.some((r) => hasRole(subject, r));
+}
+
+/**
+ * Most authority first. `User.role` is kept as the highest-precedence member of
+ * `roles` so that a screen showing one role shows the most consequential one,
+ * and so a check still comparing the primary errs towards the top of the list
+ * rather than somewhere arbitrary.
+ */
+export const ROLE_PRECEDENCE: readonly AssignableRole[] = [
+  "superadmin",
+  "officeadmin",
+  "office_head",
+  "case_officer",
+  "one_stop",
+  "lab_entry",
+  "data_entry",
+  "employee",
+];
+
+/** The primary for a set — the one `User.role` must hold. */
+export function primaryRole(roles: readonly string[]): AssignableRole {
+  for (const r of ROLE_PRECEDENCE) if (roles.includes(r)) return r;
+  return "employee";
 }

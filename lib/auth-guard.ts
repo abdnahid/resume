@@ -18,8 +18,12 @@ export type Viewer = {
   id: string;
   name: string;
   accountType: AccountType;
-  /** Internal role. Meaningless for clients — they are all plain buyers today. */
+  /** The **primary** role — the highest-precedence one held. For display, and
+   *  for the many checks that only ever ask about `superadmin`. */
   role: string;
+  /** Every role held (D122). **This is what authorisation must ask.** A check
+   *  against `role` alone grants the top one and silently refuses the rest. */
+  roles: string[];
   /** Employee ID. Null for clients. */
   employeeId: string | null;
   mobile: string | null;
@@ -42,6 +46,7 @@ export async function getViewer(): Promise<Viewer | null> {
       name: true,
       accountType: true,
       role: true,
+      roles: true,
       username: true,
       mobile: true,
       email: true,
@@ -54,6 +59,7 @@ export async function getViewer(): Promise<Viewer | null> {
     name: user.name,
     accountType: user.accountType,
     role: user.role,
+    roles: user.roles.length ? user.roles : [user.role],
     employeeId: user.accountType === "INTERNAL" ? user.username : null,
     mobile: user.mobile,
     email: displayEmail(user.email),

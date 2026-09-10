@@ -13,5 +13,5 @@ import type { LabActor } from "@/lib/labs/access";
 export async function labActor(): Promise<LabActor> {
   const viewer = await requireInternal();
   const actor = await actorFor(viewer);
-  return { role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId };
+  return { role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId };
 }

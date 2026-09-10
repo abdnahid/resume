@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * The data-entry path, as the client set it out: pick the products you handle,
  * confirm the variants, then answer *fully capable / partly / not here* for
  * each one — and where you are not, say which office the sample goes to. One
- * person per office fills it in; `lab_incharge` is the role for it (D105).
+ * person per office fills it in; `lab_entry` is the role for it (D105, renamed D123).
  *
  * **Three steps in one route, moved with `?step=`**, which is why the buttons
  * are `StepNavButton`: a same-route navigation never renders `loading.tsx`, so
@@ -38,7 +38,7 @@ export default async function CoveragePage({
   const viewer = await requireInternal("/labs/coverage");
   const sp = await searchParams;
   const actor = await actorFor(viewer);
-  const labActor = { role: actor.role, employeeId: actor.employeeId, officeId: actor.officeId };
+  const labActor = { role: actor.role, roles: actor.roles, employeeId: actor.employeeId, officeId: actor.officeId };
 
   const allowed = editableOffices(labActor);
   const offices = await officeOptions();
@@ -61,9 +61,9 @@ export default async function CoveragePage({
         <PageContainer>
           <h1 className="font-display text-3xl font-medium">Office coverage</h1>
           <p className="max-w-2xl rounded-xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground">
-            This form is filled in by each office for itself — its head, or its lab in-charge.
+            This form is filled in by each office for itself — its head, or its lab entry officer.
             You are not attached to an office that has one, so there is nothing here for you to
-            complete. Ask a superadmin to grant <strong>Lab in-charge</strong> at{" "}
+            complete. Ask a superadmin to grant <strong>Lab data entry</strong> at{" "}
             <span className="font-mono text-xs">/hr/listing/roles</span>.
           </p>
         </PageContainer>

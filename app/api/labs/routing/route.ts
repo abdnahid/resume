@@ -7,7 +7,7 @@ import { setPreference } from "@/lib/labs/mapping";
  * Point a set of an office's parameters at a laboratory.
  *
  * The office's own decision (D64), so the gate is that office: a superadmin, or
- * its own head or lab in-charge. Nobody redraws another office's referrals.
+ * its own head or lab entry officer. Nobody redraws another office's referrals.
  *
  * The service refuses a destination that has not declared the capability, and
  * refuses a closed lab — that check is deliberately not in this route, because

@@ -1,33 +1,23 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { isAssignableRole, type AssignableRole } from "@/lib/roles";
+import { getViewer } from "@/lib/auth-guard";
+import { hasRole } from "@/lib/roles";
+import { setRoles } from "@/lib/roles-service";
 
 /**
- * Assign a role to an employee. Superadmin only.
+ * Set an employee's roles. Superadmin only.
  *
  * The `[id]` is the **employee id**, not the user id — that is what an
  * administrator knows and what every other screen is keyed on.
+ *
+ * Takes the **whole set** (D122). A single `role` is still accepted so that an
+ * older caller keeps working, and means "these and nothing else".
  */
-
-export async function PATCH(
-  req: Request,
-  context: { params: Promise<{ id: string }> },
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (
-    !session ||
-    (session.user as { accountType?: string }).accountType !== "INTERNAL"
-  ) {
+export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+  const viewer = await getViewer();
+  if (!viewer || viewer.accountType !== "INTERNAL")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  if ((session.user as { role?: string }).role !== "superadmin") {
-    return NextResponse.json(
-      { error: "Only a superadmin can assign roles." },
-      { status: 403 },
-    );
-  }
+  if (!hasRole(viewer, "superadmin"))
+    return NextResponse.json({ error: "Only a superadmin can assign roles." }, { status: 403 });
 
   const { id } = await context.params;
 
@@ -38,54 +28,26 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const role = String(body.role);
-  if (!isAssignableRole(role)) {
-    return NextResponse.json({ error: `Unknown role "${role}".` }, { status: 400 });
-  }
-  const assigned: AssignableRole = role;
+  const roles = Array.isArray(body.roles)
+    ? body.roles.map(String)
+    : typeof body.role === "string"
+      ? [body.role]
+      : [];
+  if (!roles.length)
+    return NextResponse.json({ error: "Which roles?" }, { status: 400 });
 
-  const employee = await prisma.employee.findUnique({
-    where: { id },
-    select: { id: true, nameEn: true, userId: true, user: { select: { role: true } } },
-  });
-  if (!employee) {
-    return NextResponse.json({ error: "Employee not found" }, { status: 404 });
-  }
-
-  // ── You cannot demote yourself ───────────────────────────────────────────
-  // Role assignment is itself superadmin-only, so a superadmin who removes
-  // their own role loses the ability to restore it. With one superadmin on the
-  // roster that locks everybody out of the system permanently.
-  const actingUsername = session.user.username ?? "";
-  if (employee.id === actingUsername && role !== "superadmin") {
+  try {
+    const r = await setRoles({
+      employeeId: id,
+      roles,
+      actingEmployeeId: viewer.employeeId ?? "",
+    });
+    return NextResponse.json(r);
+  } catch (e) {
+    const message = (e as Error).message;
     return NextResponse.json(
-      {
-        error:
-          "You cannot remove your own superadmin role — only a superadmin can assign roles, so you would not be able to restore it. Have another superadmin do it.",
-      },
-      { status: 409 },
+      { error: message },
+      { status: message.includes("not found") ? 404 : 409 },
     );
   }
-
-  // ── Never leave the system without a superadmin ─────────────────────────
-  if (employee.user?.role === "superadmin" && role !== "superadmin") {
-    const others = await prisma.user.count({
-      where: { role: "superadmin", id: { not: employee.userId } },
-    });
-    if (others === 0) {
-      return NextResponse.json(
-        { error: "This is the only superadmin. Promote someone else before demoting them." },
-        { status: 409 },
-      );
-    }
-  }
-
-  await prisma.user.update({ where: { id: employee.userId }, data: { role } });
-
-  return NextResponse.json({
-    employeeId: employee.id,
-    name: employee.nameEn,
-    from: employee.user?.role ?? null,
-    to: assigned,
-  });
 }
