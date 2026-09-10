@@ -26,8 +26,9 @@
  * there is one.
  */
 import { prisma } from "@/lib/prisma";
-import type { CapabilityManner } from "@/generated/prisma/client";
+import type { CapabilityManner, LabDiscipline } from "@/generated/prisma/client";
 import { labFor, resolvableLabs } from "./coverage";
+import { labSlugBase } from "./grid";
 
 export type LabOption = {
   id: number;
@@ -334,13 +335,20 @@ export async function coverage() {
         LEFT JOIN "ParameterCapability" pc ON pc."officeId" = o.id
        GROUP BY o.id, o."nameEn"
        ORDER BY o.id`,
-    prisma.$queryRaw<{ lab_id: number; lab: string; office: string; active: boolean; held: bigint }[]>`
-      SELECT l.id AS lab_id, l."nameEn" AS lab, o."nameEn" AS office, l."isActive" AS active,
+    prisma.$queryRaw<
+      {
+        lab_id: number; lab: string; office: string; office_id: number; active: boolean;
+        discipline: string; org_unit_id: number | null; held: bigint;
+      }[]
+    >`
+      SELECT l.id AS lab_id, l."nameEn" AS lab, o."nameEn" AS office, o.id AS office_id,
+             l."isActive" AS active, l.discipline::text AS discipline,
+             l."orgUnitId" AS org_unit_id,
              COUNT(*) FILTER (WHERE pc."isActive") AS held
         FROM "Lab" l
         JOIN "Office" o ON o.id = l."officeId"
         LEFT JOIN "ParameterCapability" pc ON pc."labId" = l.id
-       GROUP BY l.id, l."nameEn", o."nameEn", l."isActive"
+       GROUP BY l.id, l."nameEn", o."nameEn", o.id, l."isActive", l.discipline, l."orgUnitId"
        ORDER BY o."nameEn", l."nameEn"`,
     Promise.all([
       prisma.testParameter.count(),
@@ -367,8 +375,167 @@ export async function coverage() {
       total: Number(r.in_house) + Number(r.third_party),
     })),
     labs: byLab.map((r) => ({
-      labId: r.lab_id, lab: r.lab, office: r.office,
-      isActive: r.active, declared: Number(r.held),
+      labId: r.lab_id, lab: r.lab, office: r.office, officeId: r.office_id,
+      isActive: r.active, discipline: r.discipline, declared: Number(r.held),
+      /**
+       * Null means nothing outside the registry screen will ever rewrite this
+       * row — no organogram unit, so `seed:labs` cannot reach it. That is
+       * exactly the lab `deleteLab()` will remove, and the reason a seeded one
+       * can only be closed.
+       */
+      orgUnitId: r.org_unit_id,
     })),
   };
+}
+
+// ── The registry: laboratories opening and closing for good ─────────────────
+
+/**
+ * What points at a laboratory, named rather than counted.
+ *
+ * The same discipline `setRouting()` uses when it refuses a destination: the
+ * fix is to go and look at the thing that is in the way, and a number does not
+ * say which thing that is.
+ */
+export async function labBlockers(labId: number): Promise<string[]> {
+  const [caps, consignments, orders, requirements, letters] = await Promise.all([
+    prisma.parameterCapability.count({ where: { labId } }),
+    prisma.consignment.count({ where: { labId } }),
+    prisma.labTestOrder.count({ where: { labId } }),
+    prisma.sampleRequirement.count({ where: { labId } }),
+    prisma.sampleLetter.count({ where: { labId } }),
+  ]);
+  const out: string[] = [];
+  const n = (c: number, one: string, many: string) =>
+    `${c.toLocaleString("en-BD")} ${c === 1 ? one : many}`;
+  if (caps) out.push(n(caps, "test declared against it", "tests declared against it"));
+  if (consignments) out.push(n(consignments, "box addressed to it", "boxes addressed to it"));
+  if (orders) out.push(n(orders, "test order", "test orders"));
+  if (requirements) out.push(n(requirements, "agreed sample count", "agreed sample counts"));
+  if (letters) out.push(n(letters, "letter written to it", "letters written to it"));
+  return out;
+}
+
+/**
+ * Record a laboratory the organogram does not know about.
+ *
+ * **It takes no organogram unit, deliberately.** `seed:labs` upserts on
+ * `lab-<unit slug>` and `Lab.orgUnitId` is `@unique`, so a hand-created lab
+ * holding a unit the seed also maps would make the next `npm run seed:labs`
+ * fail on the constraint — a screen quietly breaking a script nobody would
+ * think to blame. Null is the honest value in any case: the column is nullable
+ * precisely "so a lab can be recorded before the organogram catches up", and
+ * this is that case. When the organogram does catch up, the seed writes its own
+ * row and this one is deleted or closed.
+ *
+ * That also gives the registry its one clean invariant: **`orgUnitId === null`
+ * means nothing outside this screen will ever rewrite the row**, which is what
+ * makes deleting it safe and deleting a seeded one futile.
+ */
+export async function createLab(args: {
+  officeId: number;
+  nameEn: string;
+  nameBn: string | null;
+  discipline: LabDiscipline;
+}) {
+  const office = await prisma.office.findUnique({
+    where: { id: args.officeId },
+    select: { id: true, nameEn: true },
+  });
+  if (!office) throw new Error("No such office.");
+
+  const nameEn = args.nameEn.trim();
+  if (nameEn.length < 3) throw new Error("The laboratory needs a name.");
+
+  // Same office, same name is the mistake worth stopping: two benches nobody
+  // can tell apart on a consignment.
+  const twin = await prisma.lab.findFirst({
+    where: { officeId: office.id, nameEn: { equals: nameEn, mode: "insensitive" } },
+    // The stored spelling, not the one just typed: "microbiology lab" should
+    // come back naming "Microbiology Lab, Khulna", which is the row to go and
+    // look at.
+    select: { id: true, isActive: true, nameEn: true },
+  });
+  if (twin)
+    throw new Error(
+      twin.isActive
+        ? `${office.nameEn} already has a laboratory called “${twin.nameEn}”.`
+        : `${office.nameEn} has a closed laboratory called “${twin.nameEn}” — reopen it rather than adding a second.`,
+    );
+
+  const base = labSlugBase(office.nameEn, nameEn);
+  const taken = new Set(
+    (
+      await prisma.lab.findMany({
+        where: { slug: { startsWith: base } },
+        select: { slug: true },
+      })
+    ).map((l) => l.slug),
+  );
+  let slug = base;
+  for (let i = 2; taken.has(slug); i++) slug = `${base}-${i}`;
+
+  const lab = await prisma.lab.create({
+    data: {
+      slug,
+      nameEn,
+      nameBn: args.nameBn?.trim() || null,
+      discipline: args.discipline,
+      officeId: office.id,
+      orgUnitId: null,
+    },
+    select: { id: true, slug: true, nameEn: true, discipline: true, officeId: true },
+  });
+
+  // `labFor()` picks an office's bench by discipline and takes the first match,
+  // which was unambiguous while every branch had at most one of each. A second
+  // one is a real question only this office can answer, so it is said out loud
+  // at the moment it is created rather than discovered on a consignment.
+  const sameDiscipline = await prisma.lab.findMany({
+    where: {
+      officeId: office.id, discipline: args.discipline, isActive: true,
+      id: { not: lab.id },
+    },
+    select: { nameEn: true },
+    orderBy: { id: "asc" },
+  });
+
+  return {
+    lab,
+    /** Other open benches of this discipline at this office, if any. */
+    ambiguity: sameDiscipline.map((l) => l.nameEn),
+  };
+}
+
+/**
+ * Remove a laboratory — and refuse, by name, wherever removing it would lose
+ * something or achieve nothing.
+ *
+ * **Closing is the ordinary act and this is not a replacement for it** (D106).
+ * A laboratory the organogram owns cannot be deleted at all: `seed:labs`
+ * upserts on its slug, so the row would be back the next time anyone ran the
+ * seed, and a delete that silently undoes itself is worse than a refusal. What
+ * this is for is the bench recorded here by hand — a mistyped name, a lab that
+ * turned out not to be opening — while nothing yet points at it.
+ */
+export async function deleteLab(labId: number) {
+  const lab = await prisma.lab.findUnique({
+    where: { id: labId },
+    select: { id: true, nameEn: true, orgUnitId: true, isActive: true },
+  });
+  if (!lab) throw new Error("No such laboratory.");
+
+  if (lab.orgUnitId !== null)
+    throw new Error(
+      `${lab.nameEn} is an organogram unit, so \`npm run seed:labs\` would write it straight back. Close it instead — a bench that does not exist in practice is closed rather than deleted.`,
+    );
+
+  const blockers = await labBlockers(labId);
+  if (blockers.length)
+    throw new Error(
+      `${lab.nameEn} cannot be removed while it has ${blockers.join(", ")}. Close it instead, which leaves all of that readable.`,
+    );
+
+  await prisma.lab.delete({ where: { id: labId } });
+  return { lab: { id: lab.id, nameEn: lab.nameEn } };
 }

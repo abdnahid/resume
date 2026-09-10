@@ -8,17 +8,24 @@ import { coverage } from "@/lib/labs/mapping";
 import { officeShortName } from "@/lib/labs/grid";
 import { LABS_NAV } from "../_components/nav";
 import LabToggle from "./LabToggle";
+import LabRemove from "./LabRemove";
+import NewLabForm from "./NewLabForm";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Every laboratory BSTI has, and what each has said it can do.
  *
- * The 46 rows came from the organogram with none invented — 8 head-office
+ * The first 46 rows came from the organogram with none invented — 8 head-office
  * sections under the two testing wings, and 38 branch laboratories matched to
  * their office by city. A laboratory that does not exist in practice is
  * **closed here rather than deleted**: the organogram unit is real even where
  * the bench is not, and a lab closed this year may open next.
+ *
+ * The organogram is not the last word, though, which is what the form adds. A
+ * bench recorded here carries no organogram unit, so `seed:labs` cannot rewrite
+ * it — and that is the same fact that makes it removable again while nothing
+ * points at it. Everything the organogram owns can only be closed.
  */
 export default async function RegistryPage() {
   const viewer = await requireInternal("/labs/registry");
@@ -63,6 +70,10 @@ export default async function RegistryPage() {
           </p>
         </header>
 
+        {canEdit && (
+          <NewLabForm offices={c.offices.map((o) => ({ officeId: o.officeId, office: o.office }))} />
+        )}
+
         {closed > 0 && (
           <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
             {closed} laboratories are closed. Offices still routing to one are not silently
@@ -91,13 +102,26 @@ export default async function RegistryPage() {
                         {l.lab}
                       </Link>
                     </td>
+                    <td className="px-5 py-2.5 text-xs capitalize text-muted-foreground">
+                      {l.discipline}
+                      {l.orgUnitId === null && (
+                        <span className="ml-2 rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                          recorded by hand
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-2.5 text-right text-xs tabular-nums text-muted-foreground">
                       {l.declared
                         ? `${l.declared.toLocaleString("en-BD")} tests declared`
                         : "nothing declared"}
                     </td>
-                    <td className="w-40 px-5 py-2.5 text-right">
-                      <LabToggle labId={l.labId} isActive={l.isActive} canEdit={canEdit} />
+                    <td className="w-56 px-5 py-2.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <LabToggle labId={l.labId} isActive={l.isActive} canEdit={canEdit} />
+                        {canEdit && l.orgUnitId === null && (
+                          <LabRemove labId={l.labId} labName={l.lab} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

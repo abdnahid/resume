@@ -2709,3 +2709,119 @@ and `lab_incharge` has no users.
 **Ceramic Tiles is now the worked example** for everything the routing model has
 to do: two wings, nine tests, a package needing both a chemical and a physical
 destination from whichever office receives it.
+
+---
+
+## Session 14 — 2026-09-10 (Windows machine) — the registry stops being a fixed list
+
+### User
+
+> Currently at /labs/registry we have available laboratories placed as
+> organogram. But new laboratories may be created or removed under each office.
+> So we need the feature of adding or removing laboratories.
+
+Right, and it was a gap rather than an oversight: D63 seeded 46 labs from the
+organogram **with none invented**, which was the correct starting position and a
+wrong permanent one. An office opens a bench or closes one for good, and until
+now neither could be said.
+
+### The rule the seed forced
+
+A hand-recorded laboratory takes **no organogram unit**, and that was not a
+preference. `seed:labs` upserts on `lab-<unit slug>` and `Lab.orgUnitId` is
+`@unique` — so a lab recorded through the screen holding a unit the seed also
+maps would make the next `npm run seed:labs` **fail on the constraint**. A
+screen quietly breaking a script nobody would think to blame.
+
+Null is the honest value anyway; the column's own comment says it exists "so a
+lab can be recorded before the organogram catches up", and this is that case.
+What it buys is the invariant the whole feature rests on:
+
+> `orgUnitId === null` means nothing outside the registry will ever rewrite this
+> row.
+
+Which is exactly why that row is safe to delete and a seeded one is **futile**
+to delete: the seed writes it straight back, and a delete that silently undoes
+itself is worse than a refusal. **D106 stands unchanged** — everything the
+organogram owns is closed, not deleted. Removal is for the row that should never
+have been written.
+
+### Refusing by name, not by count
+
+`labBlockers()` refuses while anything names the bench — capability rows, boxes
+addressed to it, test orders, agreed sample counts, letters written to it — and
+lists each. The same discipline `setRouting()` already uses: the fix is to go
+and look at the thing in the way, and a number does not say which thing.
+
+### What it exposed rather than solved
+
+`labFor()` picks an office's bench by discipline and **takes the first match**.
+That was unambiguous only because every branch had at most one lab of each kind
+— head office's eight are separated by `HEAD_OFFICE_SECTION`. Adding labs is
+precisely the thing that breaks the assumption.
+
+Capability is keyed on the **office** (D116), so a sample still reaches the right
+office; what goes imprecise is which bench is named on the consignment. So
+`createLab()` returns the collision as `ambiguity` and the form says it at the
+moment of creation, rather than leaving it to be discovered on a box. Making it
+answerable — a per-lab section mapping, the branch equivalent of
+`HEAD_OFFICE_SECTION` — is open.
+
+### Proved against the live database, leaving it as found
+
+```
+createLab Microbiology Lab, Khulna   → lab-khulna-microbiology-lab
+                                       ambiguity: ["Chemistry Lab, Khulna"]  ✓
+createLab again (different casing)   → REFUSED: Khulna already has a
+                                       laboratory called "Microbiology Lab, Khulna"
+createLab at DMI (no lab at all)     → lab-dhaka-physical-lab-dmi, ambiguity: []
+deleteLab 21 (seeded, Mymensingh)    → REFUSED: is an organogram unit, so
+                                       seed:labs would write it straight back
+deleteLab 139, 140 (ours)            → gone
+
+labs now: 46 · recorded by hand: 0
+```
+
+### Found while reading, not yet fixed
+
+- **`lib/samples/screen.ts:58` looks labs up by *office* id** —
+  `prisma.lab.findMany({ where: { id: { in: officeIds } } })`, a leftover from
+  session 11's lab→office migration, variable still called `labs`. There are 23
+  offices with ids 1–23 and 46 labs with ids 1–46, so **every id collides** and
+  the `?? \`Office ${id}\`` fallback never fires. Every destination and box on
+  the FDO's sampling screen is named after an unrelated laboratory — Barishal
+  reads as "Textile, Head Office", Faridpur as "Chemical Lab (Prime Minister
+  Office), Head Office". The post-seal half of the same file reads
+  `c.office.nameEn` through the relation and is correct, so **the name changes
+  at the moment of sealing**. `lib/cm/letters.ts` filters on `officeId` and is
+  fine.
+- **Two map columns are both headed "Dhaka."** `officeShortName()` takes the
+  last comma-separated segment, which is the city — but *Head Office, BSTI,
+  Dhaka* and *DMI, BSTI, Dhaka* both end in it. On `/labs/mapping`'s 23-column
+  grid they are indistinguishable, on the screen where an office picks
+  destinations.
+- **The schema carries an orphaned doc comment.** The block describing
+  `LabRouting` ("The 2D map…", "`labId` is always the accountable BSTI unit")
+  survived the table being dropped in session 11 and now sits immediately above
+  `OfficeSubProductScope`, which reads as its description.
+
+### Lessons that cost something
+
+- **A constraint two files apart is still a constraint.** Nothing in the
+  registry screen mentions `seed:labs`, and nothing in `seed:labs` mentions the
+  screen; `Lab.orgUnitId @unique` is what ties them, and the failure would have
+  landed on whoever next ran the seed.
+- **Enabling a thing is how you find what assumed it could not happen.**
+  `labFor()`'s first-match was correct for the data that existed and silently
+  wrong for the data this feature creates.
+
+### Resume here
+
+**State.** Typecheck clean, production build clean.
+
+Still outstanding, unchanged: the field officer has no screen for choosing among
+capable offices — `resolveDestinations()` computes `choices` but `buildPlanFor()`
+drops them before they reach `screen.ts`, so there is nothing to render a picker
+from. `lab_incharge` still has no users.
+
+New and worth doing before coverage entry: the `screen.ts` naming bug above.

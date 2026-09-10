@@ -77,3 +77,33 @@ export function coveredCount(
 ): number {
   return parameterIds.filter((p) => cells.get(`${officeId}:${p}`) !== undefined).length;
 }
+
+/**
+ * The slug a hand-created laboratory gets — Prisma-free so the form can show it
+ * before anything is saved.
+ *
+ * The 46 seeded labs are slugged `lab-<organogram unit slug>`, which is what
+ * makes `seed:labs` idempotent: it upserts on that key and rewrites the row it
+ * finds. A lab created here has no organogram unit to take a slug from, so it
+ * is built from the office and the name instead — and, crucially, **cannot
+ * collide with the shape the seed writes**, because no organogram unit slug is
+ * an office city. That is what keeps a hand-created bench out of the seed's
+ * reach rather than merely lucky.
+ *
+ * Uniqueness is still the database's to enforce; `createLab()` suffixes on
+ * collision.
+ */
+export function labSlugBase(officeName: string, nameEn: string): string {
+  const part = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  const city = part(officeShortName(officeName));
+  const name = part(nameEn);
+  // A name that already ends in the city — "Microbiology Lab, Khulna" — should
+  // not become `lab-khulna-microbiology-lab-khulna`.
+  const trimmed = city && name.endsWith(`-${city}`) ? name.slice(0, -(city.length + 1)) : name;
+  return ["lab", city, trimmed].filter(Boolean).join("-");
+}

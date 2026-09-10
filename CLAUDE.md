@@ -1173,6 +1173,27 @@ Product (one of the mandatory 315)
   and the live figure is on `/labs`, which is the point of that screen. Never
   quote a count from here as though it were current.
 
+- **A laboratory can be added and removed at `/labs/registry`** (D121), because
+  the organogram is not the last word — an office opens a bench or closes one
+  for good. **A lab recorded there carries no organogram unit**, and that is
+  forced, not chosen: `seed:labs` upserts on `lab-<unit slug>` and
+  `Lab.orgUnitId` is `@unique`, so a hand-recorded lab holding a unit the seed
+  also maps would make the next `npm run seed:labs` fail on the constraint. It
+  buys the one invariant the screen needs — **`orgUnitId === null` means nothing
+  outside the registry will ever rewrite the row** — so that row is safe to
+  delete and a seeded one is *futile* to: the seed writes it straight back.
+  **Removal is refused while anything names the bench** — capability, boxes,
+  test orders, agreed sample counts, letters — listed by name rather than
+  counted, the discipline `setRouting()` uses. Everything else is closed, not
+  deleted.
+- **A second branch bench of the same discipline is ambiguous, and it is said
+  out loud.** `labFor()` takes the first match by discipline, which held only
+  while every branch had at most one of each (head office's eight are separated
+  by `HEAD_OFFICE_SECTION`). `createLab()` returns the collision as `ambiguity`
+  and the form reports it at creation. Capability is the office's (D116), so the
+  sample still reaches the right office — what is imprecise is which bench is
+  named on the consignment.
+
 - **22 of the 46 seeded labs are closed, because they do not exist in
   practice** (D106). The organogram gave every office but DMI a laboratory
   unit; the client named the eleven offices that actually have one — head
@@ -1246,7 +1267,7 @@ Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   |---|---|---|
   | `/labs/catalogue` | what a test *is* and what it costs | superadmin |
   | `/labs/coverage` | **the entry form** — what this office handles and can test | that office |
-  | `/labs/registry` | what a laboratory can *run*, test by test | that lab's own office |
+  | `/labs/registry` | which laboratories exist, and what each can *run* | superadmin adds, removes and closes; that lab's own office declares what it runs |
   | `/labs/mapping` | where a sample *goes*, cell by cell | that office |
 
   The fee schedule is superadmin's because an office able to edit it could
