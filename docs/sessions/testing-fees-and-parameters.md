@@ -2825,3 +2825,51 @@ drops them before they reach `screen.ts`, so there is nothing to render a picker
 from. `lab_incharge` still has no users.
 
 New and worth doing before coverage entry: the `screen.ts` naming bug above.
+
+### Session 14 (continued) — the coverage form groups by discipline
+
+> In the "what you can test" tab show the chemical and physical parameters
+> sorted by physical and chemical
+
+A package is not a flat list to the person answering it. Ceramic Tiles is five
+physical tests and four chemical ones, run by two different benches, and reading
+them interleaved makes an office hold the split in its head while ticking.
+Physical first, then chemical, then anything else — nothing drops out of a form
+whose whole point is that nothing is declared sight-unseen.
+
+Each heading carries the bench that would run its tests, taken from the
+parameters' own `ownLabId` rather than re-derived from `ownLabs`: `labFor()`
+already decided it on the server and a second rule here would eventually
+disagree. The per-row discipline column went, since the heading says it.
+
+**It fixed a bug rather than only moving one.** The warning above the table read
+`{noBench.length} of these are {noBench[0]?.discipline} tests and this office
+has no {noBench[0]?.discipline} laboratory` — one discipline named for a set
+that can hold both. At any of the twelve offices with no laboratory at all,
+Ceramic Tiles reported *"9 of these are physical tests"* when 4 of them are
+chemical. Per-group headings say it once per discipline and cannot be wrong
+about the other:
+
+```
+=== DMI, BSTI, Dhaka ===
+   PHYSICAL   5 tests   no physical bench here — sent out
+   CHEMICAL   4 tests   no chemical bench here — sent out
+```
+
+### The registry, in use the same hour
+
+Checked against the live database mid-session and found **lab 141, "Physical
+Lab, Faridpur", recorded by hand at 04:46** — the client using D121 within
+minutes of it landing, on the office session 11's scenario was built around.
+`labFor()` picked it up with no further step, so Faridpur's physical tests now
+resolve to its own bench instead of `third_party`.
+
+Which is the standing warning made concrete: **the lab counts in `CLAUDE.md`
+and in this log were true of the seeded state and are now moving.** Faridpur
+"has chemistry only" was right until 04:46. `/labs` is where the live count is.
+
+**Note on verification:** the production build could not be completed at the end
+of this piece — a dev server was running on :3000 and shares `.next`, which is
+the documented collision. `✓ Compiled successfully` was reached; only page-data
+collection failed, and `npx tsc --noEmit` is clean. The full build passed
+earlier in the session on the same tree plus the registry work.

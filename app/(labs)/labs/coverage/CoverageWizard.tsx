@@ -426,7 +426,40 @@ function PackageRow({
       ? (cover[p.id] === "none" ? (p.ownLabId ? "in_house" : "third_party") : cover[p.id])
       : (cover[p.id] ?? "none");
 
-  const noBench = pkg.parameters.filter((p) => p.ownLabId === null);
+  /**
+   * The tests, in discipline order — physical, then chemical.
+   *
+   * A package is not a flat list to the person answering it: Ceramic Tiles is
+   * four chemical tests and five physical ones, and which bench runs which is
+   * the fact that decides the answer. Reading it interleaved, an office has to
+   * hold the split in its head while ticking.
+   *
+   * Anything of an unexpected discipline still renders, after the two, rather
+   * than disappearing from a form whose whole purpose is that nothing is
+   * declared sight-unseen.
+   */
+  const groups = useMemo(() => {
+    const order = ["physical", "chemical"];
+    const by = new Map<string, ParameterState[]>();
+    for (const p of pkg.parameters) {
+      if (!by.has(p.discipline)) by.set(p.discipline, []);
+      by.get(p.discipline)!.push(p);
+    }
+    return [...by.entries()].sort(([a], [b]) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib) || a.localeCompare(b);
+    });
+  }, [pkg.parameters]);
+
+  /**
+   * Which bench answers for a discipline, taken from the parameters themselves
+   * rather than re-derived from `ownLabs` — `labFor()` already decided it on the
+   * server, and a second rule here would eventually disagree with it.
+   */
+  const benchFor = (params: ParameterState[]) => {
+    const seated = params.find((p) => p.ownLabId !== null);
+    return seated ? ownLabs.find((l) => l.id === seated.ownLabId)?.nameEn ?? null : null;
+  };
 
   async function save() {
     setError(null); setNote(null);
@@ -491,80 +524,98 @@ function PackageRow({
             ))}
           </div>
 
-          {noBench.length > 0 && (
-            <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-              {noBench.length} of these are {noBench[0]?.discipline} tests and this office has no{" "}
-              {noBench[0]?.discipline} laboratory, so covering them means sending them to an
-              accredited outside laboratory and entering the result here.
-              {ownLabs.length > 0 && <> Your benches: {ownLabs.map((l) => l.nameEn).join(", ")}.</>}
-            </p>
-          )}
 
-          {/* **The tests are always listed.** "All of these" used to show only a
-              one-line summary, which asked somebody to declare a package
-              sight-unseen — and hid the very thing that makes the answer
-              obvious, that some of them are chemical and some physical. */}
-          <table className="mt-4 w-full text-sm">
-              <tbody>
-                {pkg.parameters.map((p) => {
-                  const v = effective(p);
-                  return (
-                    <tr key={p.id} className="border-b border-border/60 last:border-0">
-                      <td className="py-1.5 pr-3">{p.nameEn}</td>
-                      <td className="w-12 py-1.5 text-xs text-muted-foreground">{p.discipline}</td>
-                      <td className="w-72 py-1.5 text-right">
-                        {choice === "full" ? (
-                          <span
-                            className={`rounded-md px-2 py-0.5 text-xs ${
-                              v === "third_party"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                            title={
-                              v === "third_party"
-                                ? "This office has no bench for it, so covering it means sending it out and entering the result here."
-                                : undefined
-                            }
-                          >
-                            {v === "third_party" ? "Sent out" : "Our bench"}
-                          </span>
-                        ) : (
-                          <div className="flex justify-end gap-1">
-                            {(
-                              [
-                                ["in_house", "Our bench", p.ownLabId !== null],
-                                ["third_party", "Sent out", true],
-                                ["none", "Not ours", true],
-                              ] as const
-                            ).map(([k, label, allowed]) => (
-                              <button
-                                key={k}
-                                type="button"
-                                disabled={!allowed}
-                                onClick={() => setCover((c) => ({ ...c, [p.id]: k }))}
-                                title={
-                                  allowed
-                                    ? undefined
-                                    : `This office has no ${p.discipline} laboratory.`
-                                }
-                                className={`rounded-md border px-2 py-0.5 text-xs disabled:opacity-30 ${
-                                  v === k
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-border text-muted-foreground hover:text-foreground"
+          {/* **The tests are always listed, and grouped by discipline.** "All of
+              these" used to show only a one-line summary, which asked somebody
+              to declare a package sight-unseen — and hid the very thing that
+              makes the answer obvious, that some of them are chemical and some
+              physical. Grouping says it in the shape of the form: each heading
+              names the bench that would run its tests, or says there is none,
+              so "we have no physical laboratory" is read once per package
+              instead of inferred test by test. */}
+          {groups.map(([discipline, params]) => {
+            const bench = benchFor(params);
+            return (
+              <div key={discipline} className="mt-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border pb-1.5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide">
+                    {discipline}
+                    <span className="ml-2 font-normal normal-case text-muted-foreground">
+                      {params.length} {params.length === 1 ? "test" : "tests"}
+                    </span>
+                  </h4>
+                  {bench ? (
+                    <span className="text-xs text-muted-foreground">{bench}</span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                      no {discipline} bench here — covering these means sending them to an
+                      accredited outside laboratory and entering the result
+                    </span>
+                  )}
+                </div>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {params.map((p) => {
+                      const v = effective(p);
+                      return (
+                        <tr key={p.id} className="border-b border-border/60 last:border-0">
+                          <td className="py-1.5 pr-3">{p.nameEn}</td>
+                          <td className="w-72 py-1.5 text-right">
+                            {choice === "full" ? (
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-xs ${
+                                  v === "third_party"
+                                    ? "bg-primary/10 text-primary"
+                                    : "bg-secondary text-secondary-foreground"
                                 }`}
+                                title={
+                                  v === "third_party"
+                                    ? "This office has no bench for it, so covering it means sending it out and entering the result here."
+                                    : undefined
+                                }
                               >
-                                {label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                                {v === "third_party" ? "Sent out" : "Our bench"}
+                              </span>
+                            ) : (
+                              <div className="flex justify-end gap-1">
+                                {(
+                                  [
+                                    ["in_house", "Our bench", p.ownLabId !== null],
+                                    ["third_party", "Sent out", true],
+                                    ["none", "Not ours", true],
+                                  ] as const
+                                ).map(([k, label, allowed]) => (
+                                  <button
+                                    key={k}
+                                    type="button"
+                                    disabled={!allowed}
+                                    onClick={() => setCover((c) => ({ ...c, [p.id]: k }))}
+                                    title={
+                                      allowed
+                                        ? undefined
+                                        : `This office has no ${p.discipline} laboratory.`
+                                    }
+                                    className={`rounded-md border px-2 py-0.5 text-xs disabled:opacity-30 ${
+                                      v === k
+                                        ? "border-primary bg-primary/10 text-primary"
+                                        : "border-border text-muted-foreground hover:text-foreground"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
 
           <p className="mt-3 text-xs text-muted-foreground">
             {choice === "full" ? (
