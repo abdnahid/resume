@@ -8,6 +8,7 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import { cn } from "@/lib/utils";
+import AccountSwitcher from "@/components/dev/AccountSwitcher";
 
 const newsreader = Newsreader({
   subsets: ["latin"],
@@ -67,7 +68,13 @@ export default function RootLayout({
         jetbrainsMono.variable,
       )}
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Development only — the component returns null in production and the
+            route behind it 404s there, so nothing of it survives a production
+            build. See `app/api/dev/switch/route.ts`. */}
+        <AccountSwitcher />
+      </body>
     </html>
   );
 }
