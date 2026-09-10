@@ -593,6 +593,7 @@ async function main() {
   const paramRows: {
     subProductId: number; nameEn: string; slug: string; methodId: number | null;
     feePoisha: number; urgentFeePoisha: number; urgentFeeSource: UrgentFeeSource;
+    normalDays: number | null; urgentDays: number | null;
     discipline: LabDiscipline;
     sourceSection: string; ordinal: number; limitText: string | null; limitKind: LimitKind;
   }[] = [];

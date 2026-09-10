@@ -49,13 +49,38 @@ const arg = (name: string) =>
 const FILE_OVERRIDE = arg("file");
 const SHEET_OVERRIDE = arg("sheet");
 
-/** Which lab's file this is. One per lab; the wing follows from the section. */
-const SOURCE = {
-  file: "utils/textile-parameter-list-sanitized.xlsx",
-  sheetMatch: (n: string) => n.toLowerCase().includes("working"),
-  section: "textile",
-  discipline: "physical" as LabDiscipline,
-};
+/**
+ * The `.xlsx` files this importer knows, one per lab section.
+ *
+ *     npm run import:test-parameters                 # every source
+ *     npm run import:test-parameters -- --only=civil # one of them
+ *
+ * A section is the head-office lab whose wing filed the list; it decides the
+ * discipline and, through `HEAD_OFFICE_SECTION` in `lib/labs/coverage.ts`, which
+ * head-office bench runs the test in-house. Adding a wing's file is a block
+ * here plus an entry in both of those tables.
+ */
+const SOURCES = [
+  {
+    key: "textile",
+    file: "utils/textile-parameter-list-sanitized.xlsx",
+    sheetMatch: (n: string) => n.toLowerCase().includes("working"),
+    section: "textile",
+    discipline: "physical" as LabDiscipline,
+  },
+  {
+    key: "civil",
+    file: "utils/chemical-physical-mixed-test.xlsx",
+    sheetMatch: (n: string) => n.toLowerCase() === "physical",
+    section: "physical-civil",
+    discipline: "physical" as LabDiscipline,
+  },
+] as const;
+
+const ONLY = arg("only");
+
+/** The source being imported. Set by `main()` as it walks `SOURCES`. */
+let SOURCE: (typeof SOURCES)[number] = SOURCES[0];
 
 /**
  * Columns are found by their header, never by position.
@@ -71,21 +96,24 @@ const SOURCE = {
  * throws rather than guessing.
  */
 const COLUMNS = {
-  product: { exact: ["Main Product"] },
+  product: { exact: ["Main Product", "Product Name"] },
   // Spelled "Varient" in both files so far, so only the opening is dependable.
   subProduct: { prefix: ["Sub-Product", "Sub Product"] },
-  standard: { exact: ["Standard"] },
-  parameter: { exact: ["Parameter"] },
+  standard: { exact: ["Standard", "Standards"] },
+  parameter: { exact: ["Parameter", "Test Parameters"] },
   subParameter: { exact: ["Sub Parameter", "Sub-Parameter"] },
   limit: { exact: ["Standard Limit"] },
   method: { exact: ["Method", "Test Method"] },
-  fee: { exact: ["Test Fee"] },
+  fee: { exact: ["Test Fee", "Testing fee as per test parameter"] },
   // Present in the textile file from the start and never read until
   // 2026-09-09, which is why all 104 of its packages carried no stated total
   // and every one of its 713 parameters sat at `doubled_assumed`. It is the
   // checksum, and it is what proves the fee convention: all 104 reconcile to
   // the sum of *distinct* parameter fees and none to the sum of every row.
-  normalTotal: { exact: ["Total Test Fee"] },
+  normalTotal: { exact: ["Total Test Fee", "Total Fee (Normal)"] },
+  /// Only some wings publish one. Where it is absent the urgent price falls
+  /// back to the 2× rule and is labelled `doubled_assumed` (D99).
+  urgentTotal: { exact: ["Total Test Fee (Urgent)", "Total Fee (Urgent)"], optional: true },
   normalDays: { exact: ["Duration of Test (Normal)"] },
   urgentDays: { exact: ["Duration of Test (Urgent)"] },
 } satisfies Record<string, ColumnSpec>;
@@ -147,8 +175,10 @@ type ParamRow = {
 type SubProductRow = {
   productName: string; name: string; standard: string;
   normalDays: number | null; urgentDays: number | null;
-  /** The wing's own stated total for the package — the checksum (D103). */
+  /** The wing's own stated totals for the package — the checksum (D103), and
+   *  what the urgent price is apportioned against (D102). */
   statedNormalPoisha: number | null;
+  statedUrgentPoisha: number | null;
   ordinal: number; params: ParamRow[];
 };
 
@@ -187,6 +217,8 @@ function parse(): {
         normalDays: toDays(grid.at(r, C.normalDays)),
         urgentDays: toDays(grid.at(r, C.urgentDays)),
         statedNormalPoisha: toPoisha(grid.at(r, C.normalTotal)),
+        statedUrgentPoisha:
+          C.urgentTotal === undefined ? null : toPoisha(grid.at(r, C.urgentTotal)),
         ordinal: byKey.size, params: [],
       };
       byKey.set(spKey, sp);
@@ -272,7 +304,7 @@ function parse(): {
   return { subProducts: [...byKey.values()], dataRows, problems, columns: C, sheetName: grid.sheetName };
 }
 
-async function main() {
+async function runOne(): Promise<boolean> {
   const { subProducts, dataRows, problems, columns, sheetName } = parse();
   const params = subProducts.flatMap((s) => s.params);
   const subParams = params.flatMap((p) => p.subParams);
@@ -299,28 +331,60 @@ async function main() {
     console.log(`\n${problems.length} problem(s) — nothing written:`);
     problems.slice(0, 25).forEach((p) => console.log("  •", p));
     process.exitCode = 1;
-    return;
+    return false;
   }
   console.log("\nConsistency checks passed.");
 
   // Resolve every product before writing anything: a partial import would leave
   // sub-products whose parameters live in a file nobody ran.
-  const products = await prisma.product.findMany({ select: { id: true, nameEn: true, serial: true } });
+  const products = await prisma.product.findMany({
+    select: {
+      id: true, nameEn: true, serial: true,
+      bds: { select: { number: true } },
+      standards: { select: { bds: { select: { number: true } } } },
+    },
+  });
   const byName = new Map(products.map((p) => [p.nameEn.trim(), p]));
-  const missing = [...new Set(subProducts.map((s) => s.productName))].filter((n) => !byName.has(n));
-  if (missing.length) {
-    console.log(`\n${missing.length} product name(s) not in the mandatory 315 — nothing written:`);
-    missing.forEach((m) => console.log("  •", m));
-    process.exitCode = 1;
-    return;
-  }
 
-  if (DRY) { console.log("\n--dry: no writes."); return; }
+  // **The standard identifies the product** (D114), and it is a far better key
+  // than the name: a wing writes "Ceramic Tiles" where the published list says
+  // "Ceramic Tiles - Definitions, Classification, Characteristics and Marking".
+  // Matched on prefix and number and **never the year** — the list says
+  // BDS 25:2015 Amendment-1:2020 where a wing says BDS 25:2015 — which is the
+  // same rule the chemical importer found resolved 92% against 5% by name.
+  const stdKey = (d: string): string | null => {
+    const m = d.replace(/\s+/g, " ").match(/^(.*?)(\d[\d\-().\/]*)\s*[:：]/);
+    if (!m) return null;
+    return `${m[1].toLowerCase().replace(/[^a-z0-9]/g, "")}|${m[2].replace(/[^0-9]/g, "")}`;
+  };
+  const byStd = new Map<string, (typeof products)[number]>();
+  for (const p of products)
+    for (const n of [p.bds?.number, ...p.standards.map((x) => x.bds.number)]) {
+      const k = n ? stdKey(n) : null;
+      if (k && !byStd.has(k)) byStd.set(k, p);
+    }
+
+  const resolve = (sp: { productName: string; standard: string }) =>
+    byName.get(sp.productName.trim()) ?? byStd.get(stdKey(sp.standard) ?? "");
+
+  const unresolved = subProducts.filter((sp) => !resolve(sp));
+  if (unresolved.length) {
+    const names = [...new Set(unresolved.map((s) => `${s.productName}  [${s.standard || "no standard"}]`))];
+    console.log(`\n${names.length} product(s) matched neither by name nor by standard — nothing written:`);
+    names.forEach((m) => console.log("  •", m));
+    process.exitCode = 1;
+    return false;
+  }
+  const byStdCount = subProducts.filter((sp) => !byName.has(sp.productName.trim())).length;
+  if (byStdCount)
+    console.log(`\n${byStdCount} sub-product(s) matched by their standard rather than the product name.`);
+
+  if (DRY) { console.log("\n--dry: no writes."); return true; }
   if (FILE_OVERRIDE || SHEET_OVERRIDE) {
     console.log("\n--file/--sheet is for checking a file, not importing one.");
     console.log("The section and discipline are configured for the source above; add a SOURCE block to import a new wing.");
     process.exitCode = 1;
-    return;
+    return false;
   }
 
   const bdsRows = await prisma.bds.findMany({ select: { id: true, number: true } });
@@ -350,7 +414,7 @@ async function main() {
   let nSub = 0, nParam = 0, nLine = 0;
   const bySource = new Map<UrgentFeeSource, number>();
   for (const sp of subProducts) {
-    const product = byName.get(sp.productName)!;
+    const product = resolve(sp)!;
     const row = await prisma.subProduct.upsert({
       where: { productId_nameEn: { productId: product.id, nameEn: sp.name } },
       create: {
@@ -364,14 +428,13 @@ async function main() {
     });
     nSub++;
 
-    // **The urgent price is decided per package** (D99). This file publishes no
-    // urgent total — it carries the two durations and nothing else — so every
-    // package here is priced by the rule and labelled `doubled_assumed`: the 2×
-    // holds, and nothing in the file confirms it. The chemical files do publish
-    // one, and 1,621 of their parameters are apportioned against it instead.
+    // **The urgent price is decided per package** (D99). The textile file publishes no
+    // urgent total — it carries the two durations and nothing else — so its
+    // packages are priced by the rule and labelled `doubled_assumed`. Others do
+    // publish one, and are checked or apportioned against it (D102).
     const priced = priceUrgent({
       normalFees: sp.params.map((x) => x.feePoisha),
-      statedUrgentTotal: null,
+      statedUrgentTotal: sp.statedUrgentPoisha,
       normalDays: sp.normalDays,
       urgentDays: sp.urgentDays,
     });
@@ -381,12 +444,14 @@ async function main() {
       where: { subProductId_sourceSection: { subProductId: row.id, sourceSection: SOURCE.section } },
       create: {
         subProductId: row.id, sourceSection: SOURCE.section,
-        statedNormalFeePoisha: sp.statedNormalPoisha, statedUrgentFeePoisha: null,
+        statedNormalFeePoisha: sp.statedNormalPoisha,
+        statedUrgentFeePoisha: sp.statedUrgentPoisha,
         summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
         turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
       },
       update: {
         statedNormalFeePoisha: sp.statedNormalPoisha,
+        statedUrgentFeePoisha: sp.statedUrgentPoisha,
         summedNormalFeePoisha: sp.params.reduce((a, x) => a + x.feePoisha, 0),
         turnaroundNormalDays: sp.normalDays, turnaroundUrgentDays: sp.urgentDays,
       },
@@ -450,12 +515,34 @@ async function main() {
     console.log(`    urgent: ${k.padEnd(16)} ${n}  ${URGENT_SOURCE_NOTE[k]}`);
   console.log(`✓ sub-params   ${nLine}`);
 
-  console.log(`
+  return true;
+}
+
+/**
+ * Every source in turn, stopping at the first that will not parse.
+ *
+ * Stopping matters: a file that fails its consistency checks leaves the
+ * catalogue half-written from the ones before it, and "which of the four ran"
+ * is not a thing anybody should have to work out from row counts.
+ */
+async function main() {
+  const chosen = SOURCES.filter((s) => !ONLY || s.key === ONLY);
+  if (!chosen.length) {
+    console.log(`No source called "${ONLY}". Known: ${SOURCES.map((s) => s.key).join(", ")}`);
+    process.exitCode = 1;
+    return;
+  }
+  for (const src of chosen) {
+    SOURCE = src;
+    console.log(`\n${"═".repeat(66)}\n${src.key}\n${"═".repeat(66)}`);
+    if (!(await runOne())) return;
+  }
+  if (!DRY)
+    console.log(`
 Next: npm run labs:reconcile -- --dry
   A wing that tests an article as a whole leaves a sub-product named after the
   product itself, which is the same article another wing filed under its real
-  variant names. Reconciling folds one into the other; until it runs, an
-  applicant can pick a package that is tested for half the standard.`);
+  variant names.`);
 }
 
 main()

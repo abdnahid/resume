@@ -2602,3 +2602,110 @@ among capable offices, and `lab_incharge` has no users.
 The physical sheet of `chemical-physical-mixed-test.xlsx` can now be imported
 correctly whenever the wing confirms it — the fee reading is settled and the
 importer handles both conventions.
+
+---
+
+## Session 13 — 2026-09-10 — the mixed package, actually imported
+
+### User
+
+> I am at the what you can test step. I am testing for ceramic tiles. There I
+> cannot see anything when "we can cover all of these" option. It is better to
+> visualize the parameters. Also when I go to "only some of them", I can only see
+> the chemical parameters. This product definitely has physical parameters. I
+> gave you the mixed parameter file. Didnt you add physical parameters for this
+> product?
+
+Two faults, and the second is the right kind of question: **no, I had not.**
+Session 10 recorded the file and its open question, session 12 settled the fee
+convention and said the sheet "can now be imported whenever the wing confirms
+it" — and then nobody imported it. The client had handed over a file expecting
+it to be used.
+
+### The screen
+
+"We can cover all of these" showed a one-line summary and no list, which asks
+somebody to declare a package sight-unseen and hides the very thing that makes
+the answer obvious — that some tests are chemical and some physical. The table
+now renders in both modes: static badges under *all of these*, the three buttons
+under *only some of them*.
+
+### The import
+
+`import:test-parameters` was built around a single `SOURCE` and its `--file=`
+override explicitly refused to write ("for checking a file, not importing
+one"). It takes a **list** now, one block per section, with `--only=<key>`.
+
+Three things had to give before the sheet would load, and each is worth keeping:
+
+- **Header spellings.** `Product Name` for `Main Product`, `Test Parameters`
+  for `Parameter`, `Testing fee as per test parameter` for `Test Fee`,
+  `Total Fee (Normal)` for `Total Test Fee`. Alternatives in `COLUMNS`, which is
+  what `resolveColumns` is for.
+- **The product would not match by name.** The wing writes *Ceramic Tiles*; the
+  published list says *Ceramic Tiles - Definitions, Classification,
+  Characteristics and Marking*. Matched on the **standard** first now (D114),
+  prefix and number and never the year — the rule the chemical importer had
+  already measured at 92% against 5% by name. The xlsx importer simply never
+  had it.
+- **A new section.** `physical-civil` → `Civil Physical, Head Office`, which
+  needs an entry in **both** `SECTION_FOR_SOURCE` and `HEAD_OFFICE_SECTION`.
+  Miss the second and head office cannot declare those tests in-house.
+
+### The result
+
+```
+Ceramic Tiles - Definitions, Classification, …   [BDS ISO 13006:2021]
+sub-product "Ceramic Tiles" — 9 tests
+
+  chemical  Resistance to staining              ৳ 900 → ৳1800  doubled
+  chemical  a) low concentrations of acids      ৳ 300 → ৳ 600  doubled
+  chemical  b) high concentrations of acids     ৳ 300 → ৳ 600  doubled
+  chemical  c) household chemicals              ৳ 300 → ৳ 600  doubled
+  physical  Size in mm                          ৳ 315 → ৳ 630  doubled  (3 sub)
+  physical  Surface quality                     ৳ 185 → ৳ 370  doubled
+  physical  Water absorption in percent         ৳ 500 → ৳1000  doubled
+  physical  Breaking strength in N              ৳ 600 → ৳1200  doubled
+  physical  Modulus of rupture in N/mm2         ৳ 600 → ৳1200  doubled
+
+  package days 14/10 · total ৳4,000 → ৳8,000
+  chemical-non-food  stated 1800/3600  summed 1800  ✓
+  physical-civil     stated 2200/4400  summed 2200  ✓
+```
+
+Both wings on one sub-product, both stated totals reconciling, *Size in mm* at
+৳315 — D119's merge rule proving itself on a file it was written for. Package
+days are 14/10: the **longest** urgent turnaround of the two wings (chemical 6,
+physical 10), which is D115 working.
+
+### `prisma/` was outside the typecheck
+
+Found while fixing the reconcile, which had gone on referencing dropped tables
+without a murmur: `tsconfig.json` excluded `prisma`. Removed. It immediately
+turned up **`seed:org` broken since the HR module moved under `/hr`** — it still
+imported `app/(main)/organogram/_components/data`, a path that has not existed
+for weeks, so `npm run seed:org` would have failed the moment anyone ran it.
+Only `prisma/seed.ts`, the superseded demo seed, is still excluded.
+
+### Lessons that cost something
+
+- **"Can be imported whenever the wing confirms" is how a file goes unimported.**
+  The convention was settled in session 12 and nothing was blocking. Saying a
+  thing is possible is not doing it, and the client noticed before I did.
+- **A verification that inherits `exclude` verifies nothing.** The first check of
+  whether `prisma/` typechecks used a tsconfig that `extends` the real one — and
+  inherited its exclusion of the very directory being tested. It reported clean.
+  The second, honest run found six errors.
+- **A guard for one direction is not a guard.** `resolveColumns()` throws on a
+  column it cannot find, which is right — but a column *present in the file and
+  absent from the map* produces nothing at all, which is how the textile total
+  went unread for five sessions.
+
+### Resume here
+
+Unchanged: the field officer has no screen for choosing among capable offices,
+and `lab_incharge` has no users.
+
+**Ceramic Tiles is now the worked example** for everything the routing model has
+to do: two wings, nine tests, a package needing both a chemical and a physical
+destination from whichever office receives it.

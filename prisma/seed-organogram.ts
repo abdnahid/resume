@@ -6,7 +6,7 @@ import {
   DIVISIONAL_OFFICES,
   REGIONAL_OFFICES,
   type OrgEntry,
-} from "../app/(main)/organogram/_components/data";
+} from "../app/(main)/hr/organogram/_components/data";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });

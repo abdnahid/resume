@@ -69,6 +69,8 @@ const SECTION_FOR_SOURCE: Record<string, string> = {
   textile: "pt-textile",
   "chemical-food": "ct-food",
   "chemical-non-food": "ct-organic",
+  // Ceramic tiles and the rest of the building materials.
+  "physical-civil": "pt-civil",
 };
 
 /** The organogram writes Barisal; the office register writes Barishal. */

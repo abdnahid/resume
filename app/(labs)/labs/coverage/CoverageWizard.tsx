@@ -501,8 +501,11 @@ function PackageRow({
             </p>
           )}
 
-          {choice === "partial" && (
-            <table className="mt-4 w-full text-sm">
+          {/* **The tests are always listed.** "All of these" used to show only a
+              one-line summary, which asked somebody to declare a package
+              sight-unseen — and hid the very thing that makes the answer
+              obvious, that some of them are chemical and some physical. */}
+          <table className="mt-4 w-full text-sm">
               <tbody>
                 {pkg.parameters.map((p) => {
                   const v = effective(p);
@@ -511,49 +514,73 @@ function PackageRow({
                       <td className="py-1.5 pr-3">{p.nameEn}</td>
                       <td className="w-12 py-1.5 text-xs text-muted-foreground">{p.discipline}</td>
                       <td className="w-72 py-1.5 text-right">
-                        <div className="flex justify-end gap-1">
-                          {(
-                            [
-                              ["in_house", "Our bench", p.ownLabId !== null],
-                              ["third_party", "Sent out", true],
-                              ["none", "Not ours", true],
-                            ] as const
-                          ).map(([k, label, allowed]) => (
-                            <button
-                              key={k}
-                              type="button"
-                              disabled={!allowed}
-                              onClick={() => setCover((c) => ({ ...c, [p.id]: k }))}
-                              title={
-                                allowed
-                                  ? undefined
-                                  : `This office has no ${p.discipline} laboratory.`
-                              }
-                              className={`rounded-md border px-2 py-0.5 text-xs disabled:opacity-30 ${
-                                v === k
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
+                        {choice === "full" ? (
+                          <span
+                            className={`rounded-md px-2 py-0.5 text-xs ${
+                              v === "third_party"
+                                ? "bg-primary/10 text-primary"
+                                : "bg-secondary text-secondary-foreground"
+                            }`}
+                            title={
+                              v === "third_party"
+                                ? "This office has no bench for it, so covering it means sending it out and entering the result here."
+                                : undefined
+                            }
+                          >
+                            {v === "third_party" ? "Sent out" : "Our bench"}
+                          </span>
+                        ) : (
+                          <div className="flex justify-end gap-1">
+                            {(
+                              [
+                                ["in_house", "Our bench", p.ownLabId !== null],
+                                ["third_party", "Sent out", true],
+                                ["none", "Not ours", true],
+                              ] as const
+                            ).map(([k, label, allowed]) => (
+                              <button
+                                key={k}
+                                type="button"
+                                disabled={!allowed}
+                                onClick={() => setCover((c) => ({ ...c, [p.id]: k }))}
+                                title={
+                                  allowed
+                                    ? undefined
+                                    : `This office has no ${p.discipline} laboratory.`
+                                }
+                                className={`rounded-md border px-2 py-0.5 text-xs disabled:opacity-30 ${
+                                  v === k
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          )}
 
-          {choice === "full" && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              All {pkg.parameters.length} tests recorded as yours —{" "}
-              {pkg.parameters.filter((p) => effective(p) === "in_house").length} on your own bench
-              and {pkg.parameters.filter((p) => effective(p) === "third_party").length} sent out.
-            </p>
-          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            {choice === "full" ? (
+              <>
+                All {pkg.parameters.length} recorded as yours —{" "}
+                {pkg.parameters.filter((p) => effective(p) === "in_house").length} on your own
+                bench and {pkg.parameters.filter((p) => effective(p) === "third_party").length}{" "}
+                sent out. Switch to <em>only some of them</em> to change any of it.
+              </>
+            ) : (
+              <>
+                {pkg.parameters.filter((p) => effective(p) === "none").length} left as not yours —
+                another office will be found for those, and nothing here asks you where.
+              </>
+            )}
+          </p>
 
           {error && (
             <p className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">

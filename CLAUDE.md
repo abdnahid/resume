@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges and finds the textile total column nobody had read. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests. |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07. |
 
 Two rules from the spec that carry real weight:
@@ -968,6 +968,17 @@ Product (one of the mandatory 315)
   writing 105 into three separate cells, and its stated ৳2,200 only adds up if
   all three count. **Never resolve merges without recording that they
   happened.**
+- **`import:test-parameters` takes a list of files, one per section**
+  (`SOURCES`), and `--only=<key>` runs one. Adding a wing's `.xlsx` is a block
+  there plus an entry in **both** `SECTION_FOR_SOURCE` (`prisma/seed-labs.ts`)
+  and `HEAD_OFFICE_SECTION` (`lib/labs/coverage.ts`) — miss the second and head
+  office cannot declare those tests in-house. `physical-civil` →
+  `Civil Physical, Head Office` was added 2026-09-10 for the ceramic-tiles file.
+- **A product is matched by its standard first, then its name** (D114). The
+  wings write "Ceramic Tiles" where the published list says "Ceramic Tiles -
+  Definitions, Classification, Characteristics and Marking". Matched on prefix
+  and number and **never the year**, the rule the chemical importer measured at
+  92% against 5% by name.
 - **The textile file publishes a package total, and the importer ignored it for
   five sessions.** `Total Test Fee`, column J. That is why all 104 textile
   packages carried no stated figure and every one of its 713 parameters sat at
@@ -2042,6 +2053,7 @@ build once.
 
 ## Commands
 
+
 ```bash
 npm run dev            # dev server (:3000, or :3001 if taken)
 npm run build          # prisma generate && next build
@@ -2065,7 +2077,7 @@ npm run import:office-head-desks # seat each office head on their office's Execu
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
 
-npm run import:test-parameters # a wing's .xlsx parameter file → the Phase G catalogue (--dry)
+npm run import:test-parameters # every .xlsx parameter file → the catalogue (--dry, --only=<key>)
 npm run import:chemical-parameters # the Chemical Wing's two .docx files (--dry, --names, --file=food)
 npm run fees:urgent            # re-price every package's urgent fee from what the wing published (--dry)
 npm run seed:labs              # labs from the organogram, capability + the routing map (--dry)

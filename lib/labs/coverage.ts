@@ -36,6 +36,7 @@ const HEAD_OFFICE_SECTION: Record<string, string> = {
   textile: "lab-pt-textile",
   "chemical-food": "lab-ct-food",
   "chemical-non-food": "lab-ct-organic",
+  "physical-civil": "lab-pt-civil",
 };
 
 export type ResolvableLab = {

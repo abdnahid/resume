@@ -64,7 +64,7 @@ async function main() {
     select: {
       id: true, nameEn: true, isActive: true,
       office: { select: { id: true, nameEn: true } },
-      _count: { select: { capabilities: true, routings: true } },
+      _count: { select: { officeCapabilities: true } },
     },
     orderBy: [{ officeId: "asc" }, { nameEn: "asc" }],
   });
@@ -95,8 +95,7 @@ async function main() {
     console.log(`To close (${toClose.length}):`);
     for (const l of toClose)
       console.log(
-        `   ${l.nameEn.padEnd(34)} ${String(l._count.capabilities).padStart(5)} declared, ` +
-          `${String(l._count.routings).padStart(6)} routing cells`,
+        `   ${l.nameEn.padEnd(34)} ${String(l._count.officeCapabilities).padStart(5)} tests run on this bench`,
       );
   }
   if (toOpen.length) {
@@ -105,11 +104,11 @@ async function main() {
   }
   if (!toClose.length && !toOpen.length) console.log("Already in step with the list.");
 
-  const brokenCells = toClose.reduce((a, l) => a + l._count.routings, 0);
+  const brokenCells = toClose.reduce((a, l) => a + l._count.officeCapabilities, 0);
   if (brokenCells)
     console.log(
-      `\n${brokenCells} routing cells point at a laboratory about to close. They are left as they ` +
-        `are — the office chose them — and will be refused by name rather than repointed.`,
+      `\n${brokenCells} in-house capabilities rest on a laboratory about to close. They are left ` +
+        `as they are — the office declared them — and will be refused by name rather than moved.`,
     );
 
   if (DRY) { console.log(`\n--dry: nothing written.`); return; }

@@ -162,7 +162,7 @@ function findOrgPost(
 ): Post | null {
   if (officeId === 6) {
     // Head office: use wing subtree
-    const wingRoot = (wing && HEAD_WING_ROOT[wing]) ?? DG_OFFICE_UNIT;
+    const wingRoot = (wing && HEAD_WING_ROOT[wing]) || DG_OFFICE_UNIT;
     return bestPost(subtreeIds(wingRoot, children), mappedGrade, posts);
   }
 

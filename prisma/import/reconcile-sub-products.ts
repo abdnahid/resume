@@ -61,8 +61,10 @@ const DRY = process.argv.includes("--dry");
 type SubProductRow = {
   id: number;
   nameEn: string;
+  /** Set once this row has been folded into the real variants (D112). */
+  foldedAt: Date | null;
   parameters: { id: number; nameEn: string; sourceSection: string }[];
-  _count: { applicationEntries: number; labRequirements: number; testOrders: number };
+  _count: { applicationEntries: number; officeRequirements: number; testOrders: number };
 };
 
 /** What one product needs doing, decided before anything is written. */
@@ -129,7 +131,7 @@ async function plan(): Promise<Plan[]> {
         select: {
           id: true, nameEn: true, foldedAt: true,
           parameters: { select: { id: true, nameEn: true, sourceSection: true } },
-          _count: { select: { applicationEntries: true, labRequirements: true, testOrders: true } },
+          _count: { select: { applicationEntries: true, officeRequirements: true, testOrders: true } },
         },
       },
     },
@@ -243,10 +245,18 @@ async function repoint(fromId: number, toId: number) {
     if (existing) await prisma.applicationSubProduct.delete({ where: { id: l.id } });
     else await prisma.applicationSubProduct.update({ where: { id: l.id }, data: { subProductId: toId } });
   }
-  await prisma.labSampleRequirement.updateMany({
-    where: { subProductId: fromId },
-    data: { subProductId: toId },
-  });
+  // A remembered sample count follows the article, not the row it hung off.
+  // Upserted rather than updated: the target may already have one for that
+  // office, and two rows cannot share the key.
+  const reqs = await prisma.officeSampleRequirement.findMany({ where: { subProductId: fromId } });
+  for (const r of reqs) {
+    await prisma.officeSampleRequirement.upsert({
+      where: { officeId_subProductId: { officeId: r.officeId, subProductId: toId } },
+      create: { ...r, subProductId: toId },
+      update: {},
+    });
+  }
+  await prisma.officeSampleRequirement.deleteMany({ where: { subProductId: fromId } });
   return links.length;
 }
 
@@ -273,8 +283,10 @@ async function fold(p: Extract<Plan, { kind: "fold" }>) {
             orderBy: { ordinal: "asc" },
             select: { label: true, limitText: true, limitKind: true, refBdsId: true, ordinal: true },
           },
-          capabilities: { select: { labId: true, isActive: true, isPlaceholder: true } },
-          routings: { select: { officeId: true, labId: true, mode: true, isPlaceholder: true, note: true } },
+          officeCapabilities: {
+            select: { officeId: true, manner: true, labId: true, isActive: true },
+          },
+          preferences: { select: { officeId: true, toOfficeId: true, note: true } },
         },
       },
       packageFees: true,
@@ -307,14 +319,14 @@ async function fold(p: Extract<Plan, { kind: "fold" }>) {
         select: { id: true },
       });
       copied++;
-      if (src.capabilities.length)
-        await prisma.labCapability.createMany({
-          data: src.capabilities.map((c) => ({ ...c, parameterId: created.id })),
+      if (src.officeCapabilities.length)
+        await prisma.parameterCapability.createMany({
+          data: src.officeCapabilities.map((c) => ({ ...c, parameterId: created.id })),
           skipDuplicates: true,
         });
-      if (src.routings.length)
-        await prisma.labRouting.createMany({
-          data: src.routings.map((r) => ({ ...r, parameterId: created.id })),
+      if (src.preferences.length)
+        await prisma.routingPreference.createMany({
+          data: src.preferences.map((r) => ({ ...r, parameterId: created.id })),
           skipDuplicates: true,
         });
     }
