@@ -1972,6 +1972,22 @@ It is per verdict, because the court order decides.
 
 ## Conventions that have bitten us
 
+- **`prisma/` is inside the typecheck, and must stay there.** It was excluded
+  from `tsconfig.json` until 2026-09-10, which meant every seed and importer
+  could go on referencing dropped models and columns without a murmur —
+  `reconcile-sub-products.ts` was calling three tables that no longer existed,
+  and **`npm run seed:org` had been broken for weeks**, still importing
+  `app/(main)/organogram/_components/data` after the HR module moved under
+  `/hr`. `npx tsc --noEmit` covers it now. Only `prisma/seed.ts` is still
+  excluded — the superseded demo seed, which writes a relation the schema no
+  longer has. **Do not add the directory back to `exclude` to make a build
+  pass.**
+- **A verification that `extends` the real tsconfig inherits its `exclude`.**
+  The first check of whether `prisma/` typechecked used exactly that, and so
+  excluded the directory it was testing and reported clean. The honest run found
+  six errors. If you are testing whether a config change is safe, change the
+  config.
+
 These are decisions D9, D10 and D14 in the plan. The first two cost a broken
 build once.
 
