@@ -239,6 +239,24 @@ else is INTERNAL only.
 - **OTP is not enabled.** `sendOTP` throws by design. The schema already carries
   `mobileVerifiedAt`, so SMS drops in without a migration.
 
+- **There is a development-only account switcher, and it must never reach
+  production.** A floating widget (`components/dev/AccountSwitcher.tsx`) over
+  `app/api/dev/switch/route.ts` signs out and signs in as any internal account,
+  because testing one file end to end means being six people in turn and
+  signing in at every desk turns a ten-minute test into an hour. It is
+  **gated on `NODE_ENV` in both directions and independently** — the route 404s
+  outside development, the component returns null, so Next eliminates it from a
+  production bundle rather than merely hiding it. It **signs in through the
+  ordinary credential path** (`auth.api.signInUsername`, the same call the login
+  screen makes), so it is not a second way in that could drift from the first,
+  and the password stays server-side in `DEV_SWITCH_PASSWORD` (defaulting to the
+  shared test password) rather than reaching the client bundle. Being outside
+  `PUBLIC_API_PREFIXES` it also needs an existing internal session, so it moves
+  between staff accounts and is not an entry from signed out. **Delete both
+  files when the workflow testing is done** — the failure mode is an
+  authentication bypass on a government system, and the only thing standing
+  between it and one is an environment variable.
+
 ## Who is in the roster, and who is not
 
 **731 of the 815 records in `utils/employee_bio.json` are imported; 44 are
@@ -402,6 +420,17 @@ Narayanganj.
 and then not pass it on — `candidates()` works from `desksOfOffice()`, and
 someone with no post has no section, so the picker came back empty and the file
 stopped dead in his hands.
+
+**Re-run it whenever the `office_head` role changes hands.** The seating is a
+snapshot, not a rule: granting the role at `/hr/listing/roles` does not seat
+anybody, so a head appointed after the last run has no desk and lands in exactly
+the trap above. Faridpur's MD. KAMAL HOSSAIN sat there on 2026-09-10 — two files
+on his desk and nobody to pass them to, while `Executive (Faridpur)` held one
+vacant post, Deputy Director (CM) at grade 6, which is precisely his grade and
+designation. The importer only ever fills a null `orgPostId`, so **it is safe to
+run any time and is the first thing to reach for** before reasoning about the
+chain. It also fills a missing English designation from the post it seats
+someone on, which is where his came from.
 
 **`import:desks` cannot seat a head, and that is why this is its own step.** It
 matches office → wing → grade → title, which is right for the officers who do
@@ -1320,6 +1349,16 @@ Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   a test the office has no bench for defaults to **sent out**. **Nothing asks
   where the rest goes** — that was the old model's question, and it is what made
   the form infinite.
+- **The tests are always listed, and grouped by discipline** — physical, then
+  chemical, then anything else. A package is not a flat list to the person
+  answering it: Ceramic Tiles is five physical tests and four chemical ones run
+  by two different benches, and interleaved it makes an office hold the split in
+  its head while ticking. Each heading carries the bench that would run its
+  tests — read from the parameters' own `ownLabId`, never re-derived, since
+  `labFor()` already decided it on the server. That heading replaced a single
+  warning line that named **one** discipline for a set that can hold both: at
+  any of the twelve offices with no laboratory, Ceramic Tiles used to report
+  "9 of these are physical tests" when four are chemical.
 - **`/labs/coverage` is the way capability is meant to be recorded** (D108);
   `/labs/mapping` and `/labs/registry` are the cell-by-cell views over the same
   two tables. 4,774 parameters × 23 offices is not a grid anybody completes one
@@ -1878,6 +1917,16 @@ can reuse them.
   that tie on grade, so nothing that worked before can break. 3,423 possible
   hand-offs became 4,730, and the desks that could reach nobody at all went from
   5 to 0.
+- **An empty pass-down list is two different facts, and the board says which.**
+  `candidates()` returns nothing both when the chain genuinely ends with you and
+  when you hold **no organogram post at all** — and the second is an
+  administrative fault somebody has to repair, not a fact about the file. 251 of
+  731 employees hold no desk, so this is not a corner. The button used to be
+  disabled with a `title` of *"No more junior desk in this section"*, which for
+  a desk-less holder was true of nothing: he had no section. `deskOf()` answers
+  it in one lookup the board already had the actor for, and the administrative
+  case is stated **on the page rather than in a `title`** — a tooltip is
+  invisible on a touch screen and easy to miss on any.
 - **Pass down reaches your own level or below; send up is strictly senior**
   (D79). Sideways is a `down`. An earlier reading of D58 made same-level desks
   unreachable in either direction, on the theory that a sideways move would make

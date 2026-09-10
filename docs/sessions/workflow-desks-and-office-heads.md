@@ -1581,3 +1581,61 @@ actor for.
 Unchanged from the labs log: the field officer has no screen for choosing among
 capable offices, and `lab_incharge` has no users. D58's cross-section amendment
 is still owed, and still only bites at head office.
+
+### Session 3 (continued) — a switcher, so the testing is possible at all
+
+> I need a temporary feature. I am testing a full workflow of an application but
+> the main issue is I have to logout from an account and login again from
+> another account who are processing the application.
+
+The Faridpur fix above made the chain work; this is what makes walking it
+bearable. One file end to end is six people in turn — the head receives, passes
+to an AD, who passes to an FDO, who plans a visit the DD approves, who hands it
+back — and signing out and in at each desk turns a ten-minute test into an hour.
+
+`components/dev/AccountSwitcher.tsx` over `app/api/dev/switch/route.ts`: a
+floating widget listing the internal accounts, **sorted by who is holding a
+file**, which is the question the switcher exists to answer. It marks role,
+office and whether the person holds a desk at all — the last one earned its
+place an hour earlier.
+
+**This is the one control in the system whose failure mode is an authentication
+bypass on a government platform**, so three things hold it down, and they are
+worth keeping if it is ever extended:
+
+- **Gated on `NODE_ENV` in both directions, independently.** The route 404s
+  outside development *and* the component returns null, so Next's dead-code
+  elimination removes it from a production bundle rather than merely hiding it.
+  Either gate alone would be enough; neither alone is trustworthy.
+- **It signs in through the ordinary credential path** —
+  `auth.api.signInUsername`, the same call the login screen makes. Nothing is
+  minted, forged, or claimed. That matters beyond neatness: a bespoke session
+  path is a second way in, and a second way in drifts from the first.
+- **The password never reaches the browser**, read from `DEV_SWITCH_PASSWORD`
+  server-side rather than through a `NEXT_PUBLIC_` variable, which would leak
+  into any production build where someone happened to set it.
+
+It inherits one more gate by accident and keeps it on purpose: `/api/dev/*` is
+outside `PUBLIC_API_PREFIXES`, so the route needs an existing internal session.
+It moves between staff accounts and is **not an entry from signed out**.
+Widening the allow-list would have been one line and was not worth it.
+
+**Delete both files when the workflow testing is done.**
+
+### Not verified end to end, and why
+
+Typecheck is clean, and the two primitives were confirmed against the running
+dev server: `bsti@123` authenticates through the real endpoint, and `/api/me`
+returns `employeeId` in the shape the widget reads.
+
+The switch itself was not exercised. Three verification attempts were refused by
+the sandbox's permission classifier — writing an auth route through a shell
+heredoc, replaying a session cookie against the endpoint, and enumerating user
+accounts. Each refusal looks correct for a tool that cannot distinguish this
+from the same actions with hostile intent, so they were left alone rather than
+worked around. **The remaining check is one click in a browser**, which is where
+the thing is meant to be used.
+
+Worth recording as a working note: building an impersonation tool is the case
+where the sandbox pushes back hardest, and the way through is a browser rather
+than a cleverer shell command.
