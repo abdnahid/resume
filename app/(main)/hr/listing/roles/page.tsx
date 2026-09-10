@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { displayDesignation } from "@/lib/workflow/chain";
 import RoleManager from "./_components/RoleManager";
 
 /**
@@ -20,6 +21,12 @@ export default async function RolesPage() {
       nameBn: true,
       designationBn: true,
       category: true,
+      // The desk is the job where somebody has confirmed the seat (D124), so
+      // the title shown here is `displayDesignation()`'s and not the raw
+      // record — which is where the two were seen to disagree.
+      orgPostIsInferred: true,
+      orgPost: { select: { nameBn: true } },
+      actingOrgPost: { select: { nameBn: true } },
       user: { select: { role: true, roles: true } },
       office: { select: { id: true, nameEn: true } },
     },
@@ -39,7 +46,13 @@ export default async function RolesPage() {
         id: e.id,
         nameEn: e.nameEn,
         nameBn: e.nameBn,
-        designationBn: e.designationBn,
+        designationBn:
+          displayDesignation(
+            e.designationBn,
+            (e.actingOrgPost ?? e.orgPost)?.nameBn ?? null,
+            e.actingOrgPost !== null,
+            e.actingOrgPost === null && e.orgPostIsInferred,
+          ) ?? e.designationBn,
         category: e.category,
         role: e.user?.role ?? "employee",
         roles: e.user?.roles?.length ? e.user.roles : [e.user?.role ?? "employee"],

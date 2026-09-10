@@ -1726,10 +1726,60 @@ Column first, backfill, then the enum.
   moving payroll to the accounts desk was written as a careful accommodation. It
   was a single-valued column showing through, and it can now be revisited.
 
+### Session 3 (continued) — a designation is not a desk
+
+### User
+
+> Everyone has their own designation but can be assigned to a different desk. An
+> employee with designation as Inspector (metrology) can be assigned to a desk
+> like Examiner(Chemical). Maybe for that desk we are lacking an exact employee
+> with designation Examiner(chemical) and we have an Inspector(Metrology) who can
+> be used in that post momentarily because maybe he has expertise in chemical. In
+> general case Inspector (metrology) will be assigned to Inspector(metrology)
+> desk.
+
+That answers the question this session opened with, and it is a cleaner model
+than the code assumed. The desk decides the section, which is already how
+routing works; what was missing is that **the system could not tell a deliberate
+cross-rank placement from a mistake.**
+
+It could not, because **every desk held today was assigned by a script.**
+`import:desks` matches office → wing → grade → title and takes whatever seat at
+the employee's grade is free when no title matches — which put 325 of 481 on a
+post of a different rank. A placement made for expertise and a placement made by
+a `Math.max` over string similarity are the same row.
+
+So a guess says so: `Employee.orgPostIsInferred`, set by `import:desks` on
+everything it writes. `displayDesignation()` trusts the post outright once a
+seat is confirmed — the client's rule, whatever the rank — and keeps the old
+distrust only while the seat is inferred.
+
+**323 rows flagged**, those where the desk's rank disagrees with the record. The
+158 where it agrees were left alone: the answer is the same either way.
+
+```
+desked & active: 481
+  title shown comes from the desk   : 176   (was 157)
+  ...from the recorded designation  : 305   (seat still inferred, rank differs)
+
+  "Inspector"          → "Field Inspector (Metrology)"
+  "Assistant Director" → "Assistant Director (CM)"
+  "Assistant Director" → "Assistant Director (Metrology)"
+```
+
+The first of those is the client's own example, and the reason it read wrong on
+the roles screen: that screen printed `designationBn` raw. It goes through
+`displayDesignation()` now.
+
+**Nothing can clear the flag yet.** A re-seating screen is what confirms a seat,
+and until it exists `import:desks` is the only writer and marks everything it
+does as inferred. That is the next step, and it is also the answer to "which of
+21 identically-titled Metrology posts is his" — only a person can say.
+
 ### Resume here
 
-**Not done, and reported to the client rather than guessed at:** the designation
-/ desk text mismatch and the section-attachment question. The measurements are
+**Still open:** the re-seating screen. Without it the 305 inferred seats cannot
+be confirmed, and a person moved to a different section has no way in. The measurements are
 in the reply — 36 titles identical, 103 differing only by the bracketed section,
 342 genuinely different — and the second and third groups need different
 answers, so neither was changed.

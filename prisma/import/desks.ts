@@ -274,7 +274,13 @@ async function main() {
   for (const r of [...exact, ...close]) {
     const res = await prisma.employee.updateMany({
       where: { id: r.employeeId, orgPostId: null },
-      data: { orgPostId: r.postId },
+      // **Flagged as inferred** (D124). This matches on office → wing → grade →
+      // title and takes whatever seat at the grade is free when no title
+      // matches, so a placement it makes is a guess until somebody confirms it.
+      // Without the flag a guess and a deliberate cross-rank placement — an
+      // Inspector (Metrology) put on an Examiner (Chemical) desk because he
+      // knows chemistry — are identical in the data.
+      data: { orgPostId: r.postId, orgPostIsInferred: true },
     });
     written += res.count;
   }

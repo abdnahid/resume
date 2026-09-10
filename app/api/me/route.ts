@@ -36,6 +36,7 @@ export async function GET() {
       designationBn: true,
       status: true,
       office: { select: { nameEn: true, nameBn: true } },
+      orgPostIsInferred: true,
       orgPost: {
         select: { id: true, nameEn: true, nameBn: true, unit: { select: { nameEn: true, nameBn: true } } },
       },
@@ -91,8 +92,10 @@ export async function GET() {
     employeeId: e.id,
     nameEn: e.nameEn,
     nameBn: e.nameBn,
-    designationEn: displayDesignation(recordedEn, post?.nameEn ?? null, isActing),
-    designationBn: displayDesignation(recordedBn, post?.nameBn ?? null, isActing),
+    // An acting charge is recorded by hand, so it is never inferred; a
+    // substantive seat may still be waiting for somebody to confirm it (D124).
+    designationEn: displayDesignation(recordedEn, post?.nameEn ?? null, isActing, !isActing && e.orgPostIsInferred),
+    designationBn: displayDesignation(recordedBn, post?.nameBn ?? null, isActing, !isActing && e.orgPostIsInferred),
     /** What HR recorded, kept so the two can be told apart where they differ. */
     recordedDesignationEn: recordedEn,
     officeEn: e.office?.nameEn ?? null,

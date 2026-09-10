@@ -564,8 +564,30 @@ model Employee {
 
   // Relations
   orgPostId Int?
-  orgPost   OrgPost?  @relation(fields: [orgPostId], references: [id])
-  postings  Posting[]
+  orgPost   OrgPost? @relation(fields: [orgPostId], references: [id])
+
+  /// True while nobody has confirmed that this is the right desk (D124).
+  ///
+  /// **A designation and a desk are different things, and may differ on
+  /// purpose.** The client's rule (2026-09-10): normally an Inspector
+  /// (Metrology) sits on an Inspector (Metrology) desk, but where a post has no
+  /// exact match somebody with adjacent expertise fills it — an Inspector
+  /// (Metrology) on an Examiner (Chemical) desk because he knows chemistry.
+  /// The post is then the job, and the section it sits in is where his files
+  /// go.
+  ///
+  /// The system could not tell that apart from a mistake, because **every desk
+  /// held today was assigned by a script**: `import:desks` seats people by
+  /// office → wing → grade → title and takes whatever seat at their grade is
+  /// free when no title matches, which put 325 of 481 on a post of a different
+  /// rank. A deliberate placement and a guess look identical in the data.
+  ///
+  /// So a guess says so. `displayDesignation()` trusts the post outright once
+  /// somebody has confirmed the seat, and falls back to the recorded
+  /// designation while it is still inferred — because a rank disagreement
+  /// nobody has looked at is more likely to be the matching than the truth.
+  orgPostIsInferred Boolean   @default(false)
+  postings          Posting[]
 
   /// The post this employee holds **in addition to their own**, when its
   /// substantive holder is absent and they are given its charge.

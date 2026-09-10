@@ -224,9 +224,21 @@ export function displayDesignation(
   recorded: string | null,
   postTitle: string | null,
   isActing = false,
+  /**
+   * True while nobody has confirmed the seat — see
+   * `Employee.orgPostIsInferred`. Defaults to trusting the post, because a
+   * caller that does not know is describing a placement somebody made.
+   */
+  isInferred = false,
 ): string | null {
   if (!postTitle) return recorded;
   if (!recorded || isActing) return postTitle;
+  // **A confirmed placement is the job, whatever the rank.** An Inspector
+  // (Metrology) put on an Examiner (Chemical) desk because he knows chemistry
+  // is doing the chemical job, and his files go to that section (D124).
+  if (!isInferred) return postTitle;
+  // Still inferred: the seat came from `import:desks` matching on grade, and a
+  // rank disagreement is more likely to be the matching than the truth.
   return deskRank(recorded).label === deskRank(postTitle).label ? postTitle : recorded;
 }
 

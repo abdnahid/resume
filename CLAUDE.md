@@ -149,6 +149,20 @@ and a theme class in `app/globals.css`.
   `components/layout/AccountMenu.tsx` holds it, and both navbars use it:
   `ModuleNavbar` renders it directly, `Navbar` (the /hr one) shares its `useMe()`
   hook.
+- **A designation and a desk are different things, and may differ on purpose**
+  (D124). Normally an Inspector (Metrology) sits on an Inspector (Metrology)
+  desk; where a post has no exact match, somebody with adjacent expertise fills
+  it — an Inspector (Metrology) on an Examiner (Chemical) desk because he knows
+  chemistry. **The post is then the job**, and the section it sits in is where
+  his files go.
+  **`Employee.orgPostIsInferred` is what tells that apart from a mistake.**
+  Every desk held today was assigned by a script, and `import:desks` takes
+  whatever seat at the grade is free when no title matches — so a placement it
+  makes is a guess and says so. `displayDesignation()` trusts the post outright
+  once a seat is confirmed, and falls back to the recorded designation while it
+  is inferred. 323 rows are flagged; **176 of 481 now take their title from the
+  desk** and the remaining 305 are the correction list.
+  **Nothing can yet clear the flag** — a re-seating screen is the next step.
 - **The title shown is the desk's, where the desk is credible.**
   `displayDesignation()` in `lib/workflow/chain.ts`. The post *is* the job — a
   Deputy Director (CM) moved onto the Deputy Director (Halal Certification) desk
