@@ -117,15 +117,21 @@ export const cellKey = (applicationSubProductId: number, officeId: number) =>
  * not name it. Guards the commit rather than the form: the FDO is allowed to
  * work through the grid a cell at a time.
  */
-export function planProblems(plan: SamplePlan): string[] {
+export function planProblems(
+  plan: SamplePlan,
+  /** Office id → name. Without it the messages read "office 6", which is an id
+   *  nobody carries in their head — and these are read by a field officer. */
+  officeName?: Map<number, string>,
+): string[] {
+  const name = (id: number) => officeName?.get(id) ?? `office ${id}`;
   const out: string[] = [];
   for (const c of plan.missing)
-    out.push(`${c.subProductName}: no sample count agreed with office ${c.officeId}`);
+    out.push(`${c.subProductName}: no sample count agreed with ${name(c.officeId)}`);
   for (const c of plan.cells) {
     if (c.variantCount === 0)
       out.push(`${c.subProductName}: no variants recorded, so nothing to sample`);
     if (c.samplesPerVariant !== null && c.samplesPerVariant < 1)
-      out.push(`${c.subProductName}: office ${c.officeId} asks for ${c.samplesPerVariant} samples per variant`);
+      out.push(`${c.subProductName}: ${name(c.officeId)} asks for ${c.samplesPerVariant} samples per variant`);
   }
   return [...new Set(out)];
 }

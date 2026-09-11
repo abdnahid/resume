@@ -446,8 +446,9 @@ model Office {
   subProductScopes OfficeSubProductScope[]
 
   capabilities       ParameterCapability[]
-  preferencesFrom    RoutingPreference[]       @relation("PreferenceFrom")
-  preferencesTo      RoutingPreference[]       @relation("PreferenceTo")
+  chosenDestinations ApplicationParameterDestination[]
+  preferencesFrom    RoutingPreference[]               @relation("PreferenceFrom")
+  preferencesTo      RoutingPreference[]               @relation("PreferenceTo")
   consignments       Consignment[]
   testOrders         LabTestOrder[]
   /// What this office has told field officers it wants, per sub-product.
@@ -648,12 +649,13 @@ model Employee {
   languages                Language[]
   curriculars              Curricular[]
   disciplinaryActions      DisciplinaryAction[]
-  heldApplications         Application[]             @relation("ApplicationHolder")
-  officeScopesDeclared     OfficeSubProductScope[]   @relation("OfficeScopeDeclaredBy")
-  capabilitiesDeclared     ParameterCapability[]     @relation("CapabilityDeclaredBy")
-  sampleRequirementsAgreed OfficeSampleRequirement[] @relation("OfficeRequirementAgreedBy")
-  movementsSent            ApplicationMovement[]     @relation("MovementFrom")
-  movementsReceived        ApplicationMovement[]     @relation("MovementTo")
+  heldApplications         Application[]                     @relation("ApplicationHolder")
+  officeScopesDeclared     OfficeSubProductScope[]           @relation("OfficeScopeDeclaredBy")
+  destinationsChosen       ApplicationParameterDestination[] @relation("DestinationChosenBy")
+  capabilitiesDeclared     ParameterCapability[]             @relation("CapabilityDeclaredBy")
+  sampleRequirementsAgreed OfficeSampleRequirement[]         @relation("OfficeRequirementAgreedBy")
+  movementsSent            ApplicationMovement[]             @relation("MovementFrom")
+  movementsReceived        ApplicationMovement[]             @relation("MovementTo")
 
   // ─ Samples and lab testing ─
   subProductsDeclared  ApplicationSubProduct[]    @relation("SubProductDeclaredBy")
@@ -2858,6 +2860,7 @@ model TestParameter {
   subParameters      TestSubParameter[]
   officeCapabilities ParameterCapability[]
   preferences        RoutingPreference[]
+  chosenDestinations ApplicationParameterDestination[]
   orderItems         LabTestOrderItem[]
 
   createdAt DateTime @default(now())
@@ -3194,6 +3197,7 @@ model ApplicationSubProduct {
   skus         ApplicationSku[]
   requirements SampleRequirement[]
   registry     SampleRegistration[]
+  destinations ApplicationParameterDestination[]
 
   @@unique([applicationId, subProductId])
   @@index([subProductId])
@@ -3207,6 +3211,45 @@ model ApplicationSubProduct {
 /// cannot forget one. The **count is his**, because it depends on sample
 /// quantity and whether a test is destructive, which is data BSTI has not
 /// collected (A§1.2). He phones the lab and types it.
+/// Where the field officer chose to send one test, for **this** consignment.
+///
+/// Capability says which offices *can* run a test; a `RoutingPreference` says
+/// which one this office normally picks. Where neither settles it — several
+/// capable offices and no standing preference — somebody has to choose, and it
+/// is the officer sealing the jars who does, because he is the one who knows
+/// that Khulna is three days behind this month (D125).
+///
+/// **Per application, not per office**, for the same reason `SampleRequirement`
+/// is: this is a decision about one consignment. The office's standing answer
+/// is `RoutingPreference`, set on the map, and the two are deliberately
+/// different rows — a choice made once under pressure should not silently
+/// become policy.
+///
+/// It **overrides** a preference as well as filling a gap: the client's rule is
+/// that the preference pre-fills and the officer may override it.
+model ApplicationParameterDestination {
+  applicationSubProductId Int
+  applicationSubProduct   ApplicationSubProduct @relation(fields: [applicationSubProductId], references: [id], onDelete: Cascade)
+
+  parameterId Int
+  parameter   TestParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  /// Must hold the capability — checked when it is written and again when the
+  /// plan is built, because a lab may drop a capability in between.
+  officeId Int
+  office   Office @relation(fields: [officeId], references: [id])
+
+  chosenAt           DateTime  @default(now())
+  chosenByEmployeeId String?
+  chosenBy           Employee? @relation("DestinationChosenBy", fields: [chosenByEmployeeId], references: [id])
+
+  note String?
+
+  @@id([applicationSubProductId, parameterId])
+  @@index([parameterId])
+  @@index([officeId])
+}
+
 model SampleRequirement {
   id Int @id @default(autoincrement())
 

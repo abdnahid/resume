@@ -9,7 +9,7 @@
  * Server half (D9). `plan.ts` holds the Prisma-free arithmetic.
  */
 import { prisma } from "@/lib/prisma";
-import { buildPlanFor } from "./service";
+import { buildPlanFor, type OpenChoice } from "./service";
 import { planProblems, type PlanCell } from "./plan";
 
 export type SamplingCell = PlanCell & {
@@ -23,6 +23,13 @@ export type SamplingCell = PlanCell & {
 };
 
 export type SamplingView = {
+  /**
+   * Parameters several offices can run, with nothing to settle which — the
+   * officer chooses (D125). The plan cannot be sealed while any remain, and
+   * before this they were computed and thrown away, so the screen showed the
+   * problem and offered no way to answer it.
+   */
+  openChoices: OpenChoice[];
   cells: SamplingCell[];
   boxes: { labId: number; labName: string; sampleCount: number | null }[];
   totalSamples: number | null;
@@ -50,7 +57,7 @@ export type SamplingView = {
 };
 
 export async function samplingView(applicationId: number): Promise<SamplingView> {
-  const { plan, problems } = await buildPlanFor(applicationId);
+  const { plan, problems, openChoices } = await buildPlanFor(applicationId);
 
   const officeIds = [...new Set(plan.cells.map((c) => c.officeId))];
   const parameterIds = [...new Set(plan.cells.flatMap((c) => c.parameterIds))];
@@ -152,13 +159,15 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
   });
 
   return {
+    /** Parameters the officer must place before the plan is complete (D125). */
+    openChoices,
     cells,
     boxes: plan.boxes.map((b) => ({
       ...b, labId: b.officeId,
       labName: officeName.get(b.officeId) ?? `Office ${b.officeId}`,
     })),
     totalSamples: plan.totalSamples,
-    problems: [...problems, ...planProblems(plan)],
+    problems: [...problems, ...planProblems(plan, officeName)],
     missingCount: plan.missing.length,
     committed: committedRows.length
       ? {

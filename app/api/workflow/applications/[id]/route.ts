@@ -10,7 +10,9 @@ import {
   saveReport, sendReportForApproval, approveReport,
   returnVisitToOfficer, demandFactoryDevelopment,
 } from "@/lib/cm/inspection-report";
-import { setRequirement, commitSampling } from "@/lib/samples/service";
+import { setRequirement, commitSampling,
+  setParameterDestination,
+} from "@/lib/samples/service";
 import { issueSampleLetters } from "@/lib/cm/letters";
 import { addSubProduct, removeSubProduct, setSubProductInProduction } from "@/lib/cm/sub-products";
 import { addSku, removeSku, setSkuInProduction } from "@/lib/cm/skus";
@@ -369,7 +371,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // ── Sampling (D87) ────────────────────────────────────────────────────
-    if (body.action === "sample-count" || body.action === "seal-samples") {
+    if (
+      body.action === "sample-count" ||
+      body.action === "seal-samples" ||
+      body.action === "parameter-destination"
+    ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
       }
@@ -388,6 +394,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           { error: "Only whoever is holding this file can plan its sampling." },
           { status: 403 },
         );
+      }
+
+      if (body.action === "parameter-destination") {
+        // Where the officer is sending one test (D125). The service refuses an
+        // office that has not declared the capability; the picker only offers
+        // capable ones, and a rule enforced where the button is holds only for
+        // people who used the button.
+        const asp = Number(body.applicationSubProductId);
+        const parameterId = Number(body.parameterId);
+        const officeId = body.officeId === null ? null : Number(body.officeId);
+        if (!Number.isInteger(asp) || !Number.isInteger(parameterId))
+          return NextResponse.json({ error: "Which test?" }, { status: 400 });
+        if (officeId !== null && !Number.isInteger(officeId))
+          return NextResponse.json({ error: "Which office?" }, { status: 400 });
+        try {
+          const r = await setParameterDestination({
+            applicationSubProductId: asp,
+            parameterId,
+            officeId,
+            employeeId: actor.employeeId,
+          });
+          return NextResponse.json({ ok: true, ...r });
+        } catch (e) {
+          return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+        }
       }
 
       if (body.action === "sample-count") {

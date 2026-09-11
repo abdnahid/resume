@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench. |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench; **Session 16 lets the field officer choose among capable offices, which completes the routing model end to end.** |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; **Session 3 (2026-09-10) makes a person able to hold several roles, amending D57.** |
 
 Two rules from the spec that carry real weight:
@@ -1842,6 +1842,16 @@ can reuse them.
   approved — sealing samples for an unauthorised visit would be jars nobody sent
   anyone to collect. `lib/samples/screen.ts` assembles it; the arithmetic stays
   Prisma-free in `plan.ts`.
+- **Where several offices can run a test, the officer chooses** (D125). The
+  order is **chosen → here → preferred → sole**: an explicit choice wins over
+  everything, a standing `RoutingPreference` only pre-fills. The choice is
+  `ApplicationParameterDestination` — **per application**, the same split as
+  `SampleRequirement` against `OfficeSampleRequirement`, because it is a
+  decision about one consignment and should not silently become policy.
+  Only capable offices are offered, and `setParameterDestination()` refuses the
+  rest itself rather than trusting the picker. **Nothing can be sealed while a
+  test has no destination** — a specimen with nowhere to go is a jar nobody can
+  account for.
 - **Destinations are derived, counts are entered** (D69), and the screen says
   which is which. Every row is resolved from `LabRouting` — the officer cannot
   forget a lab or prepare a box nobody needs — and the one unknown is specimens

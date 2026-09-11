@@ -38,7 +38,16 @@ import {
  * routing are separate tables, and following it would send a sample to a lab
  * that cannot run the test.
  */
-export async function resolveDestinations(officeId: number, subProductId: number) {
+export async function resolveDestinations(
+  officeId: number,
+  subProductId: number,
+  /**
+   * What the field officer chose for this consignment, parameter → office
+   * (D125). It **wins over everything**, including a standing preference:
+   * the preference pre-fills and he may override it.
+   */
+  chosen?: Map<number, number>,
+) {
   const parameters = await prisma.testParameter.findMany({
     where: { subProductId },
     orderBy: [{ ordinal: "asc" }, { id: "asc" }],
@@ -92,12 +101,22 @@ export async function resolveDestinations(officeId: number, subProductId: number
     // has to carry. Otherwise the office's standing preference, if it names one
     // that is actually capable. Otherwise, if exactly one office can do it,
     // there is nothing to choose.
+    const picked = chosen?.get(p.id);
+    const byOfficer = picked ? candidates.find((c) => c.officeId === picked) : undefined;
     const here = candidates.find((c) => c.officeId === officeId);
     const pref = candidates.find((c) => c.officeId === preferred.get(p.id));
     const sole = candidates.length === 1 ? candidates[0] : undefined;
-    const chosen = here ?? pref ?? sole;
+    const chose = byOfficer ?? here ?? pref ?? sole;
 
-    if (!chosen) {
+    // A choice the officer made against an office that has since dropped the
+    // capability is not silently ignored — he picked it, and it stopped being
+    // possible after he did.
+    if (picked && !byOfficer)
+      problems.push(
+        `${p.nameEn} was sent to an office that no longer says it can run it — choose again`,
+      );
+
+    if (!chose) {
       choices.push({
         parameterId: p.id, parameterName: p.nameEn,
         offices: candidates.map((c) => ({
@@ -107,7 +126,7 @@ export async function resolveDestinations(officeId: number, subProductId: number
       problems.push(
         `${p.nameEn} can be run at ${candidates.length} offices — ${candidates
           .map((c) => c.office.nameEn.split(",").pop()?.trim())
-          .join(", ")} — and none is preferred, so somebody has to choose`,
+          .join(", ")} — and nobody has chosen one`,
       );
       continue;
     }
@@ -118,8 +137,8 @@ export async function resolveDestinations(officeId: number, subProductId: number
 
     routed.push({
       parameterId: p.id, parameterName: p.nameEn,
-      officeId: chosen.officeId, manner: chosen.manner,
-      officeName: chosen.office.nameEn,
+      officeId: chose.officeId, manner: chose.manner,
+      officeName: chose.office.nameEn,
     });
   }
 
@@ -137,6 +156,8 @@ export async function resolveDestinations(officeId: number, subProductId: number
 export async function buildPlanFor(applicationId: number): Promise<{
   plan: SamplePlan;
   problems: string[];
+  /** Parameters still waiting for the officer to name a destination (D125). */
+  openChoices: OpenChoice[];
 }> {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: applicationId },
@@ -161,10 +182,34 @@ export async function buildPlanFor(applicationId: number): Promise<{
 
   const subProducts: PlanSubProduct[] = [];
   const problems: string[] = [];
+  /**
+   * Parameters with several capable offices and nothing to settle it. They used
+   * to be computed and dropped here, which left the sampling screen nothing to
+   * render a picker from — so a package like Ceramic Tiles at Faridpur could be
+   * planned right up to the point of sealing and no further (D125).
+   */
+  const openChoices: OpenChoice[] = [];
+
+  const chosenRows = await prisma.applicationParameterDestination.findMany({
+    where: { applicationSubProduct: { applicationId } },
+    select: { applicationSubProductId: true, parameterId: true, officeId: true },
+  });
 
   for (const sp of app.subProducts) {
-    const d = await resolveDestinations(app.bstiOfficeId, sp.subProductId);
+    const chosen = new Map(
+      chosenRows.filter((c) => c.applicationSubProductId === sp.id)
+        .map((c) => [c.parameterId, c.officeId]),
+    );
+    const d = await resolveDestinations(app.bstiOfficeId, sp.subProductId, chosen);
     problems.push(...d.problems.map((p) => `${sp.subProduct.nameEn}: ${p}`));
+    for (const c of d.choices)
+      openChoices.push({
+        applicationSubProductId: sp.id,
+        subProductName: sp.subProduct.nameEn,
+        parameterId: c.parameterId,
+        parameterName: c.parameterName,
+        offices: c.offices,
+      });
     subProducts.push({
       applicationSubProductId: sp.id,
       subProductId: sp.subProductId,
@@ -194,7 +239,77 @@ export async function buildPlanFor(applicationId: number): Promise<{
     if (e.officeId !== null)
       known.set(cellKey(e.applicationSubProductId, e.officeId), e.samplesPerVariant);
 
-  return { plan: buildPlan(subProducts, known), problems };
+  return { plan: buildPlan(subProducts, known), problems, openChoices };
+}
+
+/** A parameter waiting for the officer to name its destination (D125). */
+export type OpenChoice = {
+  applicationSubProductId: number;
+  subProductName: string;
+  parameterId: number;
+  parameterName: string;
+  offices: { officeId: number; officeName: string; manner: string }[];
+};
+
+/**
+ * Record where the officer is sending one test.
+ *
+ * Refused unless the office actually holds the capability — the picker offers
+ * only capable offices, and a rule enforced where the button is holds only for
+ * people who used the button.
+ */
+export async function setParameterDestination(args: {
+  applicationSubProductId: number;
+  parameterId: number;
+  officeId: number | null;
+  employeeId?: string | null;
+  note?: string | null;
+}) {
+  if (args.officeId === null) {
+    await prisma.applicationParameterDestination.deleteMany({
+      where: {
+        applicationSubProductId: args.applicationSubProductId,
+        parameterId: args.parameterId,
+      },
+    });
+    return { cleared: true };
+  }
+
+  const capable = await prisma.parameterCapability.findUnique({
+    where: {
+      officeId_parameterId: { officeId: args.officeId, parameterId: args.parameterId },
+    },
+    select: { isActive: true, office: { select: { nameEn: true } } },
+  });
+  if (!capable?.isActive) {
+    const office = await prisma.office.findUnique({
+      where: { id: args.officeId }, select: { nameEn: true },
+    });
+    throw new Error(`${office?.nameEn ?? "That office"} has not said it can run this test.`);
+  }
+
+  await prisma.applicationParameterDestination.upsert({
+    where: {
+      applicationSubProductId_parameterId: {
+        applicationSubProductId: args.applicationSubProductId,
+        parameterId: args.parameterId,
+      },
+    },
+    create: {
+      applicationSubProductId: args.applicationSubProductId,
+      parameterId: args.parameterId,
+      officeId: args.officeId,
+      chosenByEmployeeId: args.employeeId ?? null,
+      note: args.note?.trim() || null,
+    },
+    update: {
+      officeId: args.officeId,
+      chosenAt: new Date(),
+      chosenByEmployeeId: args.employeeId ?? null,
+      note: args.note?.trim() || null,
+    },
+  });
+  return { cleared: false, officeName: capable.office.nameEn };
 }
 
 /**
@@ -258,7 +373,17 @@ export async function commitSampling(applicationId: number, employeeId?: string)
     throw new Error("This application already has sealed consignments.");
 
   const { plan, problems } = await buildPlanFor(applicationId);
-  const all = [...problems, ...planProblems(plan)];
+  // Named, not numbered: this message is read by the officer at the factory
+  // with the jars in front of him, and an office id is not something he carries.
+  const officeName = new Map(
+    (
+      await prisma.office.findMany({
+        where: { id: { in: [...new Set(plan.cells.map((c) => c.officeId))] } },
+        select: { id: true, nameEn: true },
+      })
+    ).map((o) => [o.id, o.nameEn]),
+  );
+  const all = [...problems, ...planProblems(plan, officeName)];
   if (all.length) throw new Error(`Sampling plan is not ready:\n- ${all.join("\n- ")}`);
 
   const skus = await prisma.applicationSku.findMany({

@@ -2950,3 +2950,89 @@ Unchanged and still outstanding:
 Live coverage as of this session: **27 capability rows across 4 offices** — head
 office 9, Khulna 9, Faridpur 7, Barishal 2 — 3 of them `third_party`, and 5
 preferences. 4,768 of 4,779 parameters still have no capable office.
+
+---
+
+## Session 16 — 2026-09-12 (Linux machine) — the officer gets to choose
+
+### User
+
+> Now that we are ready to enter laboratory capability and we have already done
+> some for faridpur, dhaka and khulna office for ceramic tiles, I want to test an
+> application at faridpur office. […] I think we need modification here because a
+> FDO should be able to pick and choose available laboratories for parameters
+> that are incapable of testing in Faridpur office.
+
+The outstanding item from sessions 11 through 15, hit on a real file rather than
+in the abstract. **Application 26, Faridpur, Ceramic Tiles**: seven of its nine
+tests placed on their own, and two — *Modulus of rupture* and *resistance to
+household chemicals* — that **both Khulna and head office can run**.
+
+`resolveDestinations()` had computed exactly those choices since D116, and
+`buildPlanFor()` dropped them on the floor. The screen could state the problem
+and offer no way to answer it.
+
+### What it does
+
+`ApplicationParameterDestination` — the officer's choice for one consignment.
+Resolution is now **chosen → here → preferred → sole**: an explicit choice beats
+everything, which is the client's own rule that a preference pre-fills and the
+officer may override.
+
+**Per application, not per office**, and that is the same split as
+`SampleRequirement` against `OfficeSampleRequirement`. This is a decision about
+*this* box, made by the person who knows Khulna is three days behind this month.
+The office's standing answer is a `RoutingPreference`, set on the map. A choice
+made once under pressure should not quietly become policy.
+
+Refused unless the office actually holds the capability — in the service, not
+only at the button — and **re-checked when the plan is built**, because a lab
+may drop a capability after the officer chose. That case is reported rather than
+silently reverting to unplaced: he picked it, and it stopped being possible
+after he did.
+
+### Verified on the client's own file
+
+```
+app 26 — before choosing
+  cells 1  boxes 1  open choices 2
+     c) Resistance to household chemicals…  → Khulna(in_house) / Dhaka(in_house)
+     Modulus of rupture in N/mm2            → Khulna(in_house) / Dhaka(in_house)
+  ✓ refused an incapable office: Divisional Office, BSTI, Sylhet has not said
+    it can run this test.
+
+after choosing Khulna and Head Office
+  open choices 0
+  box → Head Office, BSTI, Dhaka      1 test
+  box → District Office, BSTI, Faridpur   7 tests, per-variant 2
+  box → Divisional Office, BSTI, Khulna   1 test
+```
+
+Three boxes for one application, which is D72 working: one per destination
+office, carried by the applicant to each counter.
+
+### A smaller thing the test exposed
+
+With the choices made, the remaining warnings read *"no sample count agreed with
+**office 6**"*. `planProblems()` had been printing raw ids since session 11
+renamed the destination from a lab to an office — and this message is read by
+the officer standing at the factory with the jars in front of him. It takes a
+name map now, in both callers.
+
+### Lessons that cost something
+
+- **Computing an answer and discarding it is worse than not computing it.**
+  `choices` existed, was correct, and never reached a screen — so the feature
+  looked finished from the service's side and was unusable from the officer's.
+- **An id in a message is a message to a developer.** It survived a rename
+  because nothing typechecks prose, and it was only read once somebody used the
+  screen for real.
+
+### Resume here
+
+**The model is now complete end to end** — capability, preference, the officer's
+choice, boxes, seals. What is left is data entry: `lab_entry` still has no
+users, and 4,768 of 4,779 parameters have no capable office.
+
+Still outstanding from session 15: the re-seating screen, which is the only way
+to clear `orgPostIsInferred`.

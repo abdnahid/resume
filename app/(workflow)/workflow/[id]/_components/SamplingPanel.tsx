@@ -54,11 +54,20 @@ export type Committed = {
   }[];
 };
 
+export type OpenChoice = {
+  applicationSubProductId: number;
+  subProductName: string;
+  parameterId: number;
+  parameterName: string;
+  offices: { officeId: number; officeName: string; manner: string }[];
+};
+
 export default function SamplingPanel({
   applicationId,
   cells,
   boxes,
   problems,
+  openChoices,
   committed,
   canEdit,
 }: {
@@ -66,6 +75,7 @@ export default function SamplingPanel({
   cells: Cell[];
   boxes: { labId: number; labName: string; sampleCount: number | null }[];
   problems: string[];
+  openChoices: OpenChoice[];
   committed: Committed | null;
   canEdit: boolean;
 }) {
@@ -193,9 +203,15 @@ export default function SamplingPanel({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         {canEdit
-          ? "The labs and the tests are worked out from the routing map. What only you can say is how many specimens each lab wants — ask them, then type it."
+          ? "Where only one office can run a test, it is placed for you. Where several can, you choose. What nobody can work out is how many specimens each wants — ask them, then type it."
           : "The visiting officer plans this and seals the samples. You are seeing it as it stands."}
       </p>
+
+      {openChoices.length > 0 && <DestinationPicker
+        applicationId={applicationId}
+        choices={openChoices}
+        canEdit={canEdit}
+      />}
 
       {cells.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -362,5 +378,108 @@ export default function SamplingPanel({
         </div>
       )}
     </section>
+  );
+}
+
+
+/**
+ * The tests several offices can run, and nobody has placed.
+ *
+ * Capability says who *can*; a standing preference says who this office
+ * normally picks. Where neither settles it, the officer chooses — he is the one
+ * who knows that Khulna is three days behind this month (D125). Only offices
+ * that have declared the test are offered, and the service refuses the rest.
+ *
+ * It sits above the grid rather than inside it because a cell cannot exist for
+ * a test with no destination: the box it would belong to is exactly what is
+ * being decided.
+ */
+function DestinationPicker({
+  applicationId, choices, canEdit,
+}: {
+  applicationId: number;
+  choices: OpenChoice[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function choose(c: OpenChoice, officeId: number) {
+    setBusy(c.parameterId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workflow/applications/${applicationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "parameter-destination",
+          applicationSubProductId: c.applicationSubProductId,
+          parameterId: c.parameterId,
+          officeId,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) { setError(json.error ?? "That did not save."); return; }
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/40">
+      <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+        {choices.length} test{choices.length === 1 ? "" : "s"} can be run at more than one
+        office. {canEdit ? "Choose where each goes." : "The visiting officer chooses where each goes."}
+      </p>
+      <p className="mt-0.5 text-xs text-amber-900/80 dark:text-amber-200/80">
+        Nothing can be sealed until every test has a destination — a specimen with nowhere to go
+        is a jar nobody can account for.
+      </p>
+
+      {error && (
+        <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+          {error}
+        </p>
+      )}
+
+      <ul className="mt-3 space-y-2">
+        {choices.map((c) => (
+          <li
+            key={`${c.applicationSubProductId}:${c.parameterId}`}
+            className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-foreground">{c.parameterName}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {c.subProductName}
+              </span>
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {c.offices.map((o) => (
+                <button
+                  key={o.officeId}
+                  type="button"
+                  disabled={!canEdit || busy === c.parameterId}
+                  onClick={() => choose(c, o.officeId)}
+                  title={
+                    o.manner === "third_party"
+                      ? `${o.officeName} covers this by sending it to an accredited outside laboratory`
+                      : `${o.officeName} runs this on its own bench`
+                  }
+                  className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-40"
+                >
+                  {o.officeName.split(",").pop()?.trim()}
+                  {o.manner === "third_party" && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">sent out</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
