@@ -214,7 +214,18 @@ listings, 900px for the forms — and must not render a footer or a
   *gateway's* hosted page, and a BSTI navbar on it would misrepresent whose page
   the payer is looking at.
 - **The landing page keeps its own masthead.** It is a designed government
-  header with the bilingual institution name, not a module navbar.
+  header with the bilingual institution name, not a module navbar — but its
+  account control **is** `AccountMenu`, the same one every other surface uses.
+  It was a button to `/public/dashboard`, which is the identity-as-a-link
+  mistake `AccountMenu` exists to correct, repeated on the one page where that
+  control is the whole masthead. Signed *out* it keeps its own Sign in / Sign up
+  pair: there is no account to describe, and those are the two things a visitor
+  came for. `/` stays static — `LandingAuth` reads the session client-side.
+- **`AccountMenu` carries the way back to the internal side.** A member of staff
+  reading a public surface — the landing page, the store, a client's own
+  application — gets **My workspace** in the menu, where a client gets **My
+  account**. Deliberately a labelled item somebody chooses, which is the
+  opposite of the bug that made the name itself a link.
 
 ## Auth
 

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Briefcase, Check, ChevronDown, LogOut, UserRound } from "lucide-react";
+import { Briefcase, Check, ChevronDown, LayoutGrid, LogOut, UserRound } from "lucide-react";
+import { INTERNAL_HOME } from "@/lib/auth-identity";
 
 /**
  * The signed-in person, in the navbar.
@@ -171,7 +172,22 @@ export default function AccountMenu({
           {isInternal && <DeskSwitcher me={me} />}
 
           <div className="px-2 py-1.5">
-            {!isInternal && (
+            {isInternal ? (
+              /* The way back to the internal side, for a member of staff
+                 reading a public surface — the landing page, the store, a
+                 client's own application. It is the **opposite** of the bug
+                 this component was written to fix: a labelled item somebody
+                 chooses, not the name itself turning out to be a link. */
+              <Link
+                href={INTERNAL_HOME}
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-foreground transition-colors hover:bg-muted"
+              >
+                <LayoutGrid className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.8} />
+                My workspace
+              </Link>
+            ) : (
               <Link
                 href="/public/dashboard"
                 onClick={() => setOpen(false)}
@@ -204,10 +220,11 @@ export default function AccountMenu({
 /**
  * The desks this person may act from.
  *
- * Today nobody holds two. `User.role` is a single enum so there is no second
- * role to switch to, and a post held in additional charge (D74) is the only way
- * to occupy a second desk — one person does, and they gave up their substantive
- * seat when it went to somebody else, so even they have just the one.
+ * Today nobody holds two. A post held in additional charge (D74) is the only
+ * way to occupy a second desk — one person does, and they gave up their
+ * substantive seat when it went to somebody else, so even they have just the
+ * one. (Roles are a different thing and a person may hold several since D122;
+ * a desk is what this switches between.)
  *
  * So this **shows** what you hold and marks what you are acting from, and does
  * not offer a switch that would do nothing. When somebody genuinely holds two,
