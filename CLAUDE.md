@@ -2276,18 +2276,41 @@ was not available either. What saved it was a per-model CSV export taken through
 the web Studio, and `npm run db:restore` puts that back. If this ever happens
 again, that script is the path: `prisma db push` a new database, then restore.
 
-There is **no migration history** — `prisma/migrations/` does not exist and
-schema changes are applied with `prisma db push`. The database is remote and
-shared by every machine, so the schema stays in step on its own, but there is no
-record of how it got that way and no rollback.
+**Schema changes go through migrations** (D127), since 2026-09-13.
+`prisma/migrations/0_init` is the baseline — the whole schema as it stood on the
+day of the Neon move, marked applied rather than run. **Do not `prisma db push`
+any more**: it changes the database without leaving a record, and the next
+migration's diff would then contain somebody else's change as well as yours.
 
-This has already produced drift: an empty `Bds` table existed in the database
-that was never in `schema.prisma`. Adopting migrations before real client
-purchase data lands is recommended in the plan (step 3). Until then:
+```bash
+# 1. edit prisma/schema.prisma
+npm run db:migration -- add-lab-notes   # writes the SQL, applies nothing
+# 2. read prisma/migrations/<stamp>_add_lab_notes/migration.sql
+npm run db:deploy                       # applies it, then regenerates the client
+npm run db:status                       # what is applied, what is pending
+```
 
-- Always `prisma db push` from a clean `schema.prisma`, and read the data-loss
-  warnings rather than reflexively passing `--accept-data-loss`.
-- Check whether a table already exists before assuming a model is new.
+- **`prisma migrate dev` is not used, deliberately.** It is built for a
+  throwaway development database: it can decide the database has drifted and
+  offer to reset it, and it wants a shadow database to replay history into.
+  There is **one** database here, shared by both machines, holding 731 real
+  employees and a live payroll. Generate → read → apply is the same discipline
+  as the `--dry` on every importer.
+- **`db:migration` refuses while anything is pending**, because it diffs against
+  the live database — an unapplied migration's changes would be written into the
+  new one too, and then applied twice.
+- It **calls out the destructive lines** — `DROP TABLE`, `DROP COLUMN`,
+  `SET NOT NULL` — rather than leaving them in the middle of two thousand lines
+  of DDL.
+- **The CLI uses `DIRECT_DATABASE_URL`**, set in `prisma.config.ts`. Migrations
+  take advisory locks and run multi-statement batches, and Neon's pooled
+  endpoint does not hold a session across them. The app keeps the pooled one.
+- After a `git pull` that brings new migrations, run `npm run db:deploy`. It is
+  idempotent, so running it when there is nothing to do costs a round trip.
+
+The old world left one piece of drift behind: an empty `Bds` table existed in
+the database that was never in `schema.prisma`. Check whether a table already
+exists before assuming a model is new.
 
 ## Working from two machines
 
@@ -2310,22 +2333,20 @@ own preinstall), not the project's postinstall, which runs. Running
 `npx prisma generate` again after a pull is harmless and takes under a second,
 so the step above is belt and braces rather than a fix for a known break.
 
-**Where the client actually goes stale is your own schema edits.**
-`npx prisma db push` applies `schema.prisma` to the database but does **not**
-regenerate the client. Change the schema, push it, and `npx tsc --noEmit`
-reports a pile of "Property 'x' does not exist on type" errors that read as
-broken code when only the client is behind. Always pair them:
-
-```bash
-npx prisma db push && npx prisma generate
-```
+**Where the client goes stale is your own schema edits.** A schema change that
+has not been generated makes `npx tsc --noEmit` report a pile of "Property 'x'
+does not exist on type" errors that read as broken code when only the client is
+behind. `npm run db:deploy` regenerates as its last step, so the pairing is
+handled — but if you ever apply DDL by hand, follow it with
+`npx prisma generate`.
 
 `npm run build` regenerates first (`prisma generate && next build`), so a full
 build hides this; `tsc` does not.
 
-**You do not need `prisma db push` after a pull.** The database is remote and
-shared, so whichever machine made the schema change already applied it. Push
-only when *you* have edited `schema.prisma`.
+**After a pull, run `npm run db:deploy`.** The database is remote and shared, so
+whichever machine made the schema change already applied it to the database —
+but the *migration file* arrives with the pull, and `deploy` is what records it
+as applied here. It is idempotent.
 
 **Ending a session — leave nothing behind:**
 
