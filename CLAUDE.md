@@ -46,7 +46,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 
 | Log | Covers |
 |---|---|
-| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench; **Session 16 lets the field officer choose among capable offices, which completes the routing model end to end.** |
+| `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench; **Session 16 lets the field officer choose among capable offices, which completes the routing model end to end; Session 17 moves the database to Neon after Prisma Postgres locked the account out, restoring from a Studio CSV export.** |
 | `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; **Session 3 (2026-09-10) makes a person able to hold several roles, amending D57.** |
 
 Two rules from the spec that carry real weight:
@@ -61,8 +61,9 @@ Two rules from the spec that carry real weight:
 ## Stack
 
 - Next.js 14 App Router, TypeScript, Tailwind v4
-- Prisma 7 + PostgreSQL (remote, `db.prisma.io`), client generated to
-  `generated/prisma`, `@prisma/adapter-pg`
+- Prisma 7 + PostgreSQL — **Neon**, `ap-southeast-1`, Postgres 17. Client
+  generated to `generated/prisma`, `@prisma/adapter-pg` over a direct TCP
+  connection. Moved off Prisma Postgres 2026-09-12 (D126)
 - better-auth (session cookie + `cookieCache`; `username` plugin for staff —
   username is the employee ID; `phone-number` plugin for clients, mapped onto
   `User.mobile`)
@@ -2259,6 +2260,21 @@ share `.next` and the build fails with confusing prerender errors. Stop dev
 first; if a build fails oddly, `rm -rf .next` and retry before believing it.
 
 ## Database
+
+**Neon, since 2026-09-12** (D126). `DATABASE_URL` is the **pooled** endpoint
+(`…-pooler.…`), which is right for the app. **DDL needs the direct endpoint** —
+drop `-pooler` from the host — because `prisma db push` through a transaction
+pooler is unreliable:
+
+```bash
+DATABASE_URL="${DATABASE_URL/-pooler./.}" npx prisma db push
+```
+
+**Why the move.** The Prisma Postgres account hit its plan limit and *every*
+connection began failing with `planLimitReached` — reads included, so `pg_dump`
+was not available either. What saved it was a per-model CSV export taken through
+the web Studio, and `npm run db:restore` puts that back. If this ever happens
+again, that script is the path: `prisma db push` a new database, then restore.
 
 There is **no migration history** — `prisma/migrations/` does not exist and
 schema changes are applied with `prisma db push`. The database is remote and

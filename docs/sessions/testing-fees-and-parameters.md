@@ -3036,3 +3036,105 @@ users, and 4,768 of 4,779 parameters have no capable office.
 
 Still outstanding from session 15: the re-seating screen, which is the only way
 to clear `orgPostIsInferred`.
+
+---
+
+## Session 17 — 2026-09-12 (Linux machine) — the database moved, under duress
+
+Not planned work. The Prisma Postgres account hit its plan limit and every
+connection began failing:
+
+```
+Failed to identify your database: Your account has restrictions:
+planLimitReached.
+```
+
+Reads included — so `pg_dump` was not an option, and neither was anything else
+through the connection string. No local backup existed.
+
+### What saved it
+
+A per-model CSV export taken through the **web** Studio, which reaches the data
+from inside Prisma's infrastructure rather than through `DATABASE_URL`. 95 files,
+76 tables, 14,587 rows.
+
+**Audited before a single row was written**, because a partial backup that looks
+complete is worse than none:
+
+- Studio paginates at 500. The decisive check is that **no table's total lands
+  on an exact multiple of 500** — every last page is partial, so the pagination
+  ran out rather than being cut short.
+- The counts matched what had been measured live earlier the same day: 4,779
+  parameters, 491 sub-products, 731 employees, 733 users, 27 capability rows,
+  5 preferences, 12 applications.
+- A referential sweep over every foreign key in the export found **one gap**:
+  `VerdictClause` and `SalaryFixation` both pointed at a `CaseVerdict` that had
+  not been exported, nor had its parent `EmployeeCase`. Two tables, two rows,
+  re-exported while access remained.
+
+### Three things the restore had to get right
+
+None of them obvious, and each would have produced a restore that looked fine:
+
+- **Studio exports a column per relation as well as per field** — `Account`,
+  `Employee`, `Application_createdBy` — always empty. Dropped by consulting the
+  schema, never by guessing from the header.
+- **CSV cannot tell an empty string from NULL.** 120 `Posting.grade` cells are
+  empty and the column is a required `String`, so they were empty strings in the
+  source; reading them as null refuses a restore over perfectly legal data. For
+  any other required type an empty cell really is missing, and is reported.
+- **Row values come back, sequences do not.** Every `autoincrement()` is set
+  past its highest id afterwards. Without it the first row somebody adds by hand
+  collides — weeks later, with nothing to connect it to the restore.
+
+Order is a topological sort over the **required** foreign keys only. Nullable
+links pointing at a table written later are deferred — inserted null, patched in
+a second pass — which is the only way to restore `Application ⇄ Payment`, since
+an application names the payment that settled its fee and a payment names the
+application it was raised from.
+
+### Verified, not assumed
+
+```
+76 tables match their CSV exactly — no mismatches
+
+capability by office:  Head Office 9 · Khulna 9 · Faridpur 7 · Barishal 2
+hand-recorded labs:    Physical Lab, Faridpur
+roles held:            employee 689, officeadmin 16, office_head 23,
+                       one_stop 1, case_officer 1, superadmin 1, client 2
+applications 12, consignments 4, samples 11
+
+app 26  → 3 cells, 3 boxes, 0 open choices, 0 problems
+          Head Office · Faridpur · Khulna      test fee ৳4,000
+
+sequence test: ProductCategory max id 5 → new row 6 ✓
+               Payment max id 47, sequence at 48 ✓
+```
+
+The 27 capability rows, the hand-recorded Faridpur lab and the officer's
+destination picks are the part no script could have rebuilt. They are all there.
+
+### Lessons that cost something
+
+- **A managed database can refuse you your own reads.** The failure mode nobody
+  plans for is not corruption but *billing*, and it takes `pg_dump` with it. The
+  repo could rebuild the catalogue and the roster from `utils/`; it could not
+  rebuild a single row anybody had typed into a screen.
+- **The completeness check is the work.** Restoring is mechanical. Knowing the
+  export was whole — pagination, counts, referential closure — is what made it
+  safe to delete nothing.
+- **`utils/backup/` is gitignored and must stay so.** `Account` carries a bcrypt
+  hash for all 733 users and `Employee` carries 731 real people; git history is
+  forever.
+
+### Resume here
+
+**The database is Neon and the app runs against it.** `DATABASE_URL` is the
+pooled endpoint; **DDL needs the direct one** — drop `-pooler` from the host, or
+`prisma db push` hangs on a transaction pooler.
+
+Unchanged: the re-seating screen, and `lab_entry` still has no users.
+
+**Worth doing now and awkward later:** adopt migrations. The schema was created
+on Neon by `db push`, so there is still no history — and a baseline against a
+fresh database costs almost nothing today.
