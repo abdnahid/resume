@@ -29,6 +29,7 @@
     "fix:orphaned-files": "tsx prisma/import/reassign-orphaned-files.ts",
     "seed:labs": "tsx prisma/seed-labs.ts",
     "labs:operational": "tsx prisma/import/operational-labs.ts",
+    "db:restore": "tsx prisma/import/restore-from-csv.ts",
     "labs:reconcile": "tsx prisma/import/reconcile-sub-products.ts"
   },
   "dependencies": {

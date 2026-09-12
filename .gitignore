@@ -26,3 +26,10 @@ utils/import-report.txt
 # Same, for `npm run import:desks`.
 utils/desk-assignment-report.txt
 utils/office-head-desk-report.txt
+
+# The CSV backup taken from Prisma Studio on 2026-09-12, when the Postgres
+# account hit its plan limit and pg_dump was no longer possible. It is the only
+# copy of the database, and it stays **out of git**: `Account` carries a bcrypt
+# hash for all 733 users and `Employee` carries 731 real people's records, and
+# git history is forever. Keep it backed up somewhere else, not here.
+utils/backup/
