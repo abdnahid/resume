@@ -46,6 +46,28 @@
  *    which was the Director. Asking the post did not resolve it either; it
  *    made the wrong answer *visible*, which is what let it be corrected.
  *
+ * 5. **The Chemical wing's directorship changes hands**, given 2026-09-13.
+ *    Gazi Md. Nurul Islam has left the Director (Chemistry) post, and
+ *    **Md. Khalilur Rahman holds it in additional charge** while remaining
+ *    substantively a Deputy Director (Chemistry) on the Organic Chemistry desk.
+ *
+ *    Note 4 seated Gazi on that post a week earlier, so this file now contains
+ *    both facts in sequence — the assertion has to be *changed*, not added
+ *    beside, or the script would seat him and unseat him in the same run.
+ *
+ *    `import:desks` had guessed Khalilur onto **Coordination Officer, grade 9,
+ *    in Executive (Department of Director General)** — a grade-9 seat for a
+ *    grade-6 officer in a wing he has nothing to do with. That is the guess
+ *    `orgPostIsInferred` exists to mark, and `displayDesignation()` was doing
+ *    its job: the ranks disagree, so it fell back to his recorded title and
+ *    showed "Deputy Director" rather than "Coordination Officer". Seating him
+ *    deliberately clears the flag, and the post's own name then becomes his
+ *    designation — desks and designations share one naming system.
+ *
+ *    His recorded designation is set to the qualified form as well. It was the
+ *    bare "Deputy Director", which says nothing about which wing, and the
+ *    display only reaches the post's spelling while the seat is credible.
+ *
  * 3. **The CM wing's two Deputy Director seats go to the other two DDs** —
  *    Kawser Ahmed Khan to CM Dhaka, Mohammad Arafat Hossain Sarker to Training.
  *    Client's instruction, 2026-09-05.
@@ -85,7 +107,11 @@ const DIR_CHEMISTRY_POST = 728;
 
 const PHYSICS_RETIRED = "19984010027"; // Md Shahadat Hossain
 const PHYSICS_DIRECTOR = "19984010029"; // Mobin Ul Islam
-const CHEMISTRY_DIRECTOR = "19945010033"; // Gazi Md. Nurul Islam
+const CHEMISTRY_DIRECTOR = "19945010033"; // Gazi Md. Nurul Islam — has since left the post
+/** Deputy Director (Chemistry), unit "Organic Chemistry". */
+const DD_CHEM_ORGANIC_POST = 732;
+/** Md. Khalilur Rahman — DD (Chemistry), acting Director (Chemistry). */
+const CHEMISTRY_ACTING = "19985010039";
 /** Kawser Ahmed Khan → the CM Dhaka DD seat. */
 const DD_CM_DHAKA = "20063010031";
 /** Mohammad Arafat Hossain Sarker → the Training DD seat. */
@@ -93,7 +119,7 @@ const DD_TRAINING = "20063010035";
 
 const EVERYONE = [
   RETIRED, ACTING, DD_CM_DHAKA, DD_TRAINING,
-  PHYSICS_RETIRED, PHYSICS_DIRECTOR, CHEMISTRY_DIRECTOR,
+  PHYSICS_RETIRED, PHYSICS_DIRECTOR, CHEMISTRY_DIRECTOR, CHEMISTRY_ACTING,
 ];
 
 async function main() {
@@ -139,6 +165,16 @@ async function main() {
     );
   }
 
+  const organic = await prisma.orgPost.findUnique({
+    where: { id: DD_CHEM_ORGANIC_POST },
+    select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } },
+  });
+  if (organic?.nameEn !== "Deputy Director (Chemistry)" || organic.unit.nameEn !== "Organic Chemistry") {
+    throw new Error(
+      `post ${DD_CHEM_ORGANIC_POST} is not Deputy Director (Chemistry) in Organic Chemistry: ${JSON.stringify(organic)}`,
+    );
+  }
+
   if (DRY) {
     console.log("\n--dry: nothing written.");
     console.log(`  ${RETIRED} → status retired, desk released, role employee`);
@@ -147,7 +183,11 @@ async function main() {
     console.log(`  ${DD_TRAINING} → desk ${DD_CM_TRAINING_POST} (Deputy Director (CM), Training)`);
     console.log(`  ${PHYSICS_RETIRED} → status retired, desk released`);
     console.log(`  ${PHYSICS_DIRECTOR} → desk ${DIR_PHYSICS_POST}, designation Director (Physical)`);
-    console.log(`  ${CHEMISTRY_DIRECTOR} → desk ${DIR_CHEMISTRY_POST}`);
+    console.log(`  ${CHEMISTRY_DIRECTOR} → desk released (has left ${DIR_CHEMISTRY_POST})`);
+    console.log(
+      `  ${CHEMISTRY_ACTING} → desk ${DD_CHEM_ORGANIC_POST} (Deputy Director (Chemistry), Organic Chemistry), ` +
+        `acting ${DIR_CHEMISTRY_POST}, designation Deputy Director (Chemistry), seat confirmed`,
+    );
     return;
   }
 
@@ -189,11 +229,27 @@ async function main() {
         designationBn: "পরিচালক (পদার্থ)",
       },
     }),
-    // Never seated: his wing name matched a leaf section, not the wing root
-    // where the Director post lives.
+    // Seated by note 4, released by note 5 a week later. The post is vacated
+    // before the charge is recorded: additional charge is what a *vacant* post
+    // runs on (D74), and `sanctionedCount` is 1.
+    //
+    // His employment status is deliberately untouched — "left the post" is not
+    // "left BSTI", and retiring somebody is a bigger claim than was made.
     prisma.employee.update({
       where: { id: CHEMISTRY_DIRECTOR },
-      data: { orgPostId: DIR_CHEMISTRY_POST },
+      data: { orgPostId: null },
+    }),
+    prisma.employee.update({
+      where: { id: CHEMISTRY_ACTING },
+      data: {
+        designationEn: "Deputy Director (Chemistry)",
+        designationBn: "উপপরিচালক (রসায়ন)",
+        orgPostId: DD_CHEM_ORGANIC_POST,
+        // A deliberate placement, so `displayDesignation()` may trust the post
+        // outright instead of falling back on a rank disagreement.
+        orgPostIsInferred: false,
+        actingOrgPostId: DIR_CHEMISTRY_POST,
+      },
     }),
   ]);
 

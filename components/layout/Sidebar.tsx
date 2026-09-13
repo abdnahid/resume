@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { useSidebar } from "@/components/layout/SidebarContext";
-import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck, Layers, Scale, Building2, ShieldCheck, CalendarClock } from "lucide-react";
+import { Users, DollarSign, FileText, Banknote, FileIcon, GitFork, CreditCard, Stamp, UserCircle, ClipboardCheck, Layers, Scale, Building2, ShieldCheck, CalendarClock, Armchair } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -51,6 +51,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: "Organogram",        href: "/hr/organogram",      icon: GitFork },
       { label: "Manage Structure",  href: "/hr/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
+      { label: "Desk Assignments",  href: "/hr/listing/desks",     icon: Armchair, roles: ["superadmin"] },
       { label: "Director General",  href: "/hr/listing/director-general", icon: Stamp, roles: ["superadmin"] },
       { label: "Office Setup",      href: "/hr/listing/offices",   icon: Building2, roles: ["superadmin", "officeadmin"] },
       { label: "Roles",             href: "/hr/listing/roles",     icon: ShieldCheck, roles: ["superadmin"] },

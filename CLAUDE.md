@@ -47,7 +47,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 | Log | Covers |
 |---|---|
 | `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench; **Session 16 lets the field officer choose among capable offices, which completes the routing model end to end; Session 17 moves the database to Neon after Prisma Postgres locked the account out, restoring from a Studio CSV export.** |
-| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; Session 3 (2026-09-10) makes a person able to hold several roles, amending D57; **Session 4 (2026-09-13) splits the applicant's letter one per destination, demands the testing fee with it, and gives the wing head and the One Stop counter a way to read the letters addressed to them — which turned up an office id living in a column keyed to `Lab`.** |
+| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; Session 3 (2026-09-10) makes a person able to hold several roles, amending D57; Session 4 (2026-09-13) splits the applicant's letter one per destination, demands the testing fee with it, and gives the wing head and the One Stop counter a way to read the letters addressed to them — which turned up an office id living in a column keyed to `Lab`; **Session 5 the same day builds the re-seating screen D124 asked for, after a wrong desk was found by signing in as its holder.** |
 
 Two rules from the spec that carry real weight:
 
@@ -111,6 +111,7 @@ The HR screens, all under `/hr/listing` unless noted:
 | `/hr/listing/cases` | court cases and verdicts | superadmin, case_officer |
 | `/hr/listing/offices` | office contact, zone and bank details | superadmin; own office for officeadmin |
 | `/hr/listing/roles` | who holds which role | superadmin |
+| `/hr/listing/desks` | which organogram post each person holds (D131) | superadmin |
 | `/hr/organogram` | the chart, and `/manage` to edit it | staff; superadmin to manage |
 
 `lib/salary/` is the payroll core — `compute.ts` and `dates.ts` are Prisma-free
@@ -163,7 +164,12 @@ and a theme class in `app/globals.css`.
   once a seat is confirmed, and falls back to the recorded designation while it
   is inferred. 323 rows are flagged; **176 of 481 now take their title from the
   desk** and the remaining 305 are the correction list.
-  **Nothing can yet clear the flag** — a re-seating screen is the next step.
+  **`/hr/listing/desks` is what clears the flag** (D131) — choosing a post by
+  hand is the act that makes "a script guessed this" untrue. Superadmin only,
+  over `setDesk()` in `lib/desk-service.ts`. Measured 2026-09-13: **322 of 480
+  seats are guesses and every one disagrees in rank**, so the recorded title is
+  shown for all of them and only the 158 confirmed rows display their desk's
+  name.
 - **The title shown is the desk's, where the desk is credible.**
   `displayDesignation()` in `lib/workflow/chain.ts`. The post *is* the job — a
   Deputy Director (CM) moved onto the Deputy Director (Halal Certification) desk
@@ -362,7 +368,8 @@ Of the 251 who hold none, **one is holding a post in additional charge** and so
 has a section anyway (`actingOrgPostId`, D74), and **one is retired**.
 `import:desks` skips both: someone acting in a senior post must not be seated on
 a junior seat that falls vacant, which would silently demote the officer running
-the wing. The importer does *not* set it:
+the wing. **A seat it got wrong is corrected at `/hr/listing/desks`** (D131) —
+the importer only ever *fills* a null `orgPostId`, so it cannot revisit one. The importer does *not* set it:
 the export names an office and a wing, never a sanctioned post, so joining the
 two is a separate, reviewable step that writes
 `utils/desk-assignment-report.txt` listing every assignment it makes.
@@ -512,9 +519,12 @@ happened to put first — not a way to address a letter.
 So `wingHeadForLab()` asks the post, in one order: the officer holding it
 substantively; the officer holding it in **additional charge** (D74) — the rare
 case, and what that column exists for; otherwise **nobody, said out loud**.
-Head office's **Chemical Testing Wing is vacant today** with nobody acting, so
-that third answer is live: an unaddressed letter is fixed in a minute, a letter
-addressed to the wrong Director is not noticed at all.
+Head office's Chemical Testing Wing runs on the **second** answer since
+2026-09-13 (D132): Gazi Md. Nurul Islam has left Director (Chemistry) and
+Md. Khalilur Rahman holds it in additional charge, so its sampling letters
+resolve to an acting holder. The third answer — nobody, said out loud — is what
+protects the case where neither exists: an unaddressed letter is fixed in a
+minute, a letter addressed to the wrong Director is not noticed at all.
 
 **A branch office has no testing wing** — its labs hang off the branch itself —
 so `officeHeadFor()` answers there, which is what `office_head` already means.
@@ -2287,6 +2297,7 @@ npm run import:products  # the 315 mandatory products (--dry to report without w
 npm run import:desks     # place employees on organogram posts (--dry to report without writing)
 npm run import:office-head-desks # seat each office head on their office's Executive desk (--dry)
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
+                                # desks are otherwise corrected at /hr/listing/desks (D131)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
 npm run fix:sample-letters      # letters issued before D128/D129/D130 brought up to the rule (--dry)
 

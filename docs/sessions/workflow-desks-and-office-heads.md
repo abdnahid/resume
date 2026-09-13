@@ -1975,3 +1975,141 @@ which the house rule forbids; leaving them off was worse.
   letter the client says it starts from is now readable, which is the half of it
   that could be built ahead.
 - The re-seating screen, still — 305 inferred seats, unchanged from session 3.
+
+## Session 5 — 2026-09-13 (Windows)
+
+The client signed in as **19985010039** while walking application 26 and found
+his own record wrong:
+
+> I logged in to id=19985010039 who is a deputy director as designation. His
+> desk is assigned as Coordination officer. this is wrong. He is actually
+> Director (chemical) additional charge. Also his designation should show
+> Deputy Director (Chemical). Actually desk names and designations are same. A
+> person's desk might be different but the naming system of designation and
+> desk are same.
+
+And then, asked which of two vacant DD (Chemistry) seats was his:
+
+> He is Deputy Director (Organic) The employees assigned to the desks are all
+> wrong in a sense. How can I make manual correction to those desks?
+
+That second sentence is the session's real work. The first is one row.
+
+### What was actually there
+
+MD. KHALILUR RAHMAN, Deputy Director, grade 6, sat on post 559 — **Coordination
+Officer, grade 9, Executive (Department of Director General)**. `import:desks`
+had guessed it (`orgPostIsInferred: true`) and had not even matched on grade.
+
+`displayDesignation()` was behaving correctly: the ranks disagree on a guessed
+seat, so it fell back to the recorded title and showed "Deputy Director". **That
+fallback is what hides a bad seat.** The screen looks plausible, the routing is
+wrong, and nothing says so.
+
+### The conflict the instruction could not settle
+
+Post 728, Director (Chemistry), sanctioned 1, was **held substantively** by Gazi
+Md. Nurul Islam — active, and `orgPostIsInferred: false`, so a deliberate seat,
+not a guess. Additional charge is what a *vacant* post runs on (D74). Asked, the
+client answered: Gazi has left; release it.
+
+Worth recording that this file said the opposite a week ago — *"Head office's
+Chemical Testing Wing is vacant today with nobody acting"* — which was true when
+written and was made false by `import:hr-corrections` note 4 seating Gazi on
+2026-09-06. A document is a snapshot; the database was the thing to ask.
+
+### Why the fix went into the importer
+
+`import:hr-corrections` **asserts** Gazi onto post 728. A hand-edit would have
+been undone by its next run — the same trap D112 records for folded
+sub-products, where the importer keys on a natural key, finds nothing and writes
+the row straight back. So the earlier assertion was *changed* rather than added
+beside, and the file now carries both facts in sequence with the dates on them.
+
+Applied after a `--dry` that passed every post guard:
+
+```
+19945010033 Gazi Md. Nurul Islam  → desk released (has left 728)
+19985010039 MD. KHALILUR RAHMAN   → desk 732 Deputy Director (Chemistry), Organic Chemistry
+                                    acting 728 Director (Chemistry)
+                                    designation Deputy Director (Chemistry) / উপপরিচালক (রসায়ন)
+                                    seat confirmed
+```
+
+Two consequences, both verified:
+
+- **`wingHeadForLab()` now answers on its second branch** for all four Chemical
+  Testing Wing labs — `kind: "acting"`, Md. Khalilur Rahman. Head office's
+  chemical sampling letters had a substantive Director to address before; they
+  now have an acting one, which is what D74 and D94 exist for.
+- **His navbar will read *Director (Chemistry)*, not *Deputy Director
+  (Chemistry)*.** `/api/me` takes `actingOrgPost ?? orgPost` and passes
+  `isActing`, and `displayDesignation()` returns the acting title outright. That
+  is D74's deliberate rule — "a DD acting as Director reads Director" — and it
+  sits against the client's "his designation should show Deputy Director
+  (Chemical)". **Open**: whether the substantive title should be shown with the
+  charge noted beside it. Flagged rather than changed, because it is a
+  documented rule and not an oversight.
+
+The organogram spells it **Chemistry**, not Chemical — উপপরিচালক (রসায়ন). By the
+client's own rule that desks and designations share one naming system, the
+post's spelling wins.
+
+### The screen — D131
+
+`/hr/listing/desks`, superadmin only, over `setDesk()` in `lib/desk-service.ts`.
+D124 said a re-seating screen was the next step and nothing could clear
+`orgPostIsInferred` without one, because `import:desks` only ever *fills* a null
+`orgPostId`.
+
+**Measured first, because the shape of the screen follows from the numbers:**
+
+| | count |
+|---|---|
+| active employees | 729 |
+| confirmed seats | 158 |
+| **guessed seats** | **322** |
+| …of those, rank disagrees with the record | **322 — all of them** |
+| no desk at all | 249 (114 daily basis, who hold no sanctioned post by definition) |
+
+So "needs review" is not a corner of this screen, it is most of it, and the
+filter chips carry their counts for that reason. And the all-322 figure explains
+the display rule end to end: **every guessed seat fails the rank test**, so the
+158 confirmed rows are the only ones that ever show their desk's name.
+
+Three rules, in the service and not at the button:
+
+- **A post outside the employee's own office subtree is refused.** A file routed
+  to their office would arrive at a desk in somebody else's — the fault
+  `import:desks` releases 15 seats to repair. The office→organogram-root mapping
+  was lifted out of that importer, which had the only copy.
+- **A post at or over its sanctioned count is refused by name**, listing who
+  holds it, because the fix is to move them and a count does not say who. The
+  same discipline as `setRouting()`. Overridable on confirmation, since 54 posts
+  are already over and have to stay editable.
+- **A charge over an occupied post warns rather than refusing.** Additional
+  charge normally covers a vacancy, but somebody on leave is real.
+
+Occupancy is on each option in the picker — `vacant`, `2 of 1 held`, and the
+holders' names — so "is there room" is answerable *before* the choice rather
+than after the refusal.
+
+Verified against live data: all three refusals fire and **none of them writes**;
+a seat-and-release round trip on a Faridpur row sets `orgPostIsInferred: false`,
+warns on the grade difference, warns that a released person can be passed no
+file, and the row was restored exactly. `npx tsc --noEmit` and `npm run build`
+both clean.
+
+### Still open
+
+- Whether the navbar should show the substantive designation with the charge
+  beside it, rather than the acting title (above).
+- **Gazi Md. Nurul Islam's employment status is untouched.** "Left the post" is
+  not "left BSTI", and retiring somebody is a bigger claim than was made. He is
+  now an active grade-4 Director with no desk — and `import:desks` fills a null
+  `orgPostId`, so a re-run could seat him somewhere arbitrary. Decide before
+  running it.
+- The counter still cannot receive a box: `submitConsignment()` is written,
+  correct and **called by nothing**. That is what blocks application 26 once its
+  ৳4,000 test fee is paid.
+- Faridpur and Khulna still have no `one_stop` holder.
