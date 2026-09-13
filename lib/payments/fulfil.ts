@@ -94,9 +94,36 @@ export async function fulfilPayment(reference: string): Promise<Fulfilment> {
       };
     }
 
+    case "testing_fee": {
+      const r = await settlePayment(reference);
+      if (r.status !== "paid") return { status: r.status, reason: r.reason, application: null };
+
+      // **Paid means the samples may now be handed in** (D129). The counter
+      // refuses a box while the fee is outstanding, so this is the step that
+      // unblocks it — and it is guarded on the row being `paid` in the
+      // database, not on this call having just settled it, because the browser
+      // return and the IPN both land here and only one of them sees `newlyPaid`.
+      const applicationId = Number(payment.subjectId);
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { state: true, testFeePayment: { select: { status: true } } },
+      });
+      if (app?.testFeePayment?.status === "paid" && app.state === "test_fee_demanded") {
+        await prisma.application.update({
+          where: { id: applicationId },
+          data: { state: "test_fee_paid" },
+        });
+      }
+      return {
+        status: r.status,
+        reason: r.reason,
+        application: { id: applicationId, applicationNo: null, state: "test_fee_paid" },
+      };
+    }
+
     default: {
-      // Testing and licence fees settle but grant nothing yet — those stages
-      // belong to the workflow engine.
+      // The licence fee settles but grants nothing yet — that stage belongs to
+      // the workflow engine.
       const r = await settlePayment(reference);
       return { status: r.status, reason: r.reason };
     }

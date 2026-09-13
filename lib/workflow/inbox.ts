@@ -112,6 +112,17 @@ export async function consignmentsForCounter(officeId: number) {
           // Read-only, and only ever read: a counter cannot mark a file paid to
           // accommodate a walk-in, and cannot receive against an unpaid one.
           applicationFeePayment: { select: { status: true } },
+          // **The testing fee is what gates this box** (D129). The counter sees
+          // whether it has been paid and refuses the sample if not; it still
+          // cannot change it.
+          testFeePoisha: true,
+          testFeePayment: { select: { status: true } },
+          // The letter this counter was sent, so the clerk can check the box
+          // against the seal numbers on it rather than against a screen.
+          letters: {
+            where: { kind: "one_stop", officeId },
+            select: { id: true, letterNo: true },
+          },
         },
       },
       _count: { select: { registry: true } },

@@ -47,7 +47,7 @@ earlier one. Settled decisions graduate to `docs/BUILD-PLAN.md` as D-numbers.
 | Log | Covers |
 |---|---|
 | `docs/sessions/testing-fees-and-parameters.md` | The test parameter catalogue (Phase G), the fee model over it, lab routing, and the sample-blinding layer. Started 2026-09-03 from `utils/textile-parameter-list.xlsx`; Session 5 (2026-09-08) imports the Chemical Wing's two files and takes the catalogue to 4,767 parameters; Session 6 the same day apportions the urgent fee to the wing's published totals and builds the `/labs` module over the lot; Session 7 corrects the premise — parameters are universal, not head office's — and adds the office coverage form; Session 8 finds one article split across two wings' sub-products and folds them back together; Session 9 (2026-09-09) fixes the single-sub-product picker and records Barishal's first real coverage entries; Session 10 records the mixed physical/chemical routing scenario; **Session 11 rebuilds the model on the client's answers — capability per office with a manner, the 109,802-cell routing map replaced by an optional preference**; Session 12 settles the fee convention from the files' own merges; Session 13 imports the physical sheet, giving Ceramic Tiles its 9 mixed tests; Session 14 (Windows) makes the lab registry editable and groups the coverage form by discipline; Session 15 fixes the destination-name collision that had every box labelled for the wrong bench; **Session 16 lets the field officer choose among capable offices, which completes the routing model end to end; Session 17 moves the database to Neon after Prisma Postgres locked the account out, restoring from a Studio CSV export.** |
-| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; **Session 3 (2026-09-10) makes a person able to hold several roles, amending D57.** |
+| `docs/sessions/workflow-desks-and-office-heads.md` | Files moving inside BSTI, end to end: the `/workflow` board and organogram placement, the `office_head` role, then the whole CM inspection flow — correction rounds, the inspection plan and office order, sampling and sealing, the two reports, and the letters that follow approval. Started 2026-09-05, covering work begun 2026-09-02 with step 8a; Session 2 runs to 2026-09-07; Session 3 (2026-09-10) makes a person able to hold several roles, amending D57; **Session 4 (2026-09-13) splits the applicant's letter one per destination, demands the testing fee with it, and gives the wing head and the One Stop counter a way to read the letters addressed to them — which turned up an office id living in a column keyed to `Lab`.** |
 
 Two rules from the spec that carry real weight:
 
@@ -1817,13 +1817,62 @@ can reuse them.
   `policy.ts` with the reasoning (D8); it is printed as guidance and **nothing
   enforces it**, because refusing a real sample over an invented deadline is
   worse than accepting a late one.
+- **The applicant gets one letter per destination office** (D128), not one
+  compiled sheet describing every journey. A compiled one cannot be handed in
+  anywhere: the counter taking the Khulna box cannot tell which paragraph is
+  theirs, and the applicant cannot leave the paper behind when it is accepted,
+  because the other two errands are printed on it. `?office=` selects one;
+  omitted, the earliest is used, which is what an older link means and what a
+  single-box file needs.
+- **Issuing the letters demands the testing fee, in the same act** (D129).
+  `Application.testFeePoisha` and `state: test_fee_demanded`. It is the first
+  moment the fee is a real number — sub-products settled, destinations chosen,
+  boxes sealed — so the sum across every laboratory is finally computable (D62).
+  **The amount is stored, never recomputed**: prices move, the urgent-fee
+  apportionment is still waiting on D100, and an applicant told ৳4,000 must be
+  charged ৳4,000. **The demand is a state and a figure, not a `Payment` row** —
+  a payment needs a payer and the issuing officer is not it, so the row is
+  raised when the applicant starts checkout, exactly as the application fee is.
+  `submitConsignment()` refuses while it is unpaid and names the amount.
+  `testFeeFor()` is the only place a test fee is summed; do not re-sum it
+  locally, not even in a one-off.
+- **A letter names an office, never a laboratory** (D130). `SampleLetter.labId`
+  is null on everything issued since, and `officeId` is set on all three kinds.
+  Since D116 the destination is an **office**, accountable for the testing
+  whether it runs on its own bench or sends it out, and the office is what
+  decides. It used to hold the destination office id in `labId` — a column whose
+  foreign key points at `Lab`. **Office ids run 1–23 inside lab ids 1–46, so
+  every one of them was a valid lab id** and the database took it in silence;
+  Khulna's wing head was issued a letter naming *Physical Lab, Barisal*. The
+  same collision that put the wrong lab on the sealing screen. Never pass an
+  office id to anything keyed on `Lab`, and name the variable for what it holds.
+- **A sampling letter is read from the letter, not from the file** (D130).
+  `/workflow/letters` and `lib/cm/letter-inbox.ts`. `canViewApplication()`
+  grants the file you hold, handled, or head the office of (D80) — and the
+  officer a letter is addressed to is **none of those**: a Faridpur inspection
+  sends a box to Khulna, whose officer is asked to expect samples on a file that
+  will never reach their desk. Every addressee was refused and the letters had
+  no reader. Access is the letter's: `addressedToEmployeeId` for a wing head,
+  `officeId` + `one_stop` for a counter, plus anyone with standing on the file.
+  A refusal is `notFound()`, per D71. The applicant's letter is deliberately
+  *not* here — it lives on the client surface (D98).
+- **The wing-head letter is blinded; the counter's is not** (D71). Testing-wing
+  staff get the package, the box, the seal and the jar count and never the
+  company, the factory, the brand or the application number, because the variant
+  *is* the applicant's identity. A counter hands the box back and forth with the
+  person carrying it and checks the fee against their file, so it names them.
+- **The `/workflow` navbar is built from what the viewer holds**,
+  `workflowNav()` in `lib/workflow/nav.ts` (Prisma-free). The counter and the
+  letter inbox both answer `notFound()` to someone without them, and the board
+  used to link neither — so a One Stop clerk could only reach their own screen
+  by typing its URL.
 - **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
   so the counter keeps working when the officer on it changes, and
   `/workflow/counter` lists what is coming to their office.
-  **`one_stop` has no users today**, so every counter is empty and no box can be
-  marked received — which is also why the applicant's own panel can never show
-  one as delivered. Granting the role at `/hr/listing/roles` is the first step,
-  and `submitConsignment()` still has no button.
+  **One office has a counter clerk** — JEB-UN NESA at head office. Faridpur and
+  Khulna have boxes coming and nobody holding `one_stop`, so those boxes cannot
+  be received and the letters sit in an inbox nobody can open. One grant each at
+  `/hr/listing/roles`.
   **Boxes are listed by the *laboratory's* office, not the file's** — the
   applicant carries each box to the office of the lab that will test it, which is
   often not the office the application belongs to, and a counter scoped to its
@@ -2239,6 +2288,7 @@ npm run import:desks     # place employees on organogram posts (--dry to report 
 npm run import:office-head-desks # seat each office head on their office's Executive desk (--dry)
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
+npm run fix:sample-letters      # letters issued before D128/D129/D130 brought up to the rule (--dry)
 
 npm run import:test-parameters # every .xlsx parameter file → the catalogue (--dry, --only=<key>)
 npm run import:chemical-parameters # the Chemical Wing's two .docx files (--dry, --names, --file=food)
@@ -2377,7 +2427,7 @@ importing `lib/prisma` will fail with `ECONNREFUSED` unless the file starts
 with `import "dotenv/config";` — Next loads `.env` itself, a bare tsx script
 does not. The seeds all do this already.
 
-**Batch writes against the remote database.** Round trips to `db.prisma.io`
+**Batch writes against the remote database.** Round trips to Neon
 cost roughly half a second each, so a loop of per-row `upsert`s is minutes
 where `createMany` is seconds — the 315-product import took ~100 minutes as a
 loop and under one batched. Prisma's interactive `$transaction` also times out

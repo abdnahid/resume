@@ -336,7 +336,10 @@ export default async function ProcessPage({
                   id: l.id,
                   kind: String(l.kind),
                   letterNo: l.letterNo,
-                  labName: l.lab?.nameEn ?? null,
+                  // The office, not the laboratory: a letter is about an
+                  // office's testing whether it runs on its own bench or goes
+                  // out (D116, D130). `l.lab` is the pre-D130 fallback.
+                  labName: l.office?.nameEn ?? l.lab?.nameEn ?? null,
                   to: l.addressedTo?.nameEn ?? l.office?.nameEn ?? null,
                   at: stamp(l.issuedAt),
                 }))}

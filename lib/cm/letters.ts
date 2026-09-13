@@ -25,6 +25,7 @@
  * a letter addressed to the wrong officer is one nobody notices.
  */
 import { prisma } from "@/lib/prisma";
+import { testFeeFor } from "./sub-products";
 import { memoOfficeLabel } from "@/lib/bengali";
 
 export type WingHead =
@@ -183,9 +184,17 @@ export async function letterRecipientsFor(applicationId: number) {
   });
 
   const out: {
-    labId: number;
-    labName: string;
+    /**
+     * **The destination office, not a laboratory** (D116). This used to be
+     * returned as `labId` while holding an office id, and `SampleLetter.labId`
+     * has a foreign key into `Lab` — office ids run 1–23 and lab ids 1–46, so
+     * every office id was a valid lab id and the database accepted it in
+     * silence. Khulna's wing head was issued a letter naming *Physical Lab,
+     * Barisal*. The same collision that put the wrong lab on the sealing
+     * screen; the cure is the same, which is to say what the number is.
+     */
     officeId: number;
+    officeName: string;
     boxCode: string;
     recipient: WingHead | { kind: "office_head"; employeeId: string; name: string; designation: string | null } | null;
   }[] = [];
@@ -210,9 +219,8 @@ export async function letterRecipientsFor(applicationId: number) {
       const head = await officeHeadFor(b.officeId);
       if (head) {
         out.push({
-          labId: b.officeId,
-          labName: b.office?.nameEn ?? "—",
           officeId: b.officeId,
+          officeName: b.office?.nameEn ?? "—",
           boxCode: b.code,
           recipient: { kind: "office_head", ...head },
         });
@@ -220,9 +228,8 @@ export async function letterRecipientsFor(applicationId: number) {
       }
     }
     out.push({
-      labId: b.officeId,
-      labName: b.office?.nameEn ?? "—",
       officeId: b.officeId,
+      officeName: b.office?.nameEn ?? "—",
       boxCode: b.code,
       recipient,
     });
@@ -236,9 +243,15 @@ export async function letterRecipientsFor(applicationId: number) {
  * The letters this file needs, worked out from the sealed boxes.
  *
  * Derived rather than composed: one to each destination laboratory's wing head,
- * one to the applicant covering every box, and one to each office whose One Stop
- * counter will receive one. The officer cannot forget a laboratory, for the same
- * reason he cannot forget a destination (D69).
+ * **one to the applicant for each office he must carry a box to**, and one to
+ * each office whose One Stop counter will receive one. The officer cannot forget
+ * a laboratory, for the same reason he cannot forget a destination (D69).
+ *
+ * **The applicant gets a letter per office, not one covering everything**
+ * (D128). A single compiled letter is one piece of paper describing three
+ * journeys: the counter it is handed to cannot tell which paragraph is theirs,
+ * and the applicant cannot leave it behind when the box is accepted. One letter
+ * per destination is what actually gets carried, checked and filed.
  *
  * `blockedBy` names anything that stops the set being issued. It is a list
  * rather than a throw so he sees every obstacle at once — an unaddressed wing is
@@ -250,7 +263,11 @@ export async function plannedLettersFor(applicationId: number) {
   const issued = await prisma.sampleLetter.findMany({
     where: { applicationId },
     select: { id: true, kind: true, labId: true, letterNo: true, issuedAt: true,
-              addressedTo: { select: { nameEn: true } }, office: { select: { nameEn: true } },
+              addressedTo: { select: { nameEn: true } },
+              // The office is what a letter is about, for all three kinds
+              // (D130). `lab` is still read for the rows issued before that,
+              // which carry an office id in a column pointing at `Lab`.
+              office: { select: { nameEn: true } },
               lab: { select: { nameEn: true } } },
     orderBy: { id: "asc" },
   });
@@ -267,7 +284,7 @@ export async function plannedLettersFor(applicationId: number) {
   for (const r of recipients) {
     if (!r.recipient || r.recipient.kind === "vacant") {
       blockedBy.push(
-        `${r.labName} has no one to address: ${
+        `${r.officeName} has no one to address: ${
           r.recipient && r.recipient.kind === "vacant"
             ? `${r.recipient.postTitle ?? "the Director post"} in ${r.recipient.wingName} is vacant and nobody holds its charge`
             : "no wing head and no office head"
@@ -282,21 +299,24 @@ export async function plannedLettersFor(applicationId: number) {
     planned: [
       ...recipients.map((r) => ({
         kind: "wing_head" as const,
-        labId: r.labId,
-        labName: r.labName,
+        // No laboratory is named. The office is accountable for the testing
+        // whether it runs on its own bench or goes to an accredited outside
+        // one (D116), and it is the office head or wing head who decides which.
+        labId: null,
+        labName: r.officeName,
         officeId: r.officeId,
         to:
           r.recipient && r.recipient.kind !== "vacant"
             ? `${r.recipient.name}${r.recipient.designation ? `, ${r.recipient.designation}` : ""}`
             : null,
       })),
-      {
+      ...offices.map((id) => ({
         kind: "applicant" as const,
         labId: null,
         labName: null,
-        officeId: null,
-        to: "the applicant — where to carry each sealed box",
-      },
+        officeId: id,
+        to: `the applicant — the box for ${officeName.get(id) ?? `office ${id}`}`,
+      })),
       ...offices.map((id) => ({
         kind: "one_stop" as const,
         labId: null,
@@ -327,7 +347,10 @@ export async function issueSampleLetters(args: {
 }) {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: args.applicationId },
-    select: { holderEmployeeId: true, bstiOfficeId: true, inspectionReport: { select: { approvedAt: true } } },
+    select: {
+      holderEmployeeId: true, bstiOfficeId: true,
+      inspectionReport: { select: { approvedAt: true } },
+    },
   });
   if (app.holderEmployeeId !== args.employeeId) {
     throw new Error("Only whoever is holding this file can issue its letters.");
@@ -343,19 +366,23 @@ export async function issueSampleLetters(args: {
   if (blockedBy.length) throw new Error(blockedBy.join(" "));
 
   const recipients = await letterRecipientsFor(args.applicationId);
-  const byLab = new Map(recipients.map((r) => [r.labId, r]));
+  const byOffice = new Map(recipients.map((r) => [r.officeId, r]));
 
   // One serial run for the whole set, so a single dispatch's numbers are
   // consecutive and a gap means a letter that was never issued.
   const { prefix, suffix, from } = await nextLetterSerial(app.bstiOfficeId);
   let n = from;
   const rows = planned.map((p) => {
-    const r = p.labId !== null ? byLab.get(p.labId) : null;
+    const r = p.kind === "wing_head" ? byOffice.get(p.officeId) : null;
     return {
       applicationId: args.applicationId,
       kind: p.kind,
       labId: p.labId,
-      officeId: p.kind === "one_stop" ? p.officeId : null,
+      // **All three kinds are about one office's box** (D128, D130). A
+      // wing-head letter used to leave this null and carry the office id in
+      // `labId` instead — a column whose foreign key points at `Lab`, which
+      // accepted it because every office id is also a valid lab id.
+      officeId: p.officeId,
       addressedToEmployeeId:
         p.kind === "wing_head" && r?.recipient && r.recipient.kind !== "vacant"
           ? r.recipient.employeeId
@@ -365,7 +392,28 @@ export async function issueSampleLetters(args: {
     };
   });
 
-  await prisma.sampleLetter.createMany({ data: rows });
+  // **The letters and the demand are one act** (D129). This is the moment the
+  // fee finally exists: the sub-products are settled, the destinations chosen
+  // and the boxes sealed, so the sum over every laboratory is computable — and
+  // the applicant is told in the same breath where to carry the samples and
+  // what to pay. Issuing them apart would mean a letter asking somebody to
+  // deliver against a fee nobody had demanded.
+  //
+  // **The demand is a state and a figure, not a `Payment` row.** A payment
+  // needs a payer, and the officer issuing this is not it; the row is raised
+  // when the applicant starts checkout, exactly as the application fee is. What
+  // is written now is the amount, **snapshotted** — catalogue prices move, an
+  // apportioned urgent fee is corrected when the wing answers D100, and an
+  // applicant told ৳4,000 must be charged ৳4,000.
+  const fee = await testFeeFor(args.applicationId);
+  await prisma.$transaction([
+    prisma.sampleLetter.createMany({ data: rows }),
+    prisma.application.update({
+      where: { id: args.applicationId },
+      data: { testFeePoisha: fee.totalPoisha, state: "test_fee_demanded" },
+    }),
+  ]);
+
   return rows.length;
 }
 

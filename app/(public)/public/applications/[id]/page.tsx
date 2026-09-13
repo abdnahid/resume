@@ -11,7 +11,8 @@ import { CM_DOCUMENTS, FORM_STEPS, stepProgress, type FormStep } from "@/lib/cm/
 import { missingForSubmission as companyGaps } from "@/lib/client/organization";
 import { canEditAnyDocument, canEditTarget, stageInfo } from "@/lib/cm/states";
 import { editScopeFor, openRound } from "@/lib/cm/shortfall";
-import { applicantLetterFor } from "@/lib/cm/letter-view";
+import { applicantLettersFor } from "@/lib/cm/letter-view";
+import TestFeePanel from "./_components/TestFeePanel";
 import { allShortfallTargets, shortfallLabel } from "@/lib/cm/policy";
 import ShortfallNotice from "./_components/ShortfallNotice";
 import SampleLetterNotice from "./_components/SampleLetterNotice";
@@ -75,7 +76,7 @@ export default async function ApplicationPage({
   const app = await getApplication(id);
   if (!app) notFound();
 
-  const [gaps, requirements, sizeTypes, prefill, organization, subProductChoices, letter] =
+  const [gaps, requirements, sizeTypes, prefill, organization, subProductChoices, letters] =
     await Promise.all([
       gapsFor(id),
       requirementsFor(id, viewer.id),
@@ -91,7 +92,7 @@ export default async function ApplicationPage({
       app.productId ? choicesFor(app.productId) : Promise.resolve([]),
       // Null until the field officer issues the letters (D95) — a planned
       // letter is not a letter, and nobody should carry jars on a draft.
-      applicantLetterFor(id),
+      applicantLettersFor(id),
     ]);
 
   /**
@@ -233,12 +234,28 @@ export default async function ApplicationPage({
               go somewhere. Above the form for the same reason the shortfall
               notice is: there is no notification channel, so the page is the
               notice. */}
-          {letter && (
-            <SampleLetterNotice
+          {/* The testing fee comes before the errand: a counter will refuse a
+              box while it is outstanding (D129), so asking somebody to travel
+              first would waste the journey. */}
+          {(app.state === "test_fee_demanded" || app.state === "test_fee_paid") && (
+            <TestFeePanel
               applicationId={app.id}
+              amountPoisha={app.testFeePoisha ?? 0}
+              paid={app.state === "test_fee_paid"}
+            />
+          )}
+
+          {/* One letter per destination office (D128) — each is a separate
+              errand to a separate counter, handed over and left there. */}
+          {letters.map((letter) => (
+            <SampleLetterNotice
+              key={letter.letterNo}
+              applicationId={app.id}
+              officeId={letter.officeId}
               letterNo={letter.letterNo}
               issuedOn={day(letter.issuedAt)}
               dueOn={day(letter.dueOn)}
+              feePaid={app.state === "test_fee_paid"}
               boxes={letter.boxes.map((b) => ({
                 code: b.code,
                 sealNo: b.sealNo,
@@ -248,7 +265,7 @@ export default async function ApplicationPage({
                 submittedOn: b.submittedAt ? day(b.submittedAt) : null,
               }))}
             />
-          )}
+          ))}
 
           {round && (
             <ShortfallNotice

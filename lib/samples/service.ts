@@ -507,7 +507,12 @@ export async function submitConsignment(args: {
     select: {
       id: true, state: true, officeId: true,
       office: { select: { nameEn: true } },
-      application: { select: { id: true, state: true } },
+      application: {
+        select: {
+          id: true, state: true, testFeePoisha: true,
+          testFeePayment: { select: { status: true } },
+        },
+      },
     },
   });
   if (!c) throw new Error("No such consignment.");
@@ -517,6 +522,20 @@ export async function submitConsignment(args: {
     );
   if (c.state !== "awaiting_submission" && c.state !== "packed")
     throw new Error(`This box has already been ${c.state.replace(/_/g, " ")}.`);
+
+  // **The testing fee must be paid before a box is taken in** (D129). The
+  // counter reads the fee and never writes it (spec §5.2): it can see that the
+  // money is outstanding and refuse the sample, and it cannot mark a file paid
+  // to accommodate somebody at the desk. Refusing here rather than only hiding
+  // the button, because a rule enforced where the button is holds only for
+  // people who used the button.
+  if (c.application.testFeePayment?.status !== "paid") {
+    const due = c.application.testFeePoisha;
+    throw new Error(
+      `The testing fee${due ? ` of ৳${(due / 100).toLocaleString("en-BD")}` : ""} has not been paid. ` +
+        `The sample cannot be received until it is.`,
+    );
+  }
 
   if (!args.sealIntact) {
     return prisma.$transaction(async (tx) => {

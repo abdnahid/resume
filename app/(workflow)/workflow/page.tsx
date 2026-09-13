@@ -1,4 +1,7 @@
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
+import { hasAnyRole } from "@/lib/roles";
+import { workflowNav } from "@/lib/workflow/nav";
+import { letterCountForViewer } from "@/lib/cm/letter-inbox";
 import { requireInternal } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import {
@@ -10,8 +13,6 @@ import { stageInfo } from "@/lib/cm/states";
 import FileBoard, { type FlowStep } from "./_components/FileBoard";
 
 export const dynamic = "force-dynamic";
-
-const navItems = [{ label: "Files", href: "/workflow" }];
 
 /**
  * The internal desk for licence applications.
@@ -36,6 +37,10 @@ const navItems = [{ label: "Files", href: "/workflow" }];
 export default async function WorkflowPage() {
   const viewer = await requireInternal("/workflow");
   const actor = await actorFor(viewer);
+  const navItems = workflowNav({
+    counter: hasAnyRole(actor, "one_stop", "superadmin") && actor.officeId !== null,
+    letters: (await letterCountForViewer(actor)) > 0,
+  });
   const scope = await inboxScope(actor);
 
   const [waiting, working, mine, handled, office] = await Promise.all([

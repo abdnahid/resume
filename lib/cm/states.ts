@@ -29,8 +29,10 @@ export const STAGES: readonly StageInfo[] = [
   { state: "review_passed", label: "Review passed", holder: "bsti", blurb: "The desk review is complete." },
   { state: "inspection_scheduled", label: "Inspection scheduled", holder: "bsti", blurb: "A factory inspection has been arranged." },
   { state: "inspection_completed", label: "Inspection done", holder: "bsti", blurb: "The inspection has been carried out." },
-  { state: "test_fee_demanded", label: "Testing fee", holder: "applicant", blurb: "Pay the testing fee and deliver the sealed sample." },
-  { state: "sample_received", label: "Sample received", holder: "bsti", blurb: "Your sample is with the laboratory." },
+  { state: "test_fee_demanded", label: "Test fee requested", holder: "applicant", blurb: "The testing fee has been worked out. Pay it, then carry each sealed box to the office named on its letter." },
+  { state: "test_fee_paid", label: "Awaiting sample submission", holder: "applicant", blurb: "Paid. Carry each sealed box to the One Stop counter named on its letter." },
+  { state: "sample_partially_received", label: "Sample partly received", holder: "bsti", blurb: "Some boxes are in; the rest are still to be handed over." },
+  { state: "sample_received", label: "Sample received", holder: "bsti", blurb: "Every box is in. The laboratories can begin." },
 ];
 
 /** States that sit off the happy path. */

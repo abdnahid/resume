@@ -34,6 +34,8 @@ export type SubmissionBox = {
 };
 
 export type ApplicantLetter = {
+  /** The office this letter's box goes to (D128). */
+  officeId: number | null;
   letterNo: string;
   issuedAt: Date;
   dueOn: Date;
@@ -56,12 +58,44 @@ export type ApplicantLetter = {
  * and showing the applicant a draft of an instruction nobody has signed would
  * have them carrying jars on the strength of it.
  */
-export async function applicantLetterFor(applicationId: number): Promise<ApplicantLetter | null> {
-  const letter = await prisma.sampleLetter.findFirst({
+/**
+ * Every letter the applicant was issued — one per destination office (D128).
+ *
+ * The page renders one notice each rather than a list inside one notice,
+ * because each is a separate errand to a separate counter and each is handed
+ * over and left behind there.
+ */
+export async function applicantLettersFor(applicationId: number): Promise<ApplicantLetter[]> {
+  const rows = await prisma.sampleLetter.findMany({
     where: { applicationId, kind: "applicant" },
+    orderBy: { id: "asc" },
+    select: { officeId: true },
+  });
+  const out: ApplicantLetter[] = [];
+  for (const r of rows) {
+    const letter = await applicantLetterFor(applicationId, r.officeId ?? undefined);
+    if (letter) out.push(letter);
+  }
+  return out;
+}
+
+export async function applicantLetterFor(
+  applicationId: number,
+  /**
+   * Which office's box this letter is about (D128). The applicant gets one per
+   * destination, because a single sheet describing three journeys cannot be
+   * handed in at any of them. Omitted, the earliest is used — which is what an
+   * older link without the parameter means, and what a single-box file needs.
+   */
+  officeId?: number,
+): Promise<ApplicantLetter | null> {
+  const letter = await prisma.sampleLetter.findFirst({
+    where: { applicationId, kind: "applicant", ...(officeId ? { officeId } : {}) },
+    orderBy: { id: "asc" },
     select: {
       letterNo: true,
       issuedAt: true,
+      officeId: true,
       issuedBy: {
         select: { nameEn: true, designationBn: true, designationEn: true },
       },
@@ -83,7 +117,9 @@ export async function applicantLetterFor(applicationId: number): Promise<Applica
       },
     }),
     prisma.consignment.findMany({
-      where: { applicationId },
+      // Only this letter's box. A letter naming boxes the reader cannot accept
+      // is what made the compiled one unusable at a counter.
+      where: { applicationId, ...(letter.officeId ? { officeId: letter.officeId } : {}) },
       select: {
         code: true,
         sealNo: true,
@@ -108,6 +144,7 @@ export async function applicantLetterFor(applicationId: number): Promise<Applica
     parts.map((p) => p?.trim()).filter(Boolean).join(", ") || null;
 
   return {
+    officeId: letter.officeId,
     letterNo: letter.letterNo,
     issuedAt: letter.issuedAt,
     dueOn: sampleSubmissionDueOn(letter.issuedAt),

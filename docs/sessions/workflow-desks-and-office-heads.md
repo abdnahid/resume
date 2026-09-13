@@ -1804,3 +1804,174 @@ be confirmed, and a person moved to a different section has no way in. The measu
 in the reply — 36 titles identical, 103 differing only by the bracketed section,
 342 genuinely different — and the second and third groups need different
 answers, so neither was changed.
+
+---
+
+## Session 4 — 2026-09-13 (Linux machine) — the letters reach the people they are addressed to
+
+The client had taken application 26 as far as an approved sampling letter and
+found three things wrong with what came out of it.
+
+> now every office has onestop center. […] The letter has been generated and
+> client and FDO are getting a single compiled letter in case of multiple
+> office testing. we need multiple letter. Also One stop should get the letter.
+> For example jeb-un-nesa is one stop head for head office. […] Client
+> dashboard shows application status as 'inspection done'. We need to show
+> 'Test fee requested' and the application should has a pay testing fee button
+> […] After payment it should say 'Awaiting sample submission'. […] One stop
+> head or operator checks whether it is paid. If paid he can mark it as paid.
+> Besides this wing head (physical/chemical) for head office and office head
+> for branch office should get the related letter. Lab module and its workflow
+> starts from this letter. Unless the sample is marked as received the testing
+> workflow wont be able to start.
+
+Three decisions came out of it — D128, D129, D130 — and one of them uncovered a
+silent data fault that had been writing wrong letters since the feature landed.
+
+### One letter per destination (D128)
+
+Application 26 splits across Dhaka, Faridpur and Khulna. The old code issued
+**one** applicant letter with no office on it, describing all three journeys.
+
+That sheet cannot be handed in anywhere. A counter receiving the Khulna box
+cannot tell which paragraph is theirs, and the applicant cannot leave the paper
+behind when the box is accepted, because the other two errands are printed on
+it. `SampleLetter.officeId` is now set on the applicant kind too, the letter
+view filters its consignments by the same office, and `?office=` selects one.
+An older link with no parameter still resolves to the earliest, which is also
+what a single-box file needs.
+
+### The fee is demanded with the letters, and snapshotted (D129)
+
+This is the first moment the test fee exists as a real number — the sub-products
+are settled, the destinations chosen, the boxes sealed, so the sum across every
+laboratory is finally computable (D62). Issuing the letters without the demand
+would mean asking somebody to carry jars against a fee nobody had raised.
+
+`testFeePoisha` is **stored, not recomputed**: catalogue prices move and the
+apportioned urgent fees are still waiting on the wing's answer to D100, and an
+applicant told ৳4,000 must be charged ৳4,000. The demand is a **state and a
+figure, not a `Payment` row** — a payment needs a payer and the officer issuing
+the letters is not it, so the row is raised when the applicant starts checkout,
+exactly as the application fee is.
+
+`submitConsignment()` refuses while it is unpaid and names the amount. The
+counter shows paid/unpaid and cannot change it (spec §5.2). The states use the
+client's own words: *Test fee requested* → *Awaiting sample submission*.
+
+### The addressees could not read their own letters (D130)
+
+The wing head and the One Stop counter were both promised "the related letter",
+and both were being refused it.
+
+`canViewApplication()` grants a reader the file they hold, handled, or head the
+office of (D80). **The officer a letter is addressed to is none of those.** A
+Faridpur inspection sends a box to Khulna, so Khulna's officer is asked to
+expect samples on a file that will never touch their desk — and every route into
+the letter went through the application. The letters existed as rows with no
+reader at all.
+
+So `/workflow/letters` is keyed on the **letter**: `addressedToEmployeeId` for a
+wing head, `officeId` + the `one_stop` role for a counter, and anyone with
+standing on the file as well, which is how the officer who issued them can see
+what he sent. The applicant's letter is deliberately not in there — it lives on
+the client surface (D98), and the applicant is the one person who could not open
+it under `/workflow`.
+
+**The wing-head letter is blinded; the counter's is not.** Testing-wing staff
+get the package, the box, the seal and the jar count and never the company, the
+factory, the brand or the application number, because the variant *is* the
+applicant's identity (D71). A counter hands the box back and forth with the
+person carrying it and checks the fee against their file, so it must name them.
+Verified on live data: `applicant` is null on all four wing-head letters and
+populated on both counter letters.
+
+### The fault underneath: an office id in a column pointing at `Lab`
+
+Reading the issued letters back to check them turned up this:
+
+```
+বিএসটিআই/ফরিদপুর/নমুনা/0003/2026  labId=18  lab="Physical Lab, Barisal"  → RAHIMA TALUKDER of office 18
+```
+
+Khulna's wing head had been sent a letter naming a laboratory in **Barisal**.
+
+`letterRecipientsFor()` returned the destination office id in a field called
+`labId`, and `issueSampleLetters()` wrote it into `SampleLetter.labId` — a
+column whose foreign key points at `Lab`. Office ids run 1–23; lab ids run
+1–46. **Every office id is a valid lab id**, so the foreign key accepted all of
+them without a word, and nothing looked wrong until the name was rendered.
+
+This is the same collision that put the wrong lab on the sealing screen a few
+sessions ago, and the cure is the same: say what the number is. `officeId` is
+set on all three kinds now and `labId` is null — which is independently right,
+because since D116 the destination is an **office**, accountable for the testing
+whether it runs on its own bench or sends it to an accredited outside lab, and
+the office is what decides.
+
+**The repair did not reinterpret the number, and that mattered.** The first row
+in the table looked like the other three:
+
+```
+বিএসটিআই/ঢাকা/নমুনা/0001/2026  labId=1  lab="Textile, Head Office"
+```
+
+but that `1` is a **genuine lab id**, written by the code that came before the
+one with the bug. Read as an office it is Barishal, and a dry run that took it
+at face value proposed moving a Dhaka letter there. So `fix:sample-letters`
+takes the office from **the officer the letter was addressed to**, cross-checked
+against the boxes the file actually has, and says so out loud rather than
+guessing where the two disagree. All four resolved correctly, app 19's included.
+
+### What the backfill did
+
+`npm run fix:sample-letters` (`--dry` first, as everything here does):
+
+- app 19 and app 26's compiled applicant letters split into one per office —
+  the original keeps its number and takes the first destination, the rest are
+  numbered on from the office's own series. Numbers are never reused and never
+  reordered: a number that has been on paper means one thing for ever.
+- both files' test fees demanded at the snapshotted figure — ৳5,632 and ৳4,000,
+  taken from `testFeeFor()` rather than re-summed locally, so a backfilled
+  snapshot cannot disagree with a fresh one.
+- the four wing-head letters repaired.
+
+It is idempotent; a second run reports nothing to do. State is only moved from
+`inspection_completed`/`inspection_report_submitted` — anything further along is
+somebody's decision and not ours to rewrite.
+
+Application 26 now reads:
+
+```
+CM-2026-000026  state=test_fee_demanded → "Test fee requested"
+   test fee: ৳4000  payment=none
+   applicant letters rendered: 3
+      office 6   …/0004/2026  boxes: ঢাকা
+      office 8   …/0008/2026  boxes: ফরিদপুর
+      office 18  …/0009/2026  boxes: খুলনা
+counter Head Office: CM-2026-000026  fee=UNPAID ৳4000  letter=…/0005/2026
+counter Faridpur:    CM-2026-000026  fee=UNPAID ৳4000  letter=…/0006/2026
+counter Khulna:      CM-2026-000026  fee=UNPAID ৳4000  letter=…/0007/2026
+```
+
+### The workflow navbar
+
+`/workflow` never linked the counter at all, so a One Stop clerk could only
+reach their own screen by typing the URL. The nav is now built by
+`workflowNav()` from what the viewer actually holds — the counter for whoever
+holds `one_stop`, the letter inbox for a desk something was addressed to.
+Listing them unconditionally would advertise screens that answer `notFound()`,
+which the house rule forbids; leaving them off was worse.
+
+### Still open
+
+- **Two counters have nobody on them.** JEB-UN NESA (20153010096) holds
+  `one_stop` at head office, so application 26's Dhaka box can be received.
+  **Faridpur and Khulna have no `one_stop` holder**, so the other two boxes
+  cannot be — the letters are sitting in an inbox nobody can open. One grant
+  each at `/hr/listing/roles`.
+- The lab module (step 9) is still not built, so *"testing cannot start until
+  the sample is received"* holds by construction rather than by a check. The
+  letter the client says it starts from is now readable, which is the half of it
+  that could be built ahead.
+- The re-seating screen, still — 305 inferred seats, unchanged from session 3.

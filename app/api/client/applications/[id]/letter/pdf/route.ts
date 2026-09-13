@@ -34,7 +34,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const letter = await applicantLetterFor(applicationId);
+  // Which destination's letter (D128); the page passes it through.
+  const officeRaw = Number(new URL(req.url).searchParams.get("office"));
+  const letter = await applicantLetterFor(
+    applicationId,
+    Number.isInteger(officeRaw) ? officeRaw : undefined,
+  );
   if (!letter) {
     return NextResponse.json({ error: "No letter has been issued" }, { status: 404 });
   }

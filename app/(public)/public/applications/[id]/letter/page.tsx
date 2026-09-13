@@ -17,16 +17,27 @@ export const metadata = { title: "নমুনা জমাদান পত্�
  * off: a wrong id is a 404 rather than a 403, so someone else's letter — which
  * carries their seal numbers — is not confirmed to exist.
  */
-export default async function LetterPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LetterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ office?: string }>;
+}) {
   const { id } = await params;
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
+
+  // Which destination's letter (D128). Omitted, the earliest is shown — which
+  // is what an older link means and what a single-box file needs.
+  const office = Number((await searchParams).office);
+  const officeParam = Number.isInteger(office) ? office : undefined;
 
   const viewer = await requireClient(`/public/applications/${id}/letter`);
   const membership = await membershipFor(viewer.id, applicationId);
   if (!membership) notFound();
 
-  const letter = await applicantLetterFor(applicationId);
+  const letter = await applicantLetterFor(applicationId, officeParam);
   if (!letter) notFound();
 
   const org = orgForOffice({
@@ -44,7 +55,7 @@ export default async function LetterPage({ params }: { params: Promise<{ id: str
     <LetterDocument
       org={org}
       backHref={`/public/applications/${applicationId}`}
-      pdfHref={`/api/client/applications/${applicationId}/letter/pdf`}
+      pdfHref={`/api/client/applications/${applicationId}/letter/pdf${officeParam ? `?office=${officeParam}` : ""}`}
       letter={{
         letterNo: toBengaliDigits(letter.letterNo),
         issuedOn: bnDate(letter.issuedAt),

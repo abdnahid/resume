@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Boxes, ShieldCheck } from "lucide-react";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
@@ -5,13 +6,10 @@ import { requireInternal } from "@/lib/auth-guard";
 import { actorFor, consignmentsForCounter } from "@/lib/workflow/inbox";
 import { prisma } from "@/lib/prisma";
 import { hasAnyRole } from "@/lib/roles";
+import { workflowNav } from "@/lib/workflow/nav";
+import { letterCountForViewer } from "@/lib/cm/letter-inbox";
 
 export const dynamic = "force-dynamic";
-
-const navItems = [
-  { label: "Files", href: "/workflow" },
-  { label: "One Stop", href: "/workflow/counter" },
-];
 
 /**
  * The One Stop Service Centre counter (D93).
@@ -36,6 +34,11 @@ export default async function CounterPage() {
   // head, and with one column granting the second removed the first (D122).
   if (!hasAnyRole(actor, "one_stop", "superadmin")) notFound();
   if (!actor.officeId) notFound();
+
+  const navItems = workflowNav({
+    counter: true,
+    letters: (await letterCountForViewer(actor)) > 0,
+  });
 
   const [office, boxes] = await Promise.all([
     prisma.office.findUnique({ where: { id: actor.officeId }, select: { nameEn: true, nameBn: true } }),
@@ -110,6 +113,19 @@ function Section({
                   </span>
                   {b.application.bstiOffice && <span>filed at {b.application.bstiOffice.nameEn}</span>}
                 </p>
+                {b.application.letters[0] && (
+                  /* The letter itself, not just its number (D130). The clerk
+                     checks the box against the seal number printed on it, and
+                     the copy the applicant carries is the same document. */
+                  <p className="mt-1.5 text-xs">
+                    <Link
+                      href={`/workflow/letters/${b.application.letters[0].id}`}
+                      className="text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+                    >
+                      letter <span className="font-mono">{b.application.letters[0].letterNo}</span>
+                    </Link>
+                  </p>
+                )}
                 {b.sealNo && (
                   <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-secondary px-2 py-1 text-xs">
                     <ShieldCheck className="h-3 w-3 shrink-0 text-primary" strokeWidth={1.8} />
@@ -119,8 +135,33 @@ function Section({
               </div>
 
               <div className="shrink-0 sm:text-right">
-                {/* Read-only, and only ever read (spec §5.2). */}
-                <p className="text-xs text-muted-foreground">
+                {/* Read-only, and only ever read (spec §5.2). A counter that
+                    could mark a file paid is a counter that can be argued
+                    with. */}
+                {(() => {
+                  const paid = b.application.testFeePayment?.status === "paid";
+                  const due = b.application.testFeePoisha;
+                  return (
+                    <p
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium ${
+                        paid
+                          ? "bg-secondary text-secondary-foreground"
+                          : "bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200"
+                      }`}
+                    >
+                      testing fee{" "}
+                      {paid
+                        ? "paid"
+                        : `unpaid${due ? ` — ৳${(due / 100).toLocaleString("en-BD")}` : ""}`}
+                    </p>
+                  );
+                })()}
+                {b.application.testFeePayment?.status !== "paid" && (
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    the box cannot be received yet
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
                   application fee
                   <span
                     className={`ml-1.5 font-medium ${

@@ -15,12 +15,18 @@ import { CheckCircle2, FileText, PackageCheck } from "lucide-react";
  */
 export default function SampleLetterNotice({
   applicationId,
+  officeId,
   letterNo,
   issuedOn,
   dueOn,
+  feePaid,
   boxes,
 }: {
   applicationId: number;
+  /** Which destination this letter is for (D128) — one letter per office. */
+  officeId: number | null;
+  /** A counter refuses a box while the testing fee is outstanding (D129). */
+  feePaid: boolean;
   letterNo: string;
   issuedOn: string;
   dueOn: string;
@@ -52,9 +58,14 @@ export default function SampleLetterNotice({
               <> Please deliver by <span className="font-medium text-foreground">{dueOn}</span>.</>
             )}
           </p>
+          {outstanding.length > 0 && !feePaid && (
+            <p className="mt-1.5 text-sm font-medium text-amber-700 dark:text-amber-300">
+              Pay the testing fee first — the counter cannot accept this box until it is paid.
+            </p>
+          )}
         </div>
         <a
-          href={`/public/applications/${applicationId}/letter`}
+          href={`/public/applications/${applicationId}/letter${officeId ? `?office=${officeId}` : ""}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
         >
           <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />

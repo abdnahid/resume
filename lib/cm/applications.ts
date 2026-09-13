@@ -521,6 +521,47 @@ export async function gapsFor(applicationId: number) {
  * Refuses while anything is still missing: a fee demanded against an incomplete
  * file produces a payment that cannot be used, and refunds are not modelled.
  */
+/**
+ * Raise the **testing fee** when the applicant starts checkout (D129).
+ *
+ * The demand itself was made when the sampling letters were issued: the state
+ * became `test_fee_demanded` and `testFeePoisha` was snapshotted. This turns
+ * that into a payable row, at the figure that was quoted — **never recomputed**,
+ * because the catalogue moves and a receipt has to keep saying what was paid.
+ *
+ * Reuses an unpaid row rather than stacking demands, exactly as the application
+ * fee does: an applicant who opens the page twice should not owe twice.
+ */
+export async function raiseTestFee(applicationId: number, userId: string) {
+  const app = await prisma.application.findUniqueOrThrow({
+    where: { id: applicationId },
+    include: { testFeePayment: true },
+  });
+
+  if (app.testFeePayment?.status === "paid")
+    return { payment: app.testFeePayment, reused: true };
+  if (app.testFeePayment) return { payment: app.testFeePayment, reused: true };
+
+  if (app.state !== "test_fee_demanded")
+    throw new Error("The testing fee has not been demanded for this application yet.");
+  if (!app.testFeePoisha || app.testFeePoisha <= 0)
+    throw new Error("No testing fee has been worked out for this application.");
+
+  const payment = await raisePayment({
+    purpose: "testing_fee",
+    subjectType: "application",
+    subjectId: String(applicationId),
+    incomePoisha: app.testFeePoisha,
+    payerUserId: userId,
+    organizationId: app.organizationId,
+  });
+  await prisma.application.update({
+    where: { id: applicationId },
+    data: { testFeePaymentId: payment.id },
+  });
+  return { payment, reused: false };
+}
+
 export async function raiseApplicationFee(applicationId: number, userId: string) {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: applicationId },

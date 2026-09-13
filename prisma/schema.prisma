@@ -1892,6 +1892,7 @@ model Payment {
   purchase BdsPurchase?
 
   applicationFeeFor Application? @relation("ApplicationFee")
+  testFeeFor        Application? @relation("TestFee")
 
   @@index([status])
   @@index([payerUserId])
@@ -2038,6 +2039,22 @@ model Application {
   /// The application fee. Reaching `submitted` requires it to be `paid`.
   applicationFeePaymentId Int?     @unique
   applicationFeePayment   Payment? @relation("ApplicationFee", fields: [applicationFeePaymentId], references: [id])
+
+  /// **The testing fee — the second payment** (spec §5). Demanded when the
+  /// sampling letters are issued, because that is the moment the sub-products
+  /// are settled and the destinations are known, so the figure finally exists.
+  testFeePaymentId Int?     @unique
+  testFeePayment   Payment? @relation("TestFee", fields: [testFeePaymentId], references: [id])
+
+  /// What was demanded, in poisha, snapshotted when the demand was raised.
+  ///
+  /// Not recomputed on read. The fee is the sum of the parameter fees of the
+  /// sub-products actually sampled, and those prices move — an apportioned
+  /// urgent fee is corrected when the wing answers D100, a normal fee when
+  /// somebody edits the catalogue. An applicant who has been told ৳4,000 must
+  /// be charged ৳4,000, and a receipt has to keep saying what was paid. Same
+  /// discipline as `SalaryProcess` snapshotting basic and net.
+  testFeePoisha Int?
 
   /// The applicant's declaration that everything stated is true, taken at the
   /// end of the form. Stored as a time and a person, not a boolean: a consent
@@ -3850,17 +3867,29 @@ model SampleLetter {
 
   kind SampleLetterKind
 
-  /// The laboratory this letter is about, for the wing-head and counter kinds.
-  /// Null on the applicant's letter, which covers every box at once.
+  /// The laboratory this letter is about, where one is named. **Null on every
+  /// letter issued since D130** — a destination is an *office*, which is
+  /// accountable for the testing whether it runs on its own bench or sends it
+  /// to an accredited outside lab (D116), and the office decides which. It
+  /// held an office id on the wing-head letters issued before that: office ids
+  /// run 1-23 and lab ids 1-46, so the foreign key below accepted every one of
+  /// them and Khulna's wing head was sent a letter naming a Barisal lab.
   labId Int?
   lab   Lab? @relation(fields: [labId], references: [id])
 
   /// The officer it is addressed to. Null for the applicant's letter, and null
-  /// for a counter letter, which is addressed to a desk rather than a person.
+  /// for a counter letter, which is addressed to a desk rather than a person —
+  /// which is also why a counter keeps working when the person on it changes.
   addressedToEmployeeId String?
   addressedTo           Employee? @relation("LetterAddressedTo", fields: [addressedToEmployeeId], references: [id])
 
-  /// The office whose One Stop counter receives it, for the counter kind.
+  /// The office the letter is about: whose counter receives the box, for the
+  /// counter kind; which box the applicant is being told to carry, for the
+  /// applicant kind (D128); and whose testing it concerns, for the wing-head
+  /// kind (D130). **Set on all three kinds**, and the only thing an addressee
+  /// is found by — a wing head has no standing on another office's file, so
+  /// `canViewApplication()` refuses them and this column is what a letter
+  /// inbox is keyed on instead.
   officeId Int?
   office   Office? @relation(fields: [officeId], references: [id])
 
