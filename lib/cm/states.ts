@@ -33,6 +33,12 @@ export const STAGES: readonly StageInfo[] = [
   { state: "test_fee_paid", label: "Awaiting sample submission", holder: "applicant", blurb: "Paid. Carry each sealed box to the One Stop counter named on its letter." },
   { state: "sample_partially_received", label: "Sample partly received", holder: "bsti", blurb: "Some boxes are in; the rest are still to be handed over." },
   { state: "sample_received", label: "Sample received", holder: "bsti", blurb: "Every box is in. The laboratories can begin." },
+  // The laboratory's own rungs are deliberately not stages here (D133): the
+  // applicant and the field officer learn that testing is running and what it
+  // concluded, never which bench it is on.
+  { state: "lab_testing", label: "Under test", holder: "bsti", blurb: "The laboratories are testing your samples." },
+  { state: "lab_test_passed", label: "Test report approved", holder: "bsti", blurb: "Every laboratory has reported and the samples met the standard." },
+  { state: "lab_test_failed", label: "Test report approved — failed", holder: "bsti", blurb: "Testing is complete. One or more parameters did not meet the standard." },
 ];
 
 /** States that sit off the happy path. */

@@ -61,6 +61,26 @@ enum Role {
   /// cannot mark a file paid to accommodate a walk-in, and cannot receive a
   /// sample against an unpaid one (spec §5.2).
   one_stop
+  /// **The top of the lab module for a wing** (D133). At head office the
+  /// Director (Physical) and the Director (Chemical) each head one; at a branch
+  /// the office head heads both, because a branch has no testing wing and its
+  /// labs hang off the office itself.
+  ///
+  /// **Which wing comes from the holder's own desk**, not from a second column:
+  /// they sit in the wing they head, so the fact is already recorded and cannot
+  /// drift. A holder whose desk is in no wing — a branch office head sits in
+  /// Executive — heads every discipline at that office.
+  ///
+  /// A role rather than the post alone (D94) because a wing whose Director post
+  /// is vacant still has to run, and because the client asked for it to be
+  /// grantable. `wingHeadForLab()` still answers from the post for *letters*;
+  /// this is authority inside the lab module.
+  wing_head
+  /// **The officer who actually runs a test and enters its result** (D133).
+  /// Normally an Examiner; at an office with no Examiner post filled, an
+  /// Assistant Director tests as well, which is exactly why this is a role and
+  /// not a designation. Holding it is what allows a result to be written.
+  testing_officer
   employee
   /// Inert. Clients are gated by `accountType`, not by role — this exists so a
   /// client row never reads as `employee` and trips an internal role check.
@@ -375,6 +395,7 @@ model User {
   // ─ Samples and lab testing ─
   consignmentsReceived Consignment[]      @relation("ConsignmentReceivedBy")
   custodyEvents        CustodyEvent[]     @relation("CustodyActor")
+  labMovements         LabTestOrderMovement[] @relation("LabMovementActor")
   reidentifications    Reidentification[] @relation("ReidentificationActor")
 }
 
@@ -676,6 +697,13 @@ model Employee {
   reportsApproved      InspectionReport[]         @relation("ReportApprovedBy")
   inspectionTeams      InspectionTeamMember[]
   testResultsEntered   TestResult[]               @relation("TestResultEnteredBy")
+  labMovementsSent     LabTestOrderMovement[]     @relation("LabMovementFrom")
+  labMovementsReceived LabTestOrderMovement[]     @relation("LabMovementTo")
+  labOrdersReceived    LabTestOrder[]             @relation("LabOrderReceivedByWing")
+  labReportsTested     LabTestReport[]            @relation("LabReportTestedBy")
+  labReportsChecked    LabTestReport[]            @relation("LabReportCheckedBy")
+  labReportsAuthorised LabTestReport[]            @relation("LabReportAuthorisedBy")
+  labReportsApproved   LabTestReport[]            @relation("LabReportApprovedBy")
 }
 
 // ─── Pay scale (versioned) ───────────────────────────────────────────────────
@@ -1704,6 +1732,14 @@ enum ApplicationState {
   /// others are not; `sample_received` means the last one landed.
   sample_partially_received
   sample_received
+  /// Every destination wing has taken its samples in and testing has begun.
+  /// The FDO sees this and **not** the rungs underneath it (D133) — the lab's
+  /// internal desk flow is the lab's.
+  lab_testing
+  /// Every laboratory has reported and every parameter passed.
+  lab_test_passed
+  /// At least one parameter failed at one laboratory.
+  lab_test_failed
   // Terminal and side states.
   rejected
   withdrawn
@@ -3150,11 +3186,42 @@ enum ConsignmentState {
   rejected
 }
 
+/// Where a lab's work item has got to (D133).
+///
+/// The three approval states are named for the **act that is awaited**, not for
+/// who holds it: which rung signs is decided by who exists at that office, so
+/// `pending_check` is skipped wholesale where there is no Assistant Director.
 enum LabTestOrderState {
+  /// The box has not reached the wing yet.
   awaiting_sample
+  /// The wing head has marked the sample received. The flow starts here.
+  received
+  /// Moving down the rungs, or on the testing officer's bench.
   in_progress
+  /// Results are in and the report is going back up for the Assistant
+  /// Director's check.
+  pending_check
+  /// Checked, awaiting authorisation. **Not always a Deputy Director** — where
+  /// an office has none, the Assistant Director authorises; `signaturePlan()`
+  /// decides, and nothing may map this state back to a fixed rank.
+  pending_authorisation
+  /// A complete draft carrying every signature, awaiting the wing head.
+  pending_approval
+  /// Approved by the wing head. The report is now the FDO's to read.
   reported
   cancelled
+}
+
+/// Which rung of the laboratory ladder a desk sits on (D133).
+///
+/// Deliberately its own scale rather than `deskRank()`: the CM chain runs on
+/// designations across the whole institution, while this is four rungs inside
+/// one wing, and an office missing a rung skips it rather than stalling.
+enum LabRung {
+  wing_head
+  deputy_director
+  assistant_director
+  examiner
 }
 
 enum TestVerdict {
@@ -3473,6 +3540,21 @@ model LabTestOrder {
 
   items     LabTestOrderItem[]
   specimens Sample[]
+  movements LabTestOrderMovement[]
+  report    LabTestReport?
+
+  /// Which rung the current holder is acting from. Stored rather than derived
+  /// from their desk, because the ladder is per office and a person may hold a
+  /// post whose title does not name their rung — the same reason `LabRung` is
+  /// not `deskRank()`.
+  holderRung LabRung?
+
+  /// Marked by the wing head when the wing takes the samples in. Distinct from
+  /// the counter's receipt: the One Stop counter takes the box at the door, the
+  /// wing accepts the specimens onto its own bench, and the FDO is shown both.
+  receivedByWingAt       DateTime?
+  receivedByWingEmployeeId String?
+  receivedByWing         Employee? @relation("LabOrderReceivedByWing", fields: [receivedByWingEmployeeId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -3534,6 +3616,93 @@ model TestResult {
   @@unique([orderItemId, sampleId, subParameterId])
   @@index([sampleId])
   @@index([subParameterId])
+}
+
+/// Every hand-off of a **test order** inside a laboratory. Append-only.
+///
+/// The lab's counterpart of `ApplicationMovement`, and deliberately a separate
+/// table: a test order is a different unit of work from a file (D70 — it
+/// carries no application column at all), it moves for different reasons, and
+/// it runs on four fixed rungs rather than on institution-wide seniority.
+model LabTestOrderMovement {
+  id Int @id @default(autoincrement())
+
+  orderId Int
+  order   LabTestOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Null on the first receipt — the samples came from the counter, not a desk.
+  fromEmployeeId String?
+  fromEmployee   Employee? @relation("LabMovementFrom", fields: [fromEmployeeId], references: [id])
+
+  toEmployeeId String
+  toEmployee   Employee @relation("LabMovementTo", fields: [toEmployeeId], references: [id])
+
+  direction MovementDirection
+  note      String?
+
+  actorUserId String
+  actor       User   @relation("LabMovementActor", fields: [actorUserId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([toEmployeeId])
+}
+
+/// The laboratory's report on one test order (D133).
+///
+/// **Three signature slots, and which are filled depends on who exists.** The
+/// client's rule: with an Examiner, an Assistant Director and a Deputy Director
+/// the report is tested / checked / authorised by those three in turn; with no
+/// Deputy Director the Assistant Director authorises; with neither, the
+/// Examiner tests *and* authorises his own report and it goes straight to the
+/// wing head. So the columns are nullable and the **flow decides**, rather than
+/// the table demanding a rank the office has not got.
+///
+/// **Carries no application**, like the order it belongs to. The report says
+/// what the specimens did; who owns them is `SampleRegistration`'s business.
+model LabTestReport {
+  id Int @id @default(autoincrement())
+
+  orderId Int          @unique
+  order   LabTestOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Assigned at **approval**, not at drafting — the same rule as an
+  /// application number and an office order: a number that has been quoted
+  /// should mean a decided document. `বিএসটিআই/<office>/পরীক্ষা-প্রতিবেদন/<serial>/<year>`.
+  reportNo String? @unique
+
+  /// All pass → `pass`; one or more fail → `fail`. Derived when the testing
+  /// officer submits and **stored**, because the parameter rows behind it can
+  /// be corrected later and a report that has been signed must not restate
+  /// itself.
+  verdict TestVerdict @default(not_tested)
+
+  /// The part no row holds — conditions, deviations, what the specimen looked
+  /// like on arrival.
+  remarks String?
+
+  testedByEmployeeId String?
+  testedBy           Employee? @relation("LabReportTestedBy", fields: [testedByEmployeeId], references: [id])
+  testedAt           DateTime?
+
+  checkedByEmployeeId String?
+  checkedBy           Employee? @relation("LabReportCheckedBy", fields: [checkedByEmployeeId], references: [id])
+  checkedAt           DateTime?
+
+  authorisedByEmployeeId String?
+  authorisedBy           Employee? @relation("LabReportAuthorisedBy", fields: [authorisedByEmployeeId], references: [id])
+  authorisedAt           DateTime?
+
+  approvedByEmployeeId String?
+  approvedBy           Employee? @relation("LabReportApprovedBy", fields: [approvedByEmployeeId], references: [id])
+  approvedAt           DateTime?
+
+  /// Why the wing head sent it back, kept so the next draft answers it.
+  returnedNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 /// Every hand-off of a box. Append-only.

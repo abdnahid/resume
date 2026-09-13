@@ -2113,3 +2113,143 @@ both clean.
   correct and **called by nothing**. That is what blocks application 26 once its
   ৳4,000 test fee is paid.
 - Faridpur and Khulna still have no `one_stop` holder.
+
+
+## Session 6 — 2026-09-13 (Windows), the testing module
+
+The client's spec for step 9, given in one message, and the first slice of it
+built. Their words, condensed to the rules that shaped the code:
+
+> As the application's sampling letter is approved [...] the related wing's head
+> (director physical/director chemical for head office and office head for
+> branch offices) will get the letter that "these parameters need to be tested.
+> awaiting payment and sample reception". The wing head can track payment and
+> sample reception and internal desk flow of lab process only. [...] Desk flow
+> start from Director mark sample as received-> pass to DD-> pass to AD-> pass
+> to Examiner. [...] In case of no examiner AD also tests the product. So I
+> think a role is necessary here. Testing officer [...] The standard limit is
+> not always a value and there is no unified logic set for all of those
+> parameter. So besides result entry we also need to mark it as pass or fail.
+> [...] if there is examiner,AD,DD then examiner is tested by(TO), AD is
+> Checked by, DD is authorized by. [...] In case of no DD and no AD, examiner
+> authorize the draft and send to wing head for approval. [...] The FDO will see
+> the process flow as -> testing fee paid-> awaiting sample reception-> sample
+> received by one stop-> sample received by wing->(cant see internal desk flow
+> of lab)->test report approved.
+
+Three questions were put back before anything was written, because guessing any
+of them meant rework.
+
+### Which wing does a `wing_head` head?
+
+Head office has two — Director (Physical) and Director (Chemical) — and a branch
+has one covering both. A plain role cannot tell them apart.
+
+**Answered: from their desk.** They already sit in the wing they head, so the
+fact is recorded once and cannot drift out of step with the organogram. A holder
+whose desk is in no wing — a branch office head sits in Executive — covers every
+discipline, which is the client's rule rather than a fallback. No second table,
+and Md. Khalilur Rahman's *acting* Chemical Testing Wing desk (session 5) makes
+him the chemical wing head on the day the role is granted.
+
+This does **not** replace D94. `wingHeadForLab()` still answers from the post for
+*letters*, where the question is who to address. The role is authority inside
+the module.
+
+### How does an order reach the next rung?
+
+**Answered: the holder chooses a person at the next staffed rung.** A section
+with three Assistant Directors needs somebody to say which one, and an order
+sitting against a rung with no name on it is an order nobody is accountable for.
+Empty rungs are skipped automatically, which is the normal case and not the
+exception.
+
+### What makes a report pass, and what blocks it?
+
+**Answered: all pass → pass, one fail → fail; an untested or inconclusive line
+blocks submission, by name.** The `reportGaps()` shape — every gap at once, so
+the officer fixes them in one sitting.
+
+### What got built
+
+**Schema** (`20260913085746_lab_testing_module`, purely additive — no drops, no
+`SET NOT NULL`, and nothing uses the new enum values in the same transaction):
+roles `wing_head` and `testing_officer`; `LabRung`; four new
+`LabTestOrderState` values; `LabTestOrderMovement`; `LabTestReport`;
+`LabTestOrder.holderRung` and `receivedByWing*`; and the three application
+states the FDO is shown.
+
+**`lib/labs/ladder.ts`** is the Prisma-free half (D9). Its own rung scale rather
+than `deskRank()`, because this is four rungs inside one wing while the CM chain
+is institution-wide seniority — and because *Senior Inspector (Chemistry)*,
+*Inspector (Chemistry)* and *Assistant Director (Chemistry)* all sit at grade 9,
+so grade cannot separate a bench from the officer supervising it. That is the
+same fault D78 had to fix on the CM side.
+
+`signaturePlan()` is the client's table, derived rather than written twice:
+
+| staffed below the wing head | tested by | checked by | authorised by |
+|---|---|---|---|
+| Examiner + AD + DD | Examiner | AD | DD |
+| Examiner + AD | Examiner | — | AD |
+| Examiner only | Examiner | — | Examiner |
+
+The last row is the one worth defending. An Examiner authorising his own report
+looks wrong until you count the offices: at a branch with one bench and nobody
+between it and the wing head, the alternative is a report nobody can sign. The
+wing head's approval is still a second pair of eyes, and the table stops
+pretending a rank exists where it does not. `stateAfterSubmit()` reads the same
+plan, so an office with no Assistant Director never enters `pending_check` and
+nobody waits for a signature there is no one to give.
+
+**A result is a value *and* a verdict**, which is the client's point about
+limits and is already what the schema had: `observedValue` is free text beside
+`TestVerdict`. `LimitKind` splits four kinds a single column cannot (D61) and
+the text runs from "from 40 to 48" through "As per BDS 1149" to a value the
+manufacturer declares. A parser guessing at those fails invisibly — the one
+failure mode a test result must not have — so the officer judges and the system
+records.
+
+**`lib/cm/lab-progress.ts` is the crossing, and it is named so it is
+greppable.** A `LabTestOrder` carries no application column (D70), so reaching
+from a file to its testing means consignment → registration → sample → order.
+Doing that in exactly one read-only place is the point: it returns *stages*, not
+benches. The lab modules never write `Application.state`; the CM side reads
+progress after a lab act and sets it. An FDO who could watch the rungs would be
+supervising work he is not accountable for.
+
+The file's own stage is the **least advanced** destination — a file is not
+tested until every laboratory has reported, the same rule that makes
+`sample_received` the last box rather than the first (D73).
+
+### The thing that was blocking everything
+
+**`submitConsignment()` had no caller.** It was written, correct, and complete —
+it refuses an unpaid fee by name, treats a broken seal as a refusal rather than
+a note, and flips the application to `sample_partially_received` /
+`sample_received` — and nothing in the app had ever called it. No route, no
+action. `/workflow/counter` was a read-only list.
+
+So every sealed box in the system was uncollectable, and application 26 would
+have stopped one step after its letters however much of the lab module existed.
+`POST /api/workflow/consignments/[code]` and a `ReceiveBox` control now exist.
+The office is taken from the clerk's own employment and never from the request,
+and `sealIntact` is **not defaulted** — "was the seal intact" is the counter's
+whole job, and a default would answer it for them in the direction that accepts
+the box.
+
+### Still open
+
+- **Neither new role has a holder**, so nothing can be received or tested until
+  they are granted at `/hr/listing/roles`. Same position `lab_entry` and
+  `one_stop` were in.
+- Faridpur and Khulna still have no `one_stop` holder, so two of application
+  26's three boxes still cannot be taken in.
+- **No printed report yet.** `Employee` carries no signature image — only
+  `DirectorGeneral` does — so the signature blocks will render as name +
+  designation + date, the way the office order does. Worth confirming that is
+  acceptable before building the print view.
+- A third-party referral (D65) is still not marked anywhere on an order: the
+  office is accountable and its own examiner enters the result, but nothing
+  records that the sample physically went outside.
+- Whether an approved report can be revised.

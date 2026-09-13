@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { hasAnyRole } from "@/lib/roles";
 import { workflowNav } from "@/lib/workflow/nav";
 import { letterCountForViewer } from "@/lib/cm/letter-inbox";
+import ReceiveBox from "./_components/ReceiveBox";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +161,15 @@ function Section({
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                     the box cannot be received yet
                   </p>
+                )}
+                {/* The counter's one write in the whole flow (D93). It renders
+                    only while the box is still expected — a box already taken
+                    in, or refused, is a record and not an errand. */}
+                {b.state === "awaiting_submission" && (
+                  <ReceiveBox
+                    code={b.code}
+                    feePaid={b.application.testFeePayment?.status === "paid"}
+                  />
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   application fee

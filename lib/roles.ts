@@ -17,7 +17,9 @@ export const ASSIGNABLE_ROLES = [
   "office_head",
   "case_officer",
   "one_stop",
+  "wing_head",
   "lab_entry",
+  "testing_officer",
   "data_entry",
   "employee",
 ] as const;
@@ -43,9 +45,19 @@ export const ROLE_LABELS: { value: AssignableRole; label: string; hint: string }
     hint: "Receives sealed samples at their office. Payment is read-only to them.",
   },
   {
+    value: "wing_head",
+    label: "Wing head",
+    hint: "Top of the lab module for their wing — receives samples and approves test reports",
+  },
+  {
     value: "lab_entry",
     label: "Lab data entry",
     hint: "Records what their own office can test, and where the rest is sent",
+  },
+  {
+    value: "testing_officer",
+    label: "Testing officer",
+    hint: "Runs tests and enters results. Usually an Examiner; an AD where there is none.",
   },
   { value: "data_entry", label: "Data entry", hint: "Records only" },
   { value: "employee", label: "Employee", hint: "Their own profile" },
@@ -109,7 +121,11 @@ export const ROLE_PRECEDENCE: readonly AssignableRole[] = [
   "office_head",
   "case_officer",
   "one_stop",
+  // Above `lab_entry`: heading a wing is authority over the testing that
+  // office does, where entering its reference data is not.
+  "wing_head",
   "lab_entry",
+  "testing_officer",
   "data_entry",
   "employee",
 ];

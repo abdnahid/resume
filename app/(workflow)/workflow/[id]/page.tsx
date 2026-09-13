@@ -10,6 +10,8 @@ import { CM_DOCUMENTS, CM_QUESTIONS } from "@/lib/cm/policy";
 import { FileHeader, Card, Row, Empty } from "./_components/FileShell";
 import { formatPoisha, takaToPoisha } from "@/lib/payments/money";
 import { salePricePolicy } from "@/lib/store/bds-catalog";
+import { labProgressFor } from "@/lib/cm/lab-progress";
+import LabProgress from "./_components/LabProgress";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +62,9 @@ export default async function WorkflowFilePage({
     ]),
   );
   const fee = app.applicationFeePayment;
+  // The one place the CM side reaches across to the laboratory (D70). It
+  // returns stages and never desks — see `lib/cm/lab-progress.ts`.
+  const lab = await labProgressFor(app.id);
 
   return (
     <>
@@ -258,6 +263,12 @@ export default async function WorkflowFilePage({
                 })}
               </ul>
             </Card>
+
+            <LabProgress
+              destinations={lab.destinations}
+              stage={lab.stage}
+              verdict={lab.verdict}
+            />
 
             <Card title="Fees">
               <div className="space-y-3">

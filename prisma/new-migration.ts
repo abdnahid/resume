@@ -32,8 +32,24 @@ if (!name) {
 }
 const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 
+// **Spawning npx on Windows takes both of these.** `npx` is a `.cmd` shim, so
+// `execFileSync("npx")` throws ENOENT; naming `npx.cmd` then throws EINVAL,
+// because Node 24 refuses to spawn a batch file without a shell (the
+// CVE-2024-27980 fix). So Windows needs `shell: true` as well.
+//
+// It mattered more than a failed command should: the pending-migration check
+// below catches the throw into its `status` string, so a spawn failure read as
+// "the database is not up to date" and the generator refused to run against a
+// database that was perfectly in step. Every argument here is a fixed literal
+// with no spaces, so the shell has nothing to re-quote.
+const WIN = process.platform === "win32";
+
 const px = (args: string[]) =>
-  execFileSync("npx", ["prisma", ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  execFileSync(WIN ? "npx.cmd" : "npx", ["prisma", ...args], {
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
+    shell: WIN,
+  });
 
 // ── nothing pending ─────────────────────────────────────────────────────────
 let status = "";

@@ -275,6 +275,15 @@ else is INTERNAL only.
 - **`lib/auth-identity.ts` is Prisma-free** and imported by the edge middleware
   and by client components. Keep it that way. `lib/auth-guard.ts` is the
   server-only half.
+- **`wing_head` and `testing_officer` are the lab module's two roles** (D133).
+  A wing head receives samples and approves reports; **which wing he heads comes
+  from his desk's unit**, so head office's two Directors are told apart without a
+  second column and a branch office head — sitting in Executive, in no wing —
+  covers both disciplines. A testing officer is whoever may record a reading:
+  normally an Examiner, an Assistant Director where no Examiner post is filled,
+  which is exactly why it is a role and not a designation. **Neither has any
+  holders yet.**
+
 - **OTP is not enabled.** `sendOTP` throws by design. The schema already carries
   `mobileVerifiedAt`, so SMS drops in without a migration.
 
