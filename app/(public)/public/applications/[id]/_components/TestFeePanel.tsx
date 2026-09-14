@@ -19,10 +19,18 @@ export default function TestFeePanel({
   applicationId,
   amountPoisha,
   paid,
+  urgent,
 }: {
   applicationId: number;
   amountPoisha: number;
   paid: boolean;
+  /**
+   * Charged at the urgent rate (D134). Said plainly because the applicant is
+   * being asked for roughly twice the figure the application quoted, and a
+   * demand that does not explain its own size is one they have to telephone
+   * about.
+   */
+  urgent: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +79,8 @@ export default function TestFeePanel({
       <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">
         The samples have been sealed and the laboratories are known, so the testing fee is now
         settled at <strong>{formatPoisha(amountPoisha)}</strong>. It covers every laboratory your
-        samples go to.
+        samples go to
+        {urgent ? ", and the inspecting officer has marked the testing urgent, which is charged at the urgent rate" : ""}.
       </p>
       <p className="mt-1 text-xs text-amber-900/80 dark:text-amber-200/80">
         Pay this before you deliver: a One Stop counter cannot accept a sealed box while the fee

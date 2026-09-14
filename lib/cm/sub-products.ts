@@ -14,7 +14,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { assertEditable } from "./shortfall";
-import { packageDays } from "@/lib/labs/turnaround";
+import { packageDays, hasUrgentOption } from "@/lib/labs/turnaround";
 
 /** The sub-products offered for a product, with what each would cost to test. */
 export async function choicesFor(productId: number) {
@@ -271,25 +271,85 @@ export async function setSubProductInProduction(args: {
 }
 
 /**
- * The test fee for the file as it currently stands, in poisha.
+ * The test fee for the file as it currently stands, in poisha — **both
+ * figures**, because the choice between them is made by a person (D134).
  *
  * Provisional while the applicant is still editing and final once the FDO has
  * amended it — the same function either way, so the two figures can never be
  * computed differently.
+ *
+ * **The urgent total is the sum of `urgentFeePoisha`, not the normal total
+ * doubled.** The two are not in a fixed ratio: `priceUrgent()` (D102) writes
+ * the same figure as the normal fee for a test whose urgent turnaround is not
+ * actually shorter, so a package full of five-day incubations costs the same
+ * either way and the surcharge lands only where the bench can genuinely hurry.
+ * Doubling here would charge for speed nobody can deliver.
+ *
+ * `urgent` picks which one `totalPoisha` is. Omitted, the file's own decision
+ * is read — false until the letters go out, so the applicant's estimate is the
+ * normal fee and the snapshot afterwards is whatever was chosen.
  */
-export async function testFeeFor(applicationId: number) {
-  const rows = await prisma.applicationSubProduct.findMany({
-    // A struck-out line is not tested, so it is not charged for (D91).
-    where: { applicationId, notInProductionAt: null },
-    select: {
-      subProduct: {
-        select: { nameEn: true, parameters: { select: { feePoisha: true, discipline: true } } },
+export async function testFeeFor(applicationId: number, urgent?: boolean) {
+  const [app, rows] = await Promise.all([
+    prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { isUrgent: true },
+    }),
+    prisma.applicationSubProduct.findMany({
+      // A struck-out line is not tested, so it is not charged for (D91).
+      where: { applicationId, notInProductionAt: null },
+      select: {
+        subProduct: {
+          select: {
+            nameEn: true,
+            parameters: {
+              select: {
+                feePoisha: true,
+                urgentFeePoisha: true,
+                discipline: true,
+                normalDays: true,
+                urgentDays: true,
+              },
+            },
+          },
+        },
       },
-    },
-  });
+    }),
+  ]);
+
+  const isUrgent = urgent ?? app?.isUrgent ?? false;
   const lines = rows.map((r) => ({
     subProduct: r.subProduct.nameEn,
     poisha: r.subProduct.parameters.reduce((a, p) => a + p.feePoisha, 0),
+    urgentPoisha: r.subProduct.parameters.reduce((a, p) => a + p.urgentFeePoisha, 0),
+    ...packageDays(r.subProduct.parameters),
   }));
-  return { lines, totalPoisha: lines.reduce((a, l) => a + l.poisha, 0) };
+
+  const normalPoisha = lines.reduce((a, l) => a + l.poisha, 0);
+  const urgentPoisha = lines.reduce((a, l) => a + l.urgentPoisha, 0);
+
+  // The file's turnaround is the slowest of its packages, the same rule
+  // `packageDays()` applies inside one: every laboratory runs in parallel and
+  // the licence waits for the last report.
+  const longest = (pick: (l: (typeof lines)[number]) => number | null) => {
+    const days = lines.map(pick).filter((d): d is number => d !== null);
+    return days.length ? Math.max(...days) : null;
+  };
+  const days = { normalDays: longest((l) => l.normalDays), urgentDays: longest((l) => l.urgentDays) };
+
+  return {
+    lines,
+    isUrgent,
+    totalPoisha: isUrgent ? urgentPoisha : normalPoisha,
+    normalPoisha,
+    urgentPoisha,
+    ...days,
+    /**
+     * Whether choosing urgent buys anything at all. False when no test on the
+     * file has a shorter urgent turnaround — the officer is then offered a
+     * surcharge of nothing for a saving of nothing, which is worth saying out
+     * loud rather than rendering as an inert control.
+     */
+    urgentAvailable: hasUrgentOption(days),
+  };
 }

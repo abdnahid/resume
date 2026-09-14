@@ -344,6 +344,12 @@ export async function plannedLettersFor(applicationId: number) {
 export async function issueSampleLetters(args: {
   applicationId: number;
   employeeId: string;
+  /**
+   * Urgent testing (D134). Decided here and nowhere else: this is the act that
+   * fixes the fee, so it is the last moment the choice can be made and the
+   * first at which it can be charged for.
+   */
+  urgent?: boolean;
 }) {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: args.applicationId },
@@ -405,13 +411,37 @@ export async function issueSampleLetters(args: {
   // is written now is the amount, **snapshotted** — catalogue prices move, an
   // apportioned urgent fee is corrected when the wing answers D100, and an
   // applicant told ৳4,000 must be charged ৳4,000.
-  const fee = await testFeeFor(args.applicationId);
+  const urgent = args.urgent ?? false;
+  const fee = await testFeeFor(args.applicationId, urgent);
+
+  // **The laboratories are told in the same write.** An order created at
+  // sealing carries the default `isUrgent: false`, because the choice had not
+  // been made yet — leaving it there would put "জরুরি" on the letter and a
+  // normal-priority order on the bench, which is the one disagreement this
+  // whole decision must not produce. Reaching them is the crossing D133 named:
+  // consignment → registration → sample → order (D70).
+  const orderIds = urgent
+    ? [
+        ...new Set(
+          (
+            await prisma.sampleRegistration.findMany({
+              where: { consignment: { applicationId: args.applicationId } },
+              select: { sample: { select: { labTestOrderId: true } } },
+            })
+          ).map((r) => r.sample.labTestOrderId),
+        ),
+      ]
+    : [];
+
   await prisma.$transaction([
     prisma.sampleLetter.createMany({ data: rows }),
     prisma.application.update({
       where: { id: args.applicationId },
-      data: { testFeePoisha: fee.totalPoisha, state: "test_fee_demanded" },
+      data: { testFeePoisha: fee.totalPoisha, isUrgent: urgent, state: "test_fee_demanded" },
     }),
+    ...(orderIds.length
+      ? [prisma.labTestOrder.updateMany({ where: { id: { in: orderIds } }, data: { isUrgent: true } })]
+      : []),
   ]);
 
   return rows.length;

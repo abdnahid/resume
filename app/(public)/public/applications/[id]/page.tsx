@@ -242,6 +242,7 @@ export default async function ApplicationPage({
               applicationId={app.id}
               amountPoisha={app.testFeePoisha ?? 0}
               paid={app.state === "test_fee_paid"}
+              urgent={app.isUrgent}
             />
           )}
 

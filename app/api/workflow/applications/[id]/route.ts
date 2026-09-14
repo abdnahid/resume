@@ -366,7 +366,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!actor.employeeId) {
         return NextResponse.json({ error: "Only a member of staff can do that." }, { status: 403 });
       }
-      const count = await issueSampleLetters({ applicationId, employeeId: actor.employeeId });
+      // Urgency is decided here and nowhere else (D134), so it is read
+      // strictly: anything but a literal `true` means the normal turnaround.
+      // A truthy string arriving from a stale client must not double a fee.
+      const count = await issueSampleLetters({
+        applicationId,
+        employeeId: actor.employeeId,
+        urgent: body.urgent === true,
+      });
       return NextResponse.json({ issued: count });
     }
 

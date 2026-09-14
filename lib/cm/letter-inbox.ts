@@ -45,6 +45,8 @@ export type LetterInboxRow = {
   /** The box cannot be received until this is settled (D129). */
   feePaid: boolean;
   feePoisha: number | null;
+  /** Urgent testing, decided when the letters went out (D134). */
+  urgent: boolean;
 };
 
 /**
@@ -75,6 +77,7 @@ export async function lettersForViewer(actor: WorkflowActor): Promise<LetterInbo
       application: {
         select: {
           testFeePoisha: true,
+          isUrgent: true,
           testFeePayment: { select: { status: true } },
         },
       },
@@ -112,6 +115,7 @@ export async function lettersForViewer(actor: WorkflowActor): Promise<LetterInbo
       specimenCount: box?._count.registry ?? 0,
       feePaid: r.application.testFeePayment?.status === "paid",
       feePoisha: r.application.testFeePoisha,
+      urgent: r.application.isUrgent,
     };
   });
 }
@@ -152,10 +156,26 @@ export type InternalLetter = {
     submittedAt: Date | null;
     specimenCount: number;
   } | null;
-  /** What is in the box, test-side: the package and how many tests it carries. */
-  packages: { name: string; parameterCount: number; specimenCount: number }[];
+  /**
+   * What is in the box, test-side: each package, its jars, and **the tests
+   * this office is being asked to run** (D134).
+   *
+   * Named, not counted. A count told the wing head how much work was coming
+   * and not what the work was, so the one question the letter exists to answer
+   * — can my bench do these — could only be answered by opening the box. And a
+   * count of the *catalogue* package is the wrong number wherever a file
+   * splits: Ceramic Tiles routes its physical tests to one office and its
+   * chemical ones to another, and each was told the package holds nine.
+   */
+  packages: { name: string; parameters: string[]; specimenCount: number }[];
   feePoisha: number | null;
   feePaid: boolean;
+  /**
+   * Urgent testing (D134). On the letter because it is an instruction about
+   * *this* work — the wing head schedules a bench against it — and the paper is
+   * where he reads the instruction.
+   */
+  urgent: boolean;
   /**
    * The applicant — **only ever populated for a One Stop letter**. The counter
    * hands the box back and forth with the person carrying it and checks the
@@ -188,6 +208,7 @@ export async function internalLetterFor(
         select: {
           applicationNo: true,
           testFeePoisha: true,
+          isUrgent: true,
           testFeePayment: { select: { status: true } },
           product: { select: { nameEn: true, nameBn: true } },
           organization: { select: { nameEn: true, nameBn: true } },
@@ -218,8 +239,24 @@ export async function internalLetterFor(
             select: {
               applicationSubProduct: {
                 select: {
-                  subProduct: {
-                    select: { nameEn: true, nameBn: true, _count: { select: { parameters: true } } },
+                  subProduct: { select: { nameEn: true, nameBn: true } },
+                },
+              },
+              // **The tests routed here, read from the order rather than from
+              // the catalogue.** A package's parameters may split across two
+              // offices (D125), so the sub-product's own list is the wrong
+              // answer for either of them. This is the crossing D133 named —
+              // registration → sample → order (D70) — and it stays read-only.
+              sample: {
+                select: {
+                  labTestOrder: {
+                    select: {
+                      id: true,
+                      items: {
+                        orderBy: { sortOrder: "asc" as const },
+                        select: { parameter: { select: { nameEn: true, nameBn: true } } },
+                      },
+                    },
                   },
                 },
               },
@@ -229,14 +266,29 @@ export async function internalLetterFor(
       })
     : null;
 
-  // One row per package in the box, with how many jars and how many tests.
-  const packages = new Map<string, { name: string; parameterCount: number; specimenCount: number }>();
+  // One row per package in the box: how many jars, and which tests.
+  //
+  // Every specimen of a package points at the same order, so the parameters are
+  // gathered per *order* and the jars counted per row — counting the tests once
+  // per jar would print each name as many times as there are specimens.
+  const packages = new Map<
+    string,
+    { name: string; parameters: string[]; specimenCount: number; orders: Set<number> }
+  >();
   for (const r of box?.registry ?? []) {
     const sp = r.applicationSubProduct.subProduct;
     const name = sp.nameBn ?? sp.nameEn;
-    const cur = packages.get(name);
-    if (cur) cur.specimenCount++;
-    else packages.set(name, { name, parameterCount: sp._count.parameters, specimenCount: 1 });
+    let cur = packages.get(name);
+    if (!cur) {
+      cur = { name, parameters: [], specimenCount: 0, orders: new Set() };
+      packages.set(name, cur);
+    }
+    cur.specimenCount++;
+    const order = r.sample.labTestOrder;
+    if (!cur.orders.has(order.id)) {
+      cur.orders.add(order.id);
+      for (const it of order.items) cur.parameters.push(it.parameter.nameBn ?? it.parameter.nameEn);
+    }
   }
 
   return {
@@ -272,9 +324,14 @@ export async function internalLetterFor(
           specimenCount: box.registry.length,
         }
       : null,
-    packages: [...packages.values()],
+    packages: [...packages.values()].map(({ name, parameters, specimenCount }) => ({
+      name,
+      parameters,
+      specimenCount,
+    })),
     feePoisha: l.application.testFeePoisha,
     feePaid: l.application.testFeePayment?.status === "paid",
+    urgent: l.application.isUrgent,
     applicant:
       l.kind === "one_stop"
         ? {

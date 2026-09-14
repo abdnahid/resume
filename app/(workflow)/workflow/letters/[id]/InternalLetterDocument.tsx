@@ -4,6 +4,7 @@ import { Download, Printer } from "lucide-react";
 import GovHeader from "@/components/GovHeader";
 import { toBengaliDigits } from "@/lib/bengali";
 import type { OrgInfo } from "@/lib/types";
+import React from "react";
 
 /**
  * The two letters that go to BSTI's own desks after an approved visit (D95,
@@ -16,6 +17,11 @@ import type { OrgInfo } from "@/lib/types";
  * the application number. **The One Stop letter is not**: a counter hands the
  * box back and forth with the person carrying it and checks the fee against
  * their file, so it must name them.
+ *
+ * **The urgent badge is drawn as a border and bold type, not as a colour**
+ * (D134). This page is printed, and a red panel comes off a mono office printer
+ * as grey — the one mark on the letter that must survive the photocopier is the
+ * one that says how fast the work is wanted.
  *
  * Screen and PDF are the same page — the toolbar is `print:hidden`, as on the
  * office order and the salary slip.
@@ -30,9 +36,10 @@ export type InternalLetterView = {
   addressedTo: { name: string; designation: string | null } | null;
   officeNameBn: string;
   box: { code: string; sealNo: string; submitted: boolean; specimenCount: number } | null;
-  packages: { name: string; parameterCount: number; specimenCount: number }[];
+  packages: { name: string; parameters: string[]; specimenCount: number }[];
   feeTaka: string | null;
   feePaid: boolean;
+  urgent: boolean;
   applicant: { applicationNo: string | null; company: string; product: string | null } | null;
 };
 
@@ -83,8 +90,21 @@ export default function InternalLetterDocument({
               <span className="text-ink-2">স্মারক নং:</span>{" "}
               <span className="font-mono">{letter.letterNo}</span>
             </div>
-            <div>
-              <span className="text-ink-2">তারিখ:</span> {letter.issuedOn}
+            <div className="text-right">
+              <div>
+                <span className="text-ink-2">তারিখ:</span> {letter.issuedOn}
+              </div>
+              <div className="mt-2 flex justify-end">
+                {letter.urgent ? (
+                  <span className="rounded-md bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+                    URGENT
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-secondary px-2 py-1 font-mono text-secondary-foreground">
+                    NORMAL
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -170,25 +190,42 @@ export default function InternalLetterDocument({
             </table>
           )}
 
+          {/* **The wing head is told which tests, the counter only how many.**
+              He is being asked whether his bench can run them, which a number
+              cannot answer; the counter takes the box at the door and never
+              opens it. The names are the ones routed to *this* office — a
+              package split across two wings sends each of them its own half
+              (D134). */}
           {letter.packages.length > 0 && (
             <table className="mt-4 w-full border-collapse text-[10.5pt]">
               <thead>
                 <tr className="border-y border-rule bg-rule/20">
-                  <th className="w-8 px-2 py-1.5 text-left font-semibold">ক্রঃ</th>
-                  <th className="px-2 py-1.5 text-left font-semibold">পণ্যের ধরন</th>
-                  <th className="w-24 px-2 py-1.5 text-left font-semibold">নমুনা</th>
-                  <th className="w-28 px-2 py-1.5 text-left font-semibold">প্যারামিটার</th>
+                  <th className=" border border-theme w-8 px-2 py-1.5 text-left font-semibold">ক্রঃ</th>
+                  <th className=" border border-theme w-48 px-2 py-1.5 text-left font-semibold">পণ্যের ধরন</th>
+                  <th className=" border border-theme w-20 px-2 py-1.5 text-left font-semibold">নমুনা</th>
+                  <th className=" border border-theme px-2 py-1.5 text-left font-semibold">
+                    {isCounter ? "প্যারামিটার" : "পরীক্ষণীয় প্যারামিটার"}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {letter.packages.map((p, i) => (
-                  <tr key={p.name} className="border-b border-rule align-top">
-                    <td className="px-2 py-1.5">{toBengaliDigits(i + 1)}</td>
-                    <td className="px-2 py-1.5">{p.name}</td>
-                    <td className="px-2 py-1.5">{toBengaliDigits(p.specimenCount)} টি</td>
-                    <td className="px-2 py-1.5">{toBengaliDigits(p.parameterCount)} টি</td>
-                  </tr>
-                ))}
+                {letter.packages.map((p,i) =>
+      p.parameters.map((param, paramIndex) => (
+        <tr key={`${p.parameters}-${paramIndex}`}>
+          {paramIndex === 0 && (
+            <React.Fragment>
+              <td className="border border-theme px-2 py-1.5" rowSpan={p.parameters.length >0? p.parameters.length : 1}>{toBengaliDigits(i + 1)}</td>
+                    <td className="border border-theme px-2 py-1.5" rowSpan={p.parameters.length >0? p.parameters.length : 1}>{p.name}</td>
+                    <td className="border border-theme px-2 py-1.5" rowSpan={p.parameters.length >0? p.parameters.length : 1}>{toBengaliDigits(p.specimenCount)} টি</td>
+            </React.Fragment>
+            
+          )}
+
+          <td className={`border border-theme p-1 ${paramIndex%2 === 0 ? "bg-rule/60" : "bg-white"}`}>{param}</td>
+        </tr>
+      ))
+    )}
+                
               </tbody>
             </table>
           )}
@@ -212,6 +249,13 @@ export default function InternalLetterDocument({
                   ) : null}
                   ফি পরিশোধের অবস্থা ওয়ান স্টপ স্ক্রিনে দেখা যাবে; কাউন্টার হতে ফি
                   পরিশোধিত হিসেবে চিহ্নিত করার কোনো সুযোগ নেই।
+                  {letter.urgent && (
+                    <>
+                      {" "}
+                      <span className="font-semibold">এই ফি জরুরি ভিত্তিতে পরীক্ষণের
+                      হারে ধার্য করা হয়েছে।</span>
+                    </>
+                  )}
                 </li>
                 <li>
                   বাক্স গ্রহণের পর ওয়ান স্টপ স্ক্রিনে &lsquo;গ্রহণ করা হয়েছে&rsquo;
@@ -237,6 +281,14 @@ export default function InternalLetterDocument({
                   স্বীকৃত পরীক্ষাগারে সম্পন্ন করানোর ব্যবস্থা গ্রহণ করতে হবে; এ ক্ষেত্রেও
                   নমুনার জিম্মাদারি বিএসটিআই-এর উপরই বর্তাবে।
                 </li>
+                {letter.urgent && (
+                  <li>
+                    <span className="font-semibold">এই আবেদনের পরীক্ষণ জরুরি ভিত্তিতে
+                    সম্পন্ন করতে হবে</span> এবং সে অনুযায়ী পরীক্ষণ ফি আদায় করা হয়েছে।
+                    নমুনা গ্রহণের পর জরুরি টার্নঅ্যারাউন্ড অনুসরণ করে প্রতিবেদন প্রেরণের
+                    জন্য অনুরোধ করা হলো।
+                  </li>
+                )}
               </>
             )}
             <li>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Mail, PackageCheck, TriangleAlert } from "lucide-react";
+import { Mail, PackageCheck, TriangleAlert, Zap } from "lucide-react";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { requireInternal } from "@/lib/auth-guard";
 import { actorFor } from "@/lib/workflow/inbox";
@@ -120,6 +120,15 @@ function Section({
                 <span className="text-muted-foreground">
                   {l.specimenCount} specimen{l.specimenCount === 1 ? "" : "s"}
                 </span>
+
+                {/* Urgent is a scheduling instruction, so it belongs on the row
+                    a wing head scans and not only inside the letter (D134). */}
+                {l.urgent && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 font-semibold text-rose-700 dark:text-rose-400">
+                    <Zap className="h-3 w-3" strokeWidth={2} />
+                    Urgent
+                  </span>
+                )}
 
                 {l.submittedAt ? (
                   <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 font-medium text-emerald-700 dark:text-emerald-400">

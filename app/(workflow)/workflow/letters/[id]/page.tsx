@@ -70,6 +70,7 @@ export default async function InternalLetterPage({
             ? `${toBengaliDigits((letter.feePoisha / 100).toLocaleString("en-BD"))}/- টাকা`
             : null,
         feePaid: letter.feePaid,
+        urgent: letter.urgent,
         applicant: letter.applicant,
       }}
     />

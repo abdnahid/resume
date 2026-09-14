@@ -308,9 +308,17 @@ export default async function WorkflowFilePage({
                       total is stored (D62). */}
                   <p className="text-sm text-foreground">
                     {testFee ? formatPoisha(testFee.totalPoisha) : "Not resolvable yet"}
+                    {testFee?.isUrgent && (
+                      <span className="ml-2 rounded-md bg-rose-500/10 px-1.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-400">
+                        Urgent basis
+                      </span>
+                    )}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Provisional until the inspecting officer confirms the sub-product.
+                    {/* The rate is part of the figure, so a reader who sees a
+                        doubled number knows why (D134). */}
+                    Provisional until the inspecting officer confirms the sub-product
+                    {testFee && !testFee.isUrgent ? ", and quoted at the normal rate" : ""}.
                   </p>
                 </div>
 

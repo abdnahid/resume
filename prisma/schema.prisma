@@ -2092,6 +2092,20 @@ model Application {
   /// discipline as `SalaryProcess` snapshotting basic and net.
   testFeePoisha Int?
 
+  /// **Urgent testing, decided by the FDO in the act of issuing the letters**
+  /// (D134). Not the applicant's to choose: the urgent turnaround is a promise
+  /// about bench capacity, and the officer who knows the file and is standing
+  /// in front of the laboratories is the one who can make it.
+  ///
+  /// One flag for the file, not one per destination. The applicant pays once
+  /// and `testFeePoisha` is one figure, so a file urgent at Dhaka and normal at
+  /// Khulna would have no single amount to demand.
+  ///
+  /// **Who decided and when is on the letters**, which are issued in the same
+  /// act and carry `issuedBy` and `issuedAt` — a second pair of columns here
+  /// would be the same fact recorded twice and free to disagree.
+  isUrgent Boolean @default(false)
+
   /// The applicant's declaration that everything stated is true, taken at the
   /// end of the form. Stored as a time and a person, not a boolean: a consent
   /// that cannot say who gave it or when is not a declaration.

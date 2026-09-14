@@ -2253,3 +2253,134 @@ the box.
   office is accountable and its own examiner enters the result, but nothing
   records that the sample physically went outside.
 - Whether an approved report can be revised.
+
+---
+
+## Session 7 — 2026-09-13 (Linux machine) — what the letter actually asks for
+
+The client, resuming on the lab module:
+
+> The letter wing heads are receiving needs to have the parameters that need to
+> be tested in that lab. Also the testing fee is either urgent or normal. So
+> whether this testing needs to be done on urgent basis or normal needs to be
+> mentioned on the letter. Make it as status badge to make it prominent.
+
+Two requests. The first turned out to be a bug rather than a feature, and the
+second turned out to have no fact behind it anywhere in the system.
+
+### The parameter count was wrong, not merely thin
+
+`internalLetterFor()` printed a **প্যারামিটার** column holding
+`subProduct._count.parameters` — the number of tests in the *catalogue*
+package. That is the right number only for a file whose tests all go to one
+office. Application 26 is the counter-example the routing model was built for,
+and it was live in the database:
+
+```
+বিএসটিআই/ফরিদপুর/নমুনা/0001/2026 → Head Office   Ceramic Tiles: 1 jar,  1 test
+বিএসটিআই/ফরিদপুর/নমুনা/0002/2026 → Faridpur      Ceramic Tiles: 2 jars, 7 tests
+বিএসটিআই/ফরিদপুর/নমুনা/0003/2026 → Khulna        Ceramic Tiles: 1 jar,  1 test
+```
+
+All three letters had said **9**. Khulna's wing head was told to expect nine
+tests and was being sent one — *Resistance to household chemicals and swimming
+pool salts* — and Head Office, sent the single physical test, was told the same.
+Session 13 imported those 9 mixed tests and Session 16 gave the officer the
+choice that split them; the letter was still reading the number from before
+either.
+
+So the column is now the **names**, read from `LabTestOrderItem` through the
+D133 crossing — consignment → registration → sample → order (D70) — rather than
+from the sub-product. The order is what the bench will actually work from, so a
+letter built from it cannot disagree with the work. Gathered per *order* and not
+per jar, or four specimens of one package would print their five tests four
+times.
+
+**The counter still gets a count.** It takes the box at the door and never opens
+it; the names are for the wing head, who is being asked whether his bench can
+run them.
+
+### Urgency did not exist
+
+`LabTestOrder.isUrgent` has been in the schema since the samples work, `/labs`
+renders a badge off it, `/s/<ref>` prints `· URGENT`, and **nothing had ever set
+it**. `submitSamplingPlan()` creates every order at the default `false`. On the
+CM side it was worse: `testFeeFor()` summed `feePoisha` and never
+`urgentFeePoisha`, so the entire urgent price list — Sessions 5 through 12, D99
+through D102, 4,767 parameters apportioned against the wings' own published
+totals — was unreachable from an application. Every file in the system was
+quietly normal and nobody could have asked for anything else.
+
+That made the client's second sentence a decision, not a display. Two questions
+went back:
+
+**Who decides, and when?** Answered: **the FDO, in the act of issuing the
+letters.** That act already fixes the fee (D129) — it is the moment the
+sub-products are settled, the destinations chosen and the boxes sealed — so it
+is simultaneously the last moment the choice can be made and the first at which
+it can be charged for. The applicant is told the amount in the same demand.
+
+**One fact for the file, or one per destination?** Answered: **whole file.**
+`testFeePoisha` is one snapshot and the applicant makes one payment; a file
+urgent at Dhaka and normal at Khulna has no single figure to demand. Per-office
+urgency is a real thing to want later and would need the fee to become a sum of
+per-office amounts, which is a bigger change than a second column.
+
+### What got built
+
+`Application.isUrgent` (migration `20260913121148_urgent_testing`, one additive
+column). No `decidedBy`/`decidedAt` beside it: the letters are issued in the
+same act and carry `issuedBy` and `issuedAt`, and a second pair here would be
+the same fact recorded twice and free to disagree.
+
+`testFeeFor()` now returns **both** totals, both turnarounds, and
+`urgentAvailable`. `totalPoisha` is whichever the file chose. **The urgent total
+is the sum of `urgentFeePoisha`, never the normal total doubled** — `priceUrgent()`
+writes the same figure as normal for a test whose urgent turnaround is not
+actually shorter (D102's `same_as_normal`, 106 parameters), so doubling would
+charge for speed the bench cannot deliver. Live figures: application 19 is
+৳5,632 → ৳11,264 over 12 → 9 days, application 26 ৳4,000 → ৳8,000 over 14 → 10.
+
+`issueSampleLetters()` takes `urgent`, writes the flag and the fee, and **flips
+the file's `LabTestOrder`s in the same transaction**. Without that the letter
+would say জরুরি while the bench held a normal-priority order — the one
+disagreement this decision must not produce. The orders are reached by the same
+crossing the letter uses.
+
+The route reads `body.urgent === true` and nothing looser: a truthy string from
+a stale client must not double somebody's fee.
+
+`LettersPanel` shows both bases as radios with their price and turnaround before
+the officer commits, because a surcharge with no figure beside it is not a
+choice anyone can make responsibly. Urgent is disabled, with the reason, when no
+test on the file can be hurried.
+
+**The badge is a border and bold type, not a colour.** This letter is printed
+and photocopied, and a red panel comes off a mono office printer as grey — the
+one mark that has to survive is the one saying how fast the work is wanted. It
+sits under the date, opposite the memo number: *জরুরি ভিত্তিতে পরীক্ষণ* or
+*সাধারণ ভিত্তিতে পরীক্ষণ*, said either way rather than only when urgent, so a
+blank letter is never ambiguous. An urgent file also gets its own numbered
+instruction, and the counter's letter says the fee was charged at the urgent
+rate — it is the desk that turns a box away over the fee.
+
+**The applicant is told why.** `TestFeePanel` says the officer marked the
+testing urgent and that it is charged at that rate. They are being asked for
+roughly twice the figure their application quoted, and a demand that does not
+explain its own size is one they telephone about.
+
+### Still open
+
+- **Per-destination urgency.** Rejected today for the reason above, not because
+  it is wrong. If a wing ever needs one lab hurried and not another, the fee
+  becomes a sum of per-office amounts and `SampleLetter` grows the flag.
+- **`LabTestOrder.dueOn` is still never set.** Urgency now reaches the order but
+  the date does not, because the clock starts when the wing receives the
+  samples, not when the letters go out. That belongs with `receivedByWing`.
+- **The applicant's own letter carries no badge.** It tells them where to carry
+  boxes; the rate is explained on the fee panel beside it. Worth revisiting if
+  the client wants the paper to say it too.
+- Both D133 roles still have **no holders**, so none of this can be walked end
+  to end until `wing_head` and `testing_officer` are granted at
+  `/hr/listing/roles`.
+

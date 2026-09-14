@@ -19,7 +19,7 @@ import SamplingPanel from "../_components/SamplingPanel";
 import LettersPanel from "../_components/LettersPanel";
 import { plannedLettersFor } from "@/lib/cm/letters";
 import FoundAtFactoryPanel from "../_components/FoundAtFactoryPanel";
-import { choicesFor } from "@/lib/cm/sub-products";
+import { choicesFor, testFeeFor } from "@/lib/cm/sub-products";
 import { samplingView } from "@/lib/samples/screen";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
@@ -82,6 +82,10 @@ export default async function ProcessPage({
   // The letters only exist once the visit is approved (D95); before that there
   // is nothing to tell a laboratory about.
   const letters = report?.approvedAt ? await plannedLettersFor(applicationId) : null;
+
+  // Both totals, so the officer chooses the testing basis with the price in
+  // view (D134). Only worth the query once there are letters to issue.
+  const fee = letters ? await testFeeFor(applicationId) : null;
 
   // The sub-products of this product not yet on the file — what the officer can
   // add if he finds the factory making them (D89).
@@ -345,6 +349,18 @@ export default async function ProcessPage({
                 }))}
                 blockedBy={letters.blockedBy}
                 canIssue={isHolder && isVisitingOfficer}
+                fee={
+                  fee
+                    ? {
+                        normalTaka: `৳${(fee.normalPoisha / 100).toLocaleString("en-BD")}`,
+                        urgentTaka: `৳${(fee.urgentPoisha / 100).toLocaleString("en-BD")}`,
+                        normalDays: fee.normalDays,
+                        urgentDays: fee.urgentDays,
+                        urgentAvailable: fee.urgentAvailable,
+                      }
+                    : null
+                }
+                wasUrgent={app.isUrgent}
               />
             )}
 
