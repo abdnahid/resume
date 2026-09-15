@@ -97,11 +97,19 @@ export function nextRungBelow(from: LabRung, available: readonly LabRung[]): Lab
  * these three: it is the act that turns a draft into a document, and it is the
  * only step the FDO's side ever learns about.
  *
- * **The Examiner authorising his own work is not an oversight.** At an office
- * with one bench and nobody above it short of the wing head, the alternative is
- * a report nobody can sign — and the wing head's approval is still a second
- * pair of eyes. The table simply stops pretending a rank exists where it does
- * not.
+ * **Nobody signs their own work.** Where the rung above the tester is empty the
+ * **wing head** gives the authorising signature and approves in the same act —
+ * the client's rule, 2026-09-14, overruling D133's original table, which had the
+ * Examiner authorise his own report at a one-bench office. That was defended on
+ * the grounds that the alternative is a report nobody can sign; the answer is
+ * that there *is* somebody, and it is the officer who was going to approve it
+ * anyway.
+ *
+ * **The wing head never appears as a signature where a rung below him can give
+ * one.** Head office always staffs Director → DD → AD → Examiner, so its
+ * reports are signed three rungs down and the Director only approves. At a
+ * branch the office head is the wing head, and he signs only when there is not
+ * even an Assistant Director beneath him.
  */
 export type SignaturePlan = {
   testedBy: LabRung;
@@ -114,17 +122,23 @@ export function signaturePlan(available: readonly LabRung[]): SignaturePlan {
   const hasAD = available.includes("assistant_director");
   const hasEx = available.includes("examiner");
 
-  // With no bench at all the Assistant Director tests as well — which is why
-  // `testing_officer` is a role and not a designation (D133).
+  // With no bench the Assistant Director tests as well — every Examiner *and*
+  // every Assistant Director is a testing officer by the desk they hold.
   const tester: LabRung = hasEx ? "examiner" : hasAD ? "assistant_director" : "deputy_director";
 
   if (hasDD && hasAD && hasEx) {
     return { testedBy: "examiner", checkedBy: "assistant_director", authorisedBy: "deputy_director" };
   }
-  if (hasDD) return { testedBy: tester, checkedBy: null, authorisedBy: "deputy_director" };
-  if (hasAD && hasEx) return { testedBy: "examiner", checkedBy: null, authorisedBy: "assistant_director" };
-  // One rung does everything below the wing head.
-  return { testedBy: tester, checkedBy: null, authorisedBy: tester };
+  // `tester !== "deputy_director"` is what stops a lone DD authorising himself:
+  // with nobody below him he tests, and the signature has to come from above.
+  if (hasDD && tester !== "deputy_director") {
+    return { testedBy: tester, checkedBy: null, authorisedBy: "deputy_director" };
+  }
+  if (hasAD && hasEx) {
+    return { testedBy: "examiner", checkedBy: null, authorisedBy: "assistant_director" };
+  }
+  // Nobody above the tester, so the wing head signs as well as approves.
+  return { testedBy: tester, checkedBy: null, authorisedBy: "wing_head" };
 }
 
 /**
@@ -146,9 +160,10 @@ export type LabOrderState =
 
 export function stateAfterSubmit(plan: SignaturePlan): LabOrderState {
   if (plan.checkedBy) return "pending_check";
-  // The tester is also the authoriser — there is nothing left to wait for below
-  // the wing head.
-  if (plan.authorisedBy === plan.testedBy) return "pending_approval";
+  // The wing head is the authoriser, and authorising and approving are one act
+  // for him — so it goes straight to his desk rather than waiting at a rung
+  // that has nobody on it.
+  if (plan.authorisedBy === "wing_head") return "pending_approval";
   return "pending_authorisation";
 }
 

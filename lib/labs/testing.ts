@@ -52,12 +52,62 @@ export type LabActor = {
  * Testing Wing's position today.
  */
 export async function wingHeadsOfOffice(officeId: number) {
-  const holders = await prisma.employee.findMany({
+  /**
+   * **Head office answers from the desk; a branch answers from the office head**
+   * (the client's rule, 2026-09-14, amending D133).
+   *
+   * `wing_head` was a granted role and that is what left the module dead: the
+   * desks were all there, nobody held the role, and every office had no wing
+   * head. A granted role that duplicates a derivable fact is two sources of
+   * truth free to disagree — the reasoning D122 applied to `User.role`.
+   *
+   * Head office staffs `Executive (Physical Testing Wing)` and
+   * `Executive (Chemical Testing Wing)`, and whoever holds the Director post in
+   * one of them heads it — **substantive or in additional charge** (D74), which
+   * is the Chemical wing's position today. The test is on the unit naming a
+   * *testing* wing, not merely Executive: head office's own `office_head` is the
+   * Director of the Certification Marks Wing, and he heads no laboratory.
+   *
+   * A branch has no testing wing — its labs hang off the office — so its head
+   * covers both disciplines. **Keyed on the `office_head` role rather than on
+   * the Executive desk**, because only 11 of 23 office heads actually sit in
+   * their office's Executive section: the rest are seated in CM, in Metrology,
+   * one in a Physical Lab, and two hold no desk at all. Deriving from the desk
+   * would leave twelve offices with no wing head; the role is 23 of 23.
+   */
+  const inTestingWing = await prisma.employee.findMany({
     where: {
       officeId,
       status: "active",
-      user: { OR: [{ roles: { has: "wing_head" } }, { role: "wing_head" }] },
+      OR: [
+        { actingOrgPost: { unit: { nameEn: { contains: "Testing Wing" } } } },
+        { AND: [{ actingOrgPostId: null }, { orgPost: { unit: { nameEn: { contains: "Testing Wing" } } } }] },
+      ],
     },
+    select: {
+      id: true,
+      orgPost: { select: { nameEn: true } },
+      actingOrgPost: { select: { nameEn: true } },
+    },
+  });
+  // Only the wing's Director heads it — a Deputy Director sitting in the same
+  // Executive unit is on the ladder, not at the top of it.
+  const headIds = inTestingWing
+    .filter((e) => rungOf((e.actingOrgPost ?? e.orgPost)?.nameEn) === "wing_head")
+    .map((e) => e.id);
+
+  // Which way this office answered. It decides how the disciplines are read,
+  // and getting that wrong is not cosmetic — see below.
+  const byTestingWingDesk = headIds.length > 0;
+
+  const holders = await prisma.employee.findMany({
+    where: byTestingWingDesk
+      ? { id: { in: headIds } }
+      : {
+          officeId,
+          status: "active",
+          user: { OR: [{ roles: { has: "office_head" } }, { role: "office_head" }] },
+        },
     select: {
       id: true,
       nameEn: true,
@@ -73,13 +123,27 @@ export async function wingHeadsOfOffice(officeId: number) {
   return holders.map((h) => {
     const post = h.actingOrgPost ?? h.orgPost;
     const unit = post?.unit.nameEn ?? "";
-    // The wing is read off the unit's own name. `Lab.discipline` is the only
-    // vocabulary the rest of the module speaks, so it is what this answers in.
-    const disciplines: ("physical" | "chemical")[] = /chemical|chemistry|রাসায়ন|রসায়ন/i.test(unit)
-      ? ["chemical"]
-      : /physical|physics|textile|পদার্থ|ভৌত|টেক্সটাইল/i.test(unit)
-        ? ["physical"]
-        : ["physical", "chemical"];
+    /**
+     * **Only a head office wing director is narrowed by his unit.** There the
+     * unit *is* the wing — `Executive (Chemical Testing Wing)` — and the whole
+     * point is telling the two Directors apart.
+     *
+     * **A branch office head always covers both**, whatever unit he happens to
+     * sit in, because his office has no testing wings to be head of only one
+     * of. Reading his unit was a real fault and not a cosmetic one: Pabna's
+     * office head is seated in *Physical Lab, Pabna*, which matched the
+     * physical test and left him unable to receive a chemical order at his own
+     * office. Twelve of the 23 office heads sit outside Executive, so this
+     * would have misfired wherever one of them happened to sit in a lab or a
+     * discipline-named section.
+     */
+    const disciplines: ("physical" | "chemical")[] = !byTestingWingDesk
+      ? ["physical", "chemical"]
+      : /chemical|chemistry|রাসায়ন|রসায়ন/i.test(unit)
+        ? ["chemical"]
+        : /physical|physics|textile|পদার্থ|ভৌত|টেক্সটাইল/i.test(unit)
+          ? ["physical"]
+          : ["physical", "chemical"];
     return {
       employeeId: h.id,
       nameEn: h.nameEn,
@@ -95,7 +159,6 @@ export async function wingHeadsOfOffice(officeId: number) {
 /** Does this person head the wing that would run this order? */
 export async function headsThisOrder(actor: LabActor, orderId: number): Promise<boolean> {
   if (!actor.officeId) return false;
-  if (!hasRole(actor, "wing_head")) return false;
   const order = await prisma.labTestOrder.findUnique({
     where: { id: orderId },
     select: { officeId: true, lab: { select: { discipline: true } } },
@@ -148,6 +211,8 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
     orderBy: { id: "asc" },
   });
 
+  const headIds = new Set((await wingHeadsOfOffice(officeId)).map((h) => h.employeeId));
+
   const out: LabDesk[] = [];
   for (const p of people) {
     const post = p.actingOrgPost ?? p.orgPost;
@@ -156,19 +221,35 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
     const rung =
       rungOf(post?.nameEn) ?? rungOf(p.designationEn) ?? rungOf(p.designationBn);
     if (!rung) continue;
-    const isHead = hasRole(p.user, "wing_head");
+    const isHead = headIds.has(p.id);
     out.push({
       employeeId: p.id,
       nameEn: p.nameEn,
       nameBn: p.nameBn,
       designation: post?.nameEn ?? p.designationEn ?? p.designationBn,
-      // Holding the role is what makes somebody the top of this ladder, whatever
-      // their title — and a Director who does *not* hold it is not a wing head.
+      // Heading this office's testing is what puts somebody at the top of the
+      // ladder. A Director who heads no testing wing — Certification Marks, say
+      // — reads as the rung below, because that is where his title sits.
       rung: isHead ? "wing_head" : rung === "wing_head" ? "deputy_director" : rung,
-      isTestingOfficer: hasRole(p.user, "testing_officer"),
+      // **Every Examiner and every Assistant Director is a testing officer by
+      // the desk they hold** (the client's rule, 2026-09-14). It was a granted
+      // role on the theory that "an AD tests where no Examiner post is filled"
+      // is a fact about a person; it is a fact about a *desk*, and deriving it
+      // means an office is never one forgotten grant away from a dead bench.
+      isTestingOfficer: rung === "examiner" || rung === "assistant_director",
     });
   }
   return out;
+}
+
+/**
+ * Is this the rung of somebody who runs a test, rather than supervises one?
+ *
+ * The one place the question is answered, so `enterResult`, `submitReport` and
+ * the screen's own `canEnterResults` cannot drift apart.
+ */
+export function isTestingRung(rung: LabRung | null | undefined): boolean {
+  return rung === "examiner" || rung === "assistant_director";
 }
 
 /** Which rungs this office staffs, top first. */
@@ -363,17 +444,22 @@ export async function enterResult(args: {
     where: { id: args.orderItemId },
     select: {
       id: true,
-      order: { select: { id: true, state: true, holderEmployeeId: true, officeId: true } },
+      order: {
+        select: { id: true, state: true, holderEmployeeId: true, holderRung: true, officeId: true },
+      },
     },
   });
   if (!item) throw new Error("No such parameter on this order.");
   const order = item.order;
 
-  if (!hasRole(args.actor, "testing_officer") && !hasRole(args.actor, "superadmin")) {
-    throw new Error("Only a testing officer may enter a result.");
-  }
   if (order.holderEmployeeId !== args.actor.employeeId && !hasRole(args.actor, "superadmin")) {
     throw new Error("This order is on somebody else's bench.");
+  }
+  // **The desk holding the work decides, not a grant.** Every Examiner and
+  // every Assistant Director is a testing officer; a Deputy Director or a wing
+  // head holding the order is supervising it, and passes it to a bench.
+  if (!isTestingRung(order.holderRung) && !hasRole(args.actor, "superadmin")) {
+    throw new Error("Only a testing officer may enter a result. Pass the order to a bench first.");
   }
   if (order.state !== "received" && order.state !== "in_progress") {
     throw new Error("Results cannot be changed once the report has gone up.");

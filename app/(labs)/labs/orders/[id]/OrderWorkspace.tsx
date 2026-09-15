@@ -199,6 +199,28 @@ export default function OrderWorkspace({
         </Card>
       )}
 
+      {/* **Waiting on the counter, said rather than shown as a dead button.**
+          A wing head who can otherwise receive sees why he cannot, and which
+          box to chase — the refusal used to arrive only when he clicked. */}
+      {a?.isHead && !a.canReceive && a.awaitingBoxes.length > 0 && (
+        <Card title="Samples">
+          <p className="text-sm text-muted-foreground">
+            Not handed in at the One Stop counter yet, so this wing cannot take
+            it in. Testing begins once the counter has the box.
+          </p>
+          <ul className="mt-2 flex flex-wrap gap-2">
+            {a.awaitingBoxes.map((code) => (
+              <li
+                key={code}
+                className="rounded-md bg-secondary px-2 py-1 font-mono text-xs text-secondary-foreground"
+              >
+                {code}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       {/* ── Specimens ──────────────────────────────────────────────────── */}
       <Card title={`Specimens (${specimens.length})`}>
         <ul className="flex flex-wrap gap-2">

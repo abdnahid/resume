@@ -18,6 +18,7 @@ import { type LabRung, overallVerdict, stateAfterSubmit } from "@/lib/labs/ladde
 import {
   type LabActor,
   headsThisOrder,
+  isTestingRung,
   labDesksOfOffice,
   planForOffice,
   resultLines,
@@ -122,7 +123,7 @@ export async function submitReport(args: { orderId: number; actor: LabActor; rem
   if (order.holderEmployeeId !== args.actor.employeeId && !hasRole(args.actor, "superadmin")) {
     throw new Error("This order is on somebody else's bench.");
   }
-  if (!hasRole(args.actor, "testing_officer") && !hasRole(args.actor, "superadmin")) {
+  if (!isTestingRung(order.holderRung) && !hasRole(args.actor, "superadmin")) {
     throw new Error("Only a testing officer may submit results.");
   }
   if (order.state !== "received" && order.state !== "in_progress") {
@@ -288,16 +289,40 @@ export async function approveReport(args: { orderId: number; actor: LabActor }) 
     where: { orderId: args.orderId },
     select: { testedByEmployeeId: true, authorisedByEmployeeId: true, reportNo: true },
   });
-  if (!report?.testedByEmployeeId || !report.authorisedByEmployeeId) {
-    throw new Error("This draft is not signed by the officers who tested and authorised it.");
+  if (!report?.testedByEmployeeId) {
+    throw new Error("This draft is not signed by the officer who tested it.");
   }
   if (report.reportNo) throw new Error("This report has already been approved.");
+
+  /**
+   * **Where the office staffs nothing above the tester, the wing head's
+   * approval carries the authorising signature too.**
+   *
+   * The plan is recomputed here rather than trusted from the draft: it is the
+   * office's staffing that decides who may sign, and the same function decides
+   * it at submit and at approval so the two cannot disagree. Everywhere else
+   * `authorisedByEmployeeId` is already set by `authoriseReport()` and this
+   * leaves it alone — an approver must never overwrite somebody else's
+   * signature.
+   */
+  const { plan } = await planForOffice(order.officeId);
+  const signsAsAuthoriser = plan.authorisedBy === "wing_head";
+  if (!report.authorisedByEmployeeId && !signsAsAuthoriser) {
+    throw new Error("This draft has not been authorised.");
+  }
 
   const reportNo = await nextReportNo(order.officeId);
   await prisma.$transaction([
     prisma.labTestReport.update({
       where: { orderId: args.orderId },
-      data: { reportNo, approvedByEmployeeId: args.actor.employeeId, approvedAt: new Date() },
+      data: {
+        reportNo,
+        approvedByEmployeeId: args.actor.employeeId,
+        approvedAt: new Date(),
+        ...(signsAsAuthoriser && !report.authorisedByEmployeeId
+          ? { authorisedByEmployeeId: args.actor.employeeId, authorisedAt: new Date() }
+          : {}),
+      },
     }),
     prisma.labTestOrder.update({
       where: { id: args.orderId },

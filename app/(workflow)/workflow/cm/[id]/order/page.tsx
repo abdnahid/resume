@@ -26,7 +26,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const viewer = await requireInternal(`/workflow/${id}/order`);
+  const viewer = await requireInternal(`/workflow/cm/${id}/order`);
   const actor = await actorFor(viewer);
   if (!(await canViewApplication(actor, applicationId))) notFound();
 

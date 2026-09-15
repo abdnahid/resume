@@ -569,12 +569,12 @@ function DocumentLinks({
     "inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5";
   return (
     <div className="mt-3 flex flex-wrap gap-2">
-      <a href={`/workflow/${applicationId}/inspection-report`} className={cls}>
+      <a href={`/workflow/cm/${applicationId}/inspection-report`} className={cls}>
         <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
         পরিদর্শন প্রতিবেদন
       </a>
       {hasSamples && (
-        <a href={`/workflow/${applicationId}/sampling-report`} className={cls}>
+        <a href={`/workflow/cm/${applicationId}/sampling-report`} className={cls}>
           <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
           নমুনা সংগ্রহ প্রতিবেদন
         </a>

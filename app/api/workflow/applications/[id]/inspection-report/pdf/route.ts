@@ -7,7 +7,7 @@ import { launchBrowser } from "@/lib/pdf";
 /**
  * The inspection report as a PDF (D86).
  *
- * Puppeteer renders the same page an officer sees at `/workflow/[id]/inspection-report` —
+ * Puppeteer renders the same page an officer sees at `/workflow/cm/[id]/inspection-report` —
  * its toolbar is `print:hidden`, so there is no second layout to keep in step —
  * the office order's arrangement, and the salary slip's before it.
  *
@@ -36,7 +36,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const url = new URL(req.url);
-  const printUrl = `${url.protocol}//${url.host}/workflow/${applicationId}/inspection-report`;
+  const printUrl = `${url.protocol}//${url.host}/workflow/cm/${applicationId}/inspection-report`;
 
   // Forward the caller's cookies so the rendered page is authenticated as them.
   const cookies = (req.headers.get("cookie") ?? "")

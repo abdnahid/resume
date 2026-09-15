@@ -183,7 +183,7 @@ export default function SamplingPanel({
         </ul>
 
         <a
-          href={`/workflow/${applicationId}/labels`}
+          href={`/workflow/cm/${applicationId}/labels`}
           className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-card px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/5"
         >
           <QrCode className="h-3.5 w-3.5" strokeWidth={1.8} />

@@ -23,9 +23,9 @@ import { rungOf } from "@/lib/labs/ladder";
 export async function ordersForViewer(actor: LabActor) {
   if (!actor.officeId) return [];
 
-  const heads = hasAnyRole(actor, "wing_head")
-    ? await wingHeadsOfOffice(actor.officeId)
-    : [];
+  // Heading a wing is derived from the desk now, so there is no role to test
+  // first — gating on one is what kept this list empty at every office.
+  const heads = await wingHeadsOfOffice(actor.officeId);
   const mine = heads.find((h) => h.employeeId === actor.employeeId);
   const isSuper = hasAnyRole(actor, "superadmin");
 
@@ -131,22 +131,61 @@ export async function canViewOrder(actor: LabActor, orderId: number): Promise<bo
 export async function actionsFor(actor: LabActor, orderId: number) {
   const order = await prisma.labTestOrder.findUnique({
     where: { id: orderId },
-    select: { state: true, officeId: true, holderEmployeeId: true, holderRung: true },
+    select: {
+      state: true, officeId: true, holderEmployeeId: true, holderRung: true,
+      // The boxes carrying this order's own specimens — the same read
+      // `receiveByWing()` does, because this is the condition it refuses on.
+      specimens: {
+        select: { registry: { select: { consignment: { select: { code: true, state: true } } } } },
+      },
+    },
   });
   if (!order?.officeId) return null;
 
   const officeId = order.officeId;
+
+  /**
+   * Boxes this order is waiting on at the counter.
+   *
+   * **`receiveByWing()` refuses while any of them is outstanding, so the button
+   * must not be offered while any of them is.** It was, and the refusal only
+   * arrived on the click — which is exactly what the note above this function
+   * promises does not happen. A wing head at Head Office saw *Mark samples
+   * received* on three orders and two of them threw, because their box belongs
+   * to a different application that has not been handed in.
+   *
+   * Named rather than counted, for the same reason the service names them: the
+   * fix is to go and take that box in at the counter, and a number does not say
+   * which.
+   */
+  const awaitingBoxes = [
+    ...new Set(
+      order.specimens
+        .flatMap((s) => (s.registry?.consignment ? [s.registry.consignment] : []))
+        .filter((c) => c.state !== "submitted" && c.state !== "received_at_lab")
+        .map((c) => c.code),
+    ),
+  ];
   const holds = order.holderEmployeeId === actor.employeeId;
   const isSuper = hasAnyRole(actor, "superadmin");
-  const heads = hasAnyRole(actor, "wing_head") ? await wingHeadsOfOffice(officeId) : [];
+  const heads = await wingHeadsOfOffice(officeId);
   const isHead = heads.some((h) => h.employeeId === actor.employeeId);
-  const isTO = hasAnyRole(actor, "testing_officer");
+  /**
+   * **A testing officer by the desk he is acting from, not by a grant** (the
+   * client's rule, 2026-09-14). The order records the rung its holder took it
+   * on, so this asks the only question that matters — is the desk holding this
+   * work a bench or a supervising one.
+   */
+  const isTO = order.holderRung === "examiner" || order.holderRung === "assistant_director";
 
   return {
     holds,
     isHead,
     isTO,
-    canReceive: (isHead || isSuper) && order.state === "awaiting_sample",
+    /** What the order is still waiting on at the counter; empty when nothing. */
+    awaitingBoxes,
+    canReceive:
+      (isHead || isSuper) && order.state === "awaiting_sample" && awaitingBoxes.length === 0,
     canPass: (holds || isSuper) && ["received", "in_progress"].includes(order.state),
     canEnterResults:
       (holds || isSuper) && isTO && ["received", "in_progress"].includes(order.state),

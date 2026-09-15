@@ -28,7 +28,7 @@ export default async function InspectionReportPage({
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const viewer = await requireInternal(`/workflow/${id}/inspection-report`);
+  const viewer = await requireInternal(`/workflow/cm/${id}/inspection-report`);
   const actor = await actorFor(viewer);
   if (!(await canViewApplication(actor, applicationId))) notFound();
 

@@ -240,3 +240,8 @@ Decisions D36–D40, spec §5. `lib/cm/` holds the module: `policy.ts` and
   calls that single feature most of the perceived value of the system, because
   it replaces a phone call.
 
+- **The applicant's sampling letter is a printed document and follows the
+  document table convention** — full grid, merged grouping cells, one row per
+  item — recorded under "generated letter's data table" in
+  `.claude/rules/workflow.md`. `LetterDocument.tsx` still rules rows only and is
+  the next one to bring across.

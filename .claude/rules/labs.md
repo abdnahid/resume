@@ -514,3 +514,55 @@ needs to know which labs to seal samples for; the fee and the letters issue at
 approval, and the routing is **snapshotted** then, so a referral map edited next
 month cannot redirect a sample already sealed and in transit.
 
+## Who may act in the testing module (D136, amending D133)
+
+**Both lab roles are derived from the desk. Neither is granted, and neither
+should be re-introduced as a grant.** They were grants until 2026-09-14, and the
+result was a module nobody could use: every desk in place, no holders, all 23
+offices with no wing head and no testing officer. Derived, 23 of 23 resolve.
+
+| | Rule | `lib/labs/testing.ts` |
+|---|---|---|
+| **Head office wing head** | holds the Director post in `Executive (… Testing Wing)`, substantive **or acting** (D74) | `wingHeadsOfOffice()` |
+| **Branch wing head** | holds the `office_head` role; covers **both** disciplines | same, the fallback branch |
+| **Testing officer** | rung is examiner or assistant_director | `isTestingRung()` |
+
+- **A branch keys on the role and not the Executive desk.** Only **11 of 23**
+  office heads sit in their office's Executive section — the rest are in CM, in
+  Metrology, one in a *Physical Lab*, and two hold no desk at all. The desk rule
+  would leave twelve offices headless.
+- **A branch head covers both disciplines whatever unit he sits in.** Narrowing
+  by his unit made Pabna's head `physical` only — he is seated in *Physical Lab,
+  Pabna* — so his own office's chemical orders refused him. Only a head office
+  wing director is narrowed, because there the unit *is* the wing.
+- **The test is a *testing* wing, not merely Executive.** Head office's
+  `office_head` is the Director of the Certification Marks Wing and heads no
+  laboratory.
+- **`isTestingRung()` is the single place the bench question is answered** —
+  `enterResult()`, `submitReport()` and the screen's `canEnterResults` all call
+  it, so a control can never be offered that the service refuses.
+- **`office_head` stays a granted role.** It is not derivable, and it is what a
+  branch's whole testing chain now hangs off.
+
+**Nobody signs their own test report.** Where the rung above the tester is empty
+the **wing head** gives the authorising signature *and* approves, in one act —
+`signaturePlan()` returns `authorisedBy: "wing_head"` and `stateAfterSubmit()`
+sends it straight to `pending_approval`. D133 had the Examiner authorise his own
+report; that is overruled. Head office always staffs Director → DD → AD →
+Examiner, so its reports are signed three rungs down and the Director only
+approves. Pabna and Dinajpur are the live cases of the fallback.
+`approveReport()` **recomputes the plan rather than trusting the draft**, and
+never overwrites a signature somebody else gave.
+
+**A person holding two desks may take two steps on one order** — Khalilur
+authorising as Deputy Director (Chemistry) and approving as acting Director
+(Chemistry). The client's explicit call: the desk he acts from is what counts.
+**Desk switching is not built**, so until it is, authority follows every desk he
+holds at once.
+
+**The `canReceive` contract.** `actionsFor()` promises a control is never offered
+that the service would refuse, and it broke that: *Mark samples received* showed
+on orders whose box was still at the counter, and the refusal arrived on the
+click. It now carries `awaitingBoxes` — the same read `receiveByWing()` refuses
+on — and the screen names the box instead of offering a dead button.
+

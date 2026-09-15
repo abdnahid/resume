@@ -189,7 +189,7 @@ export default function FileBoard({
                 </p>
                 {a.orderNo && (
                   <Link
-                    href={`/workflow/${a.id}/order`}
+                    href={`/workflow/cm/${a.id}/order`}
                     className="mt-1.5 inline-flex flex-wrap items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-xs text-primary transition-colors hover:bg-primary/20"
                   >
                     <CalendarCheck className="h-3 w-3 shrink-0" strokeWidth={1.8} />
@@ -205,7 +205,7 @@ export default function FileBoard({
                     inspection plan, the office order — are reached from here
                     rather than one being a tab inside the other. */}
                 <Link
-                  href={`/workflow/${a.id}`}
+                  href={`/workflow/cm/${a.id}`}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
                 >
                   <Eye className="h-3.5 w-3.5" strokeWidth={1.8} />
@@ -213,7 +213,7 @@ export default function FileBoard({
                 </Link>
 
                 <Link
-                  href={`/workflow/${a.id}/process`}
+                  href={`/workflow/cm/${a.id}/process`}
                   className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     a.bucket === "mine"
                       ? "border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"

@@ -11,6 +11,57 @@ paths:
 
 ## Workflow — files moving inside BSTI
 
+**The route map (D135). A service owns a prefix; the shared desks do not.**
+
+```
+/workflow                    my files — every service I work on
+/workflow/counter            One Stop desk    ⎤ service-agnostic: a counter takes
+/workflow/letters/[id]       my letters       ⎦ boxes and letters for any service
+/workflow/cm/[id]/…          CM: process · order · reports · labels
+/workflow/metrology/…        [not built] 12 services, each doing different work
+/workflow/testing/[id]/…     [not built] one testing workflow, both disciplines
+```
+
+- **The shared three are keyed on something other than the file.** The counter is
+  scoped to `Consignment` and never holds an application; the letter inbox is
+  keyed on `addressedToEmployeeId` or `officeId` + `one_stop` (D130); the board is
+  one person's desk across every service. Putting any of them under a service
+  prefix would be claiming a service owns them.
+- **Testing is one route, not one per discipline.** `LabTestOrder` is keyed on
+  (office, sub-product) — order `TO-TG2R-GS94-CMK` carries 7 tests that are
+  chemical *and* physical — a branch office head is the wing head for both
+  disciplines, and nothing in `ladder.ts` branches on it. Discipline is a filter,
+  never a path segment.
+- **The testing wing is a shared sub-workflow, not a service.** Chemical and
+  physical are one implementation (D133) and metrology will call the same module
+  across the contract `lib/cm/lab-progress.ts` models. A service module is a thing
+  a citizen applies for; a sub-workflow is work a service hands out and gets back.
+- **`/labs` keeps the catalogue, coverage, mapping and registry.** The line is:
+  *the catalogue is a table you maintain, the order is a file you work.*
+
+**Two kernel rules that keep the eventual split cheap (D135):**
+
+1. **No new service-specific column on `Application`.** A new CM fact gets its own
+   table keyed on `applicationId`, the way `InspectionPlan`, `InspectionReport`
+   and `SampleLetter` already do — twelve tables do this today and it is why the
+   coupling is survivable. `isUrgent` (D134) is the last one that went on the row.
+2. **Nothing in `lib/workflow/` may import `lib/cm/`.** True today and verified;
+   that single import is what would quietly make the movement kernel CM-shaped.
+
+**Known and deliberately deferred:** `ApplicationState` is one flat enum of 30
+CM-specific values and `Application` still carries `factoryId`/`productId`.
+Metrology's 12 services would take that enum past 130 values, most inapplicable
+to any given file. It is not being split until a second real service exists to
+generalise against — the same call D1 made about the monorepo. **Only 4 files
+type against `ApplicationState`** (`lib/cm/states.ts`, `applications.ts`,
+`inspection.ts`, `StageTracker.tsx`), which is the measured blast radius.
+
+**RBAC is not the axis.** It answers "may this person do X"; the variation across
+wings is *what X is and what follows it*. `hasRole()` plus multi-role (D122)
+already covers authority, and a new wing adds role names, which is data. Encoding
+sequence in a permission matrix gives you `metrology_pcr_stage3_approver` and two
+sources of truth that can disagree.
+
 Decisions D57–D59, spec §4.2. `lib/workflow/chain.ts` is Prisma-free (D9),
 `inbox.ts` is the server half. Both avoid mentioning CM: `holderEmployeeId` and
 `ApplicationMovement` are generic, so the next service that needs a file to move
@@ -270,6 +321,30 @@ can reuse them.
   `submitConsignment()` refuses while it is unpaid and names the amount.
   `testFeeFor()` is the only place a test fee is summed; do not re-sum it
   locally, not even in a one-off.
+- **A generated letter's data table is a full grid with merged grouping cells,
+  and a list gets one row per item.** Set on the wing-head letter 2026-09-14 and
+  the shape every printed document should follow from here.
+  - **Every `th` and `td` carries `border border-theme`** — ruled on all four
+    sides. The CM documents used to rule only the rows (`border-y border-rule`),
+    which reads as prose in columns; the bank advice already had verticals, and
+    this settles the two families on the gridded one.
+  - **A list belonging to a row is rows, not a joined string.** Each parameter
+    gets its own `<tr>`, and the grouping columns — serial, package, jar count —
+    are `rowSpan`-merged across them, emitted only on the first
+    (`paramIndex === 0`, inside a `React.Fragment`). Joining them with `;` in one
+    cell was compact and unreadable, and it cannot be scanned down.
+    **This is how the wings' own `.xlsx` parameter files are laid out** — the
+    merged article cell that `prisma/import/xlsx-grid.ts` exists to resolve — so
+    the letter now looks like the document it was derived from, which is what the
+    officer reading it already knows how to read.
+  - **The leaf column zebra-stripes by index**, `bg-rule/60` on even rows: with
+    twenty parameters under one merged cell the eye needs a rail to follow.
+  - The header row keeps `bg-rule/20`, `font-semibold`, `text-left`.
+  - A **label/value** table — box number, seal number, application number — is
+    not this. It stays the two-column `bg-rule/20` key against a plain value; the
+    grid is for tabulated data with a repeating shape.
+  Print colours already survive: the document's `@media print` block sets
+  `print-color-adjust: exact`. Keep it when adding a new document.
 - **The wing-head letter names the tests routed to that office, and says on
   what basis** (D134). Two things it used to get wrong. It printed a *count*,
   and the count was the catalogue package's — so application 26's Ceramic Tiles

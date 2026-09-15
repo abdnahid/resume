@@ -27,7 +27,7 @@ export default async function LabelsPage({ params }: { params: Promise<{ id: str
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const viewer = await requireInternal(`/workflow/${id}/labels`);
+  const viewer = await requireInternal(`/workflow/cm/${id}/labels`);
   const actor = await actorFor(viewer);
   if (!(await canViewApplication(actor, applicationId))) notFound();
 

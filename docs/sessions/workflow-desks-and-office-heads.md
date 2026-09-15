@@ -2384,3 +2384,137 @@ explain its own size is one they telephone about.
   to end until `wing_head` and `testing_officer` are granted at
   `/hr/listing/roles`.
 
+---
+
+## Session 8 — 2026-09-14 (Linux machine) — one workflow per service, not one for all
+
+The client, before any more CM code:
+
+> workflow accross all wings are not similar. [...] CM workflow is at the start
+> of the application to sampling approval and letter issue. One stop is just
+> receiving sample and then the chemical wing and physical wing testing workflow
+> begins. Those two wings as testing wings have 99% similar workflow if not
+> 100%. [...] after testing report approved the next phase begins at CM wing.
+> FDO has some procedures after receiving approved test report. When we go live
+> for metrology wing the workflow wont be similar to CM/chemical/physical. Also
+> Metrology has about 12 different services all works differently. Application
+> of services and file passing system are similar to CM wing but what the File
+> dealing officer do to process the application differs greatly. [...] I was
+> thinking of RBAC. I dont know what can be better.
+
+### RBAC is the wrong axis, and saying so was the useful part
+
+RBAC answers *may this person do X*. The variation the client describes is *what
+X is, and what follows it*. Building the second out of the first produces roles
+named after steps — `metrology_pcr_stage3_approver` — and then authority and
+sequence are one object, free to disagree with itself.
+
+Authorisation is already adequate for this: `hasRole()` is the single question,
+D122 made roles multi-valued, and each module names its own (`wing_head`,
+`testing_officer`, `one_stop`, `office_head`). A new wing adds role **names**,
+which is data entry, not structure.
+
+### What the survey found already right
+
+- **`lib/workflow/` imports nothing from `lib/cm/`.** Checked, not assumed. The
+  movement kernel is genuinely generic, which is the expensive thing to get
+  wrong and it was not got wrong.
+- **`ServiceKind` is already on `Application`** with the comment *"the column is
+  here so the kernel's application table is not CM-shaped"*. The seam was
+  anticipated; it has one member.
+- **Twelve tables hang off `applicationId`** as work records rather than as
+  columns — `InspectionPlan`, `InspectionReport`, `SampleLetter` and the rest.
+  That is the pattern a second service will reuse.
+
+### And what will break
+
+- **`ApplicationState` is one flat enum with 30 CM values.** Twelve metrology
+  services take it past 130, most inapplicable to any given file, with
+  `stageInfo()` becoming a partial function. Measured blast radius: **4 files**
+  type against it.
+- **`Application` carries `factoryId` NOT NULL, `productId`, and the CM
+  relations.** A verification request has no factory in the CM sense.
+- **The process page has 33 CM-specific branches** choosing panels by state.
+
+None of it is being fixed yet. Splitting before a second real service exists is
+guessing at what varies — D1's reasoning about the monorepo, applied again. What
+*is* adopted are the two rules that keep the split cheap: no new
+service-specific column on `Application`, and no `lib/cm/` import inside
+`lib/workflow/`.
+
+### The route map, which was the client's own proposal
+
+> I suggest you to use /workflow/cm/* for CM , /workflow/metrology/* for
+> Metrology , /workflow/testing/chemical/* for chemical lab,
+> /workflow/testing/physical/*
+
+Taken, with one change and one addition.
+
+**The change: testing is not split by discipline.** Three reasons, the first
+being live data — `LabTestOrder` is keyed on (office, sub-product), and querying
+the five orders in the database found one that settles it:
+
+```
+TO-AB2B-QX8V-M4G  Head Office  Ceramic Tiles → physical (1)
+TO-TG2R-GS94-CMK  Faridpur     Ceramic Tiles → chemical + physical (7)  ← MIXED
+TO-STAB-R560-N0M  Khulna       Ceramic Tiles → chemical (1)
+```
+
+A discipline-keyed route has no home for `TO-TG2R`; you would have to split the
+order, which breaks the one-box-one-order custody chain. Second, **a branch
+office head is the wing head for both disciplines** — his desk is in Executive,
+in no wing, which is the rule D133 settled — so two routes give one man two
+inboxes for one job. Third, nothing in `ladder.ts`, `signaturePlan()` or
+`stateAfterSubmit()` asks about discipline, which is the 99–100% the client
+described, already reflected in the code. Discipline is a filter on a list.
+
+**The addition: three screens belong to no service** and stay at the top —
+`/workflow` (one person's files across every service), `/workflow/counter` (a
+counter takes boxes for whatever sent them; scoped to `Consignment`, never
+holding a file) and `/workflow/letters` (keyed on the addressee, D130).
+
+That also renamed the category the testing wing sits in: **it is a shared
+sub-workflow, not a service.** A service module is a thing a citizen applies
+for; a sub-workflow is work a service hands out and gets back. Metrology will
+call the same testing module across the same narrow contract, which is what
+`lib/cm/lab-progress.ts` already is.
+
+### The move
+
+`app/(workflow)/workflow/[id]/` → `app/(workflow)/workflow/cm/[id]/` by
+`git mv`, whole. Every import inside it was already relative to within the
+folder, so nothing needed rewriting for the move itself — only the **URLs**:
+six `requireInternal()` return paths, five panel links, three board links, and
+**the two Puppeteer `printUrl`s**, which are the ones that would have failed
+silently as 404 PDFs rather than at compile time.
+
+Done now rather than later because it is mechanical while CM is the only
+service, and because the post-test FDO screens are the next thing to be written
+and would otherwise land at the generic path and have to move.
+
+`/workflow/counter` and `/workflow/letters` were untouched by design. The build
+confirms the shape:
+
+```
+/workflow · /workflow/cm/[id]{,/process,/order,/inspection-report,
+            /sampling-report,/labels} · /workflow/counter · /workflow/letters/[id]
+```
+
+No auth change: the `(workflow)` layout calls `requireInternal("/workflow")`
+over the whole tree, so the new prefix inherits the gate. And the top level now
+has **no dynamic segment at all**, so `counter` and `letters` are no longer
+static siblings of a `[id]` that could have swallowed them.
+
+### Open, and put back to the client
+
+1. **Is metrology's inspection the same act as CM's?** If a premises visit wants
+   a plan, an office order, a team and a report, `lib/cm/inspection.ts` becomes a
+   shared sub-workflow like testing.
+2. **Do the 12 metrology services share a spine** — apply → review → assign → do
+   the thing → certificate — with only the middle differing? That decides one
+   module with 12 variants against 12 modules.
+3. **Does anything but CM use the 315-product list?** The spec has metrology on
+   an open product universe needing free-entry-with-moderation, which is a
+   different *product* model rather than a different workflow, and may be the
+   larger piece of work.
+

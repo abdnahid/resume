@@ -28,7 +28,7 @@ export default async function SamplingReportPage({
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const viewer = await requireInternal(`/workflow/${id}/sampling-report`);
+  const viewer = await requireInternal(`/workflow/cm/${id}/sampling-report`);
   const actor = await actorFor(viewer);
   if (!(await canViewApplication(actor, applicationId))) notFound();
 

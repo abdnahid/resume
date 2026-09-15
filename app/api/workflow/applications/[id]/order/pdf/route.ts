@@ -7,7 +7,7 @@ import { launchBrowser } from "@/lib/pdf";
 /**
  * The office order as a PDF (D85).
  *
- * Puppeteer renders the same page an officer sees at `/workflow/[id]/order` —
+ * Puppeteer renders the same page an officer sees at `/workflow/cm/[id]/order` —
  * its toolbar is `print:hidden`, so there is no second layout to keep in step.
  * The salary slip's arrangement, for the same reason.
  *
@@ -34,7 +34,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const url = new URL(req.url);
-  const printUrl = `${url.protocol}//${url.host}/workflow/${applicationId}/order`;
+  const printUrl = `${url.protocol}//${url.host}/workflow/cm/${applicationId}/order`;
 
   // Forward the caller's cookies so the rendered page is authenticated as them.
   const cookies = (req.headers.get("cookie") ?? "")

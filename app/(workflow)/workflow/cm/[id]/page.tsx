@@ -44,7 +44,7 @@ export default async function WorkflowFilePage({
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const viewer = await requireInternal(`/workflow/${id}`);
+  const viewer = await requireInternal(`/workflow/cm/${id}`);
   const actor = await actorFor(viewer);
   if (!(await canViewApplication(actor, applicationId))) notFound();
 
