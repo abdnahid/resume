@@ -2801,3 +2801,160 @@ Unchanged from Session 9, and the client has said he will answer them next: the
 reverse letter → order link, the third-party referral mark, `LabTestOrder.dueOn`
 never being set, whether an approved report can be revised, and the printed test
 report (no signature image on `Employee`).
+
+---
+
+## Session 11 — 2026-09-15 (Linux machine) — the test that goes outside
+
+The client, having explained what `third_party` actually means in practice:
+
+> 3rd party is handled by that office's TO. he issues a letter from system and
+> gives to 3rd party manually and then after taking data from them TO enters
+> that into our system.
+
+> build the third party referral flow
+
+This closes the gap step 9 has carried since D133, and it is worth naming
+precisely: **`manner: third_party` was recordable and nothing that happened
+afterwards was.** An office could declare it sends a test out, and the system
+had no way to say it ever had — no date, no laboratory, no paper, and a result
+that came back from somebody else's instrument was indistinguishable from one
+read at our own bench.
+
+### Capability and referral are different facts
+
+The distinction the whole design rests on:
+
+| | `ParameterCapability.manner` | `LabReferral` |
+|---|---|---|
+| what it is | a standing declaration about a parameter | one event on one order |
+| answers | *can this office cover this test* | *what happened to this jar* |
+| has | no date, no laboratory, no document | all three |
+| set at | `/labs/coverage` | the bench, when the specimens go out |
+
+The declaration is what makes the office a valid destination (D116). The
+referral is what actually happened. Conflating them would have meant either a
+capability row growing a date — which is a claim about one consignment written
+on a standing fact — or a referral inferred from capability, which cannot say
+*which* laboratory or *when*.
+
+### Referred by the test, not by the order
+
+Because capability is per parameter and an order is routinely split. Faridpur's
+Ceramic Tiles order is the live case and it is exactly why:
+
+```
+Resistance to staining            declared: sent out
+a) Resistance to low concentration  declared: our bench
+b) Resistance to high concentration declared: our bench
+Size in mm                          declared: our bench
+Surface quality                     declared: our bench
+Water absorption in percent       declared: sent out
+Breaking strength in N            declared: sent out
+```
+
+An order-level referral would have had to send all seven or none. So
+`LabReferralItem` carries the tests, `@@unique([orderItemId])` says a test goes
+out once, and one referral covers any number of them — because the courier
+takes one envelope, not one per test.
+
+### Where the outside laboratory is named
+
+**Here, and only here** — which is D65 read exactly as it was written. Its own
+schema note already said the reason: *which* company runs a test is a fact about
+one consignment rather than about what an office can do. So there is still no
+third-party laboratory table and `labName` is text. A registry of accredited
+labs is a different decision and nothing yet needs one.
+
+The accountable unit does not move. BSTI's own testing officer issues the
+referral, receives the figures and enters them, and the report carries BSTI's
+signatures. **A referral changes who held the instrument, not who answers for
+the result.**
+
+### The declaration is shown, never enforced
+
+The tempting rule is to refuse a referral for a test declared in-house. It was
+not taken: an instrument fails, a reagent runs out, and the testing officer is
+left with a jar he can neither test nor refer — a dead end with no way out of
+it, which is worse than the thing the rule was guarding against.
+
+So the form **pre-selects** what capability says and lets him say otherwise,
+and what it must never do is hide the disagreement: a test marked *declared our
+bench* and sent out anyway is labelled as such on the picker.
+
+### Two things derived rather than asked for
+
+- **`TestResult.referralId`** is stamped from the item's referral inside
+  `enterResult()`. The testing officer types the figure he was given; whether
+  the jar went out is already recorded on the order, and asking him again would
+  be a second source of truth for one fact.
+- **`resultsInAt`** is set by the first reading entered against the referral,
+  not typed. A date somebody enters by hand can claim a return that left no
+  figure behind it; this one cannot exist without one.
+
+### The two refusals
+
+- **A test cannot go out twice**, and the refusal names which ones and on which
+  referral — the fix is to withdraw that one or drop the test from this one, and
+  a count says neither.
+- **A referral cannot be withdrawn once any reading cites it**, because at that
+  point it is part of how that figure was obtained and deleting it would quietly
+  turn an outside result into one of ours. Withdrawal exists for the mistyped
+  laboratory name, which is always caught before any figure arrives.
+
+**Known consequence, accepted:** withdrawing frees the serial, so the next
+referral reuses the number. That is right for its intended case — nothing left
+the building under it — and wrong if the officer had already printed and handed
+it over, which is not a thing he would then withdraw.
+
+### The letter is the one document that leaves the building
+
+So the blinding rule (D71) matters more here than anywhere. It is built from the
+order, which carries no application column at all (D70), so there is no path
+from the page to a company, a factory, a brand or an application number even by
+accident. Specimens are named by the lab code written on the jar.
+
+It asks for **figures, not a verdict**: the outside laboratory observes, BSTI
+judges against the standard and signs for it. So the limit is printed for
+information, there is no pass/fail column, and the results column is left blank
+to be filled by hand or on the lab's own report and typed back here.
+
+### One repair in passing, and it was overdue
+
+The submission gap list existed in **three copies** — the workspace page
+computed it inline, `submitReport()` computed it again, and `reportGaps()` was
+the third. They agreed only by coincidence, and the moment one of them learned
+about outstanding referrals the other two would have disagreed with it. They are
+one call now.
+
+Which also fixed the message: an outstanding referral used to surface as
+*"Resistance to staining (specimen 1) — no result"*, which is true and
+impossible to act on, because the officer cannot run that test at his bench. It
+now reads:
+
+> "Resistance to staining", "Water absorption in percent", "Breaking strength
+> in N" are with Test Lab Ltd on বিএসটিআই/ফরিদপুর/বহিঃপরীক্ষণ/0001/2026 and the
+> figures have not come back.
+
+Listed first, because it is the gap that is not the reader's to close.
+
+### Verified end to end, then rolled back
+
+Every order in the database sits at `awaiting_sample` with no holder, so the
+guards refuse — correctly, and that was step 1 of the test. The order was then
+staged onto a Faridpur Assistant Director's bench, the real services run, and
+the order restored exactly: `state=awaiting_sample`, holder null, 0 referrals,
+0 results. All seven checks passed, including the serial
+`বিএসটিআই/ফরিদপুর/বহিঃপরীক্ষণ/0001/2026` and the two refusals above.
+
+Recorded as **D140**.
+
+### Still open
+
+- The reverse letter → order link (Session 9).
+- `LabTestOrder.dueOn` still never set.
+- Whether an approved report can be revised.
+- **The printed test report** — and it now has one more thing to say, since a
+  report covering referred tests should cite the laboratory and the referral
+  number. `TestResult.referralId` is there for it. `Employee` still carries no
+  signature image, which is the reason the document does not exist yet.

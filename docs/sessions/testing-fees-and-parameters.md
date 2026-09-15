@@ -3138,3 +3138,86 @@ Unchanged: the re-seating screen, and `lab_entry` still has no users.
 **Worth doing now and awkward later:** adopt migrations. The schema was created
 on Neon by `db push`, so there is still no history — and a baseline against a
 fresh database costs almost nothing today.
+
+---
+
+## Session 18 — 2026-09-15 (Linux machine) — a saved "Not ours" that would not stay saved
+
+The client, entering Ceramic Tiles coverage:
+
+> In /labs/coverage I am setting lab capability for ceramic tiles. I click not
+> ours and save. But as soon as I reload it switches back to our bench.
+
+### The save was never the problem
+
+`setPackageCoverage()` records a withdrawal by **deleting** the
+`ParameterCapability` row — absence is what "we do not do this" means since
+D116, and a row saying `isActive: false` would read as a claim. That is
+correct, and it worked.
+
+The wizard seeded each test's answer as:
+
+```ts
+p.manner ?? (p.ownLabId ? "in_house" : "third_party")
+```
+
+which makes **absence indistinguishable from a claim**. Save *Not ours* → the
+row is deleted → reload → `manner` is null → seeded `in_house` → the screen says
+*Our bench*.
+
+Checked against the live rows before touching anything, which is what made it
+quick. Faridpur, Ceramic Tiles:
+
+```
+Resistance to staining              stored=third_party  → third_party   ✓
+a) Resistance to low concentration  stored=in_house     → in_house      ✓
+b) Resistance to high concentration stored=in_house     → in_house      ✓
+c) Resistance to household chemical stored=null         → OUR BENCH     ✗
+Size in mm                          stored=in_house     → in_house      ✓
+Surface quality                     stored=in_house     → in_house      ✓
+Water absorption in percent         stored=third_party  → third_party   ✓
+Breaking strength in N              stored=third_party  → third_party   ✓
+Modulus of rupture in N/mm2         stored=null         → OUR BENCH     ✗
+```
+
+Seven of nine rows present, and the two nulls are exactly the two clicks he
+made. The data was right the whole time.
+
+### Why this is worse than losing the answer
+
+A form that forgets an answer is annoying. A form that **replaces it with a
+claim the office never made** is a silent write waiting to happen: the operator
+sees *Our bench*, has no reason to touch it, and the next Save on that package
+writes `in_house` for a test Faridpur does not run. Routing (D116) would then
+send it there.
+
+### The fix, and what was kept
+
+Pre-fill only where nothing has been asserted — `pkg.level === "unanswered"`,
+which means no rows at all — and seed `manner ?? "none"` once any row exists.
+
+The pre-fill itself is worth keeping and the original comment's reasoning still
+holds: on a package nobody has answered, offering this office's own bench (or
+*sent out* where it has no bench of that discipline, which is Faridpur's
+physical tests) saves an operator nine clicks and asserts nothing. The mistake
+was applying it to packages that **had** been answered.
+
+### The label that caused the question
+
+The client added:
+
+> 3rd party testing is "not ours" I guess.
+
+He was guessing, and the guess is wrong in the expensive direction. The two
+answers both mean *no bench of ours runs this*, and are otherwise opposites:
+
+| | meaning | destination |
+|---|---|---|
+| **Sent out** (`third_party`) | we cover it; sent to an accredited outside lab, our own TO enters the result | **this office** |
+| **Not ours** (no row) | we do not cover it at all | **another office** |
+
+An office that meant *we send this out* and clicked *Not ours* has declared it
+cannot cover the test, and routing will never offer it. So the partial form now
+carries a three-term legend saying what each button means, next to the buttons.
+
+Recorded as part of **D140**'s reasoning; the fix itself needed no decision.

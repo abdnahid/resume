@@ -473,6 +473,10 @@ export async function enterResult(args: {
     where: { id: args.orderItemId },
     select: {
       id: true,
+      // **Which referral this reading came back on, if any** (D140). Read here
+      // rather than asked for: the testing officer types the figure he was
+      // given, and whether the jar went out is already recorded on the order.
+      referral: { select: { referralId: true } },
       order: {
         select: { id: true, state: true, holderEmployeeId: true, holderRung: true, officeId: true },
       },
@@ -480,6 +484,7 @@ export async function enterResult(args: {
   });
   if (!item) throw new Error("No such parameter on this order.");
   const order = item.order;
+  const referralId = item.referral?.referralId ?? null;
 
   if (order.holderEmployeeId !== args.actor.employeeId && !hasRole(args.actor, "superadmin")) {
     throw new Error("This order is on somebody else's bench.");
@@ -509,6 +514,7 @@ export async function enterResult(args: {
     observedValue: args.observedValue,
     verdict: args.verdict,
     enteredByEmployeeId: args.actor.employeeId,
+    referralId,
   };
 
   const [result] = await prisma.$transaction([
@@ -523,6 +529,14 @@ export async function enterResult(args: {
           },
         }),
     prisma.labTestOrder.update({ where: { id: order.id }, data: { state: "in_progress" } }),
+    // **The figures are back, said by the act rather than typed** (D140). A
+    // date somebody enters by hand can claim a return that left no reading
+    // behind it; this one cannot exist without one. `updateMany` so it is a
+    // no-op when the test was run on our own bench.
+    prisma.labReferral.updateMany({
+      where: { id: referralId ?? -1, resultsInAt: null },
+      data: { resultsInAt: new Date() },
+    }),
   ]);
   return result;
 }
@@ -558,6 +572,12 @@ export async function resultLines(orderId: number) {
                 select: { id: true, label: true, limitText: true, limitKind: true },
               },
             },
+          },
+          // **Where this test was run** (D140). On the line rather than on each
+          // reading, because a referral is per test: every jar of a referred
+          // test went to the same laboratory in the same envelope.
+          referral: {
+            select: { referral: { select: { id: true, referralNo: true, labName: true } } },
           },
           results: {
             select: {
@@ -596,6 +616,8 @@ export async function resultLines(orderId: number) {
       parameterName: item.parameter.nameEn,
       discipline: item.parameter.discipline,
       method: item.parameter.method?.designation ?? null,
+      /** Null when the test was run on this office's own bench. */
+      referral: item.referral?.referral ?? null,
       ...leaf,
       bySample: order.specimens.map((s) => {
         const r = item.results.find(
@@ -632,9 +654,37 @@ function verdictInput(lines: NonNullable<Awaited<ReturnType<typeof resultLines>>
   );
 }
 
-/** What still stands between this order and a submitted report. */
+/**
+ * What still stands between this order and a submitted report.
+ *
+ * **An outstanding referral is named as itself** (D140). A test sent to an
+ * outside laboratory shows up in the verdict rule as an unanswered line like
+ * any other — which is true but unhelpful, because the officer cannot fix it at
+ * his bench and the gap does not say so. Saying which laboratory has it turns
+ * "not tested" into a thing somebody can act on: chase that envelope.
+ *
+ * Listed first, because it is the gap that is not the reader's to close.
+ */
 export async function reportGaps(orderId: number): Promise<string[]> {
   const r = await resultLines(orderId);
   if (!r) return ["No such test order."];
-  return overallVerdict(verdictInput(r.lines)).gaps;
+
+  const outstanding = await prisma.labReferral.findMany({
+    where: { orderId, resultsInAt: null },
+    select: {
+      referralNo: true,
+      labName: true,
+      items: { select: { orderItem: { select: { parameter: { select: { nameEn: true } } } } } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  const waiting = outstanding.map(
+    (ref) =>
+      `${ref.items.map((i) => `“${i.orderItem.parameter.nameEn}”`).join(", ")} ${
+        ref.items.length === 1 ? "is" : "are"
+      } with ${ref.labName} on ${ref.referralNo} and the figures have not come back.`,
+  );
+
+  return [...waiting, ...overallVerdict(verdictInput(r.lines)).gaps];
 }

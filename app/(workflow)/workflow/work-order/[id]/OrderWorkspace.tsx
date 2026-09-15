@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, Check, Download, FlaskConical, Mail, PackageCheck, Send, Undo2,
+  AlertTriangle, Check, Download, ExternalLink, FlaskConical, Mail, PackageCheck, Send,
+  Undo2,
 } from "lucide-react";
 import { ORDER_STATE_LABELS, type LabOrderState } from "@/lib/labs/ladder";
 
@@ -27,6 +28,8 @@ type Line = {
   limit: string | null;
   limitKind: string;
   subParameterId: number | null;
+  /** Null when the test was run on this office's own bench (D140). */
+  referral: { id: number; referralNo: string; labName: string } | null;
   bySample: {
     sampleId: number;
     labCode: string;
@@ -46,6 +49,8 @@ export default function OrderWorkspace({
   actions,
   gaps,
   candidates,
+  referrable,
+  referrals,
   signaturePlan,
   report,
   flow,
@@ -101,6 +106,32 @@ export default function OrderWorkspace({
     rungLabel: string | null;
     desks: { employeeId: string; nameEn: string; designation: string | null; isTestingOfficer: boolean }[];
   };
+  /**
+   * Sending tests out, and what has already gone (D140). `referrable` is every
+   * test on the order with what `/labs/coverage` declared about it, so the form
+   * can pre-select what the office said it does not run.
+   */
+  referrable: {
+    orderItemId: number;
+    nameEn: string;
+    discipline: string;
+    declared: "in_house" | "third_party" | "not_covered";
+    referral: { id: number; referralNo: string; labName: string } | null;
+  }[];
+  referrals: {
+    id: number;
+    referralNo: string;
+    labName: string;
+    labAddress: string | null;
+    issuedOn: string;
+    resultsInOn: string | null;
+    issuedByName: string;
+    note: string | null;
+    tests: string[];
+    resultCount: number;
+    href: string;
+    pdfHref: string;
+  }[];
   signaturePlan: { testedBy: string; checkedBy: string | null; authorisedBy: string };
   report: {
     reportNo: string | null;
@@ -122,6 +153,16 @@ export default function OrderWorkspace({
   const [remarks, setRemarks] = useState(report?.remarks ?? "");
   const [returnNote, setReturnNote] = useState("");
   const [returning, setReturning] = useState(false);
+  // **Seeded from what the office declared, and only for tests not already
+  // out.** A `useState` initialiser runs once, and this list grows when a
+  // referral is withdrawn — so the checkbox map falls back to the prop rather
+  // than being synced by an effect, which would fight the officer's ticking.
+  const [referring, setReferring] = useState(false);
+  const [picked, setPicked] = useState<Record<number, boolean>>({});
+  const [labName, setLabName] = useState("");
+  const [labAddress, setLabAddress] = useState("");
+  const isPicked = (i: (typeof referrable)[number]) =>
+    picked[i.orderItemId] ?? i.declared === "third_party";
 
   async function act(body: Record<string, unknown>, ok?: string) {
     setBusy(true);
@@ -387,6 +428,15 @@ export default function OrderWorkspace({
                       {l.discipline}
                       {l.method ? ` · ${l.method}` : ""}
                     </p>
+                    {/* **Where the figure came from** (D140). On the row the
+                        reading is typed into, because that is the moment
+                        somebody could forget that this one was not run here. */}
+                    {l.referral && (
+                      <p className="mt-0.5 inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                        <ExternalLink className="h-2.5 w-2.5" strokeWidth={2} />
+                        sent out · {l.referral.labName}
+                      </p>
+                    )}
                   </td>
                   <td className="py-2 pr-3 text-xs text-muted-foreground">
                     {l.limit ?? <span className="italic">not specified</span>}
@@ -420,6 +470,212 @@ export default function OrderWorkspace({
           </table>
         </div>
       </Card>
+
+      {/* ── Sent out ───────────────────────────────────────────────────── */}
+      {(referrals.length > 0 || a?.canRefer) && (
+        <Card title="Sent to an outside laboratory">
+          <p className="mb-3 text-xs text-muted-foreground">
+            A test this office does not run on its own bench still belongs to
+            this office (D65). Issue the letter here, hand it over with the
+            specimens, and enter the figures on the parameters above when they
+            come back — they are stamped with the referral automatically.
+          </p>
+
+          {referrals.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {referrals.map((r) => (
+                <li key={r.id} className="rounded-xl border border-border bg-secondary/30 p-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                    <p className="text-sm font-medium text-foreground">{r.labName}</p>
+                    <p className="font-mono text-[11px] text-muted-foreground">{r.referralNo}</p>
+                  </div>
+                  {r.labAddress && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">{r.labAddress}</p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {r.tests.join(", ")}
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span>
+                      issued {r.issuedOn} by {r.issuedByName}
+                    </span>
+                    {r.resultsInOn ? (
+                      <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                        figures in {r.resultsInOn}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-700 dark:text-amber-400">
+                        awaiting figures
+                      </span>
+                    )}
+                  </p>
+                  {r.note && <p className="mt-1 text-xs italic text-muted-foreground">{r.note}</p>}
+                  <p className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                    <Link
+                      href={r.href}
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      Read the letter
+                    </Link>
+                    <a
+                      href={r.pdfHref}
+                      className="text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+                    >
+                      PDF
+                    </a>
+                    {/* **Withdrawing is only offered while nothing has come
+                        back.** Once a reading cites the referral it is part of
+                        how that figure was obtained — the service refuses, and
+                        a button that opens on a refusal is the dead-button rule
+                        broken. */}
+                    {a?.canRefer && r.resultCount === 0 && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          act(
+                            { action: "withdraw-referral", referralId: r.id },
+                            `${r.referralNo} withdrawn — its tests are free again.`,
+                          )
+                        }
+                        className="text-muted-foreground underline-offset-2 hover:text-destructive hover:underline disabled:opacity-50"
+                      >
+                        Withdraw
+                      </button>
+                    )}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {a?.canRefer &&
+            (referrable.some((i) => !i.referral) ? (
+              <div className="rounded-xl border border-dashed border-border p-3">
+                {!referring ? (
+                  <button
+                    type="button"
+                    onClick={() => setReferring(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:border-primary/50"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    Send tests out
+                  </button>
+                ) : (
+                  <>
+                    <p className="text-xs font-medium text-foreground">
+                      Which tests are going out?
+                    </p>
+                    <ul className="mt-2 space-y-1">
+                      {referrable
+                        .filter((i) => !i.referral)
+                        .map((i) => (
+                          <li key={i.orderItemId}>
+                            <label className="flex cursor-pointer items-start gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                className="mt-1"
+                                checked={isPicked(i)}
+                                onChange={(e) =>
+                                  setPicked((m) => ({ ...m, [i.orderItemId]: e.target.checked }))
+                                }
+                              />
+                              <span className="min-w-0">
+                                <span className="text-foreground">{i.nameEn}</span>
+                                <span className="ml-2 text-[11px] text-muted-foreground">
+                                  {i.discipline}
+                                </span>
+                                {/* **The declaration is shown, never
+                                    enforced.** An instrument fails and a test
+                                    declared in-house has to go out; refusing
+                                    would leave a jar that can be neither tested
+                                    nor referred. What it must not do is hide
+                                    the disagreement. */}
+                                {i.declared === "third_party" ? (
+                                  <span className="ml-2 rounded bg-secondary px-1 text-[10px] text-secondary-foreground">
+                                    declared sent out
+                                  </span>
+                                ) : i.declared === "in_house" ? (
+                                  <span className="ml-2 rounded bg-amber-500/10 px-1 text-[10px] text-amber-700 dark:text-amber-400">
+                                    declared our bench
+                                  </span>
+                                ) : (
+                                  <span className="ml-2 rounded bg-amber-500/10 px-1 text-[10px] text-amber-700 dark:text-amber-400">
+                                    not declared
+                                  </span>
+                                )}
+                              </span>
+                            </label>
+                          </li>
+                        ))}
+                    </ul>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs">
+                        <span className="text-muted-foreground">Laboratory</span>
+                        <input
+                          value={labName}
+                          onChange={(e) => setLabName(e.target.value)}
+                          placeholder="Name of the accredited laboratory"
+                          className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs">
+                        <span className="text-muted-foreground">Address (optional)</span>
+                        <input
+                          value={labAddress}
+                          onChange={(e) => setLabAddress(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={busy || !labName.trim()}
+                        onClick={async () => {
+                          const ids = referrable
+                            .filter((i) => !i.referral && isPicked(i))
+                            .map((i) => i.orderItemId);
+                          const done = await act(
+                            {
+                              action: "refer",
+                              orderItemIds: ids,
+                              labName,
+                              labAddress: labAddress || null,
+                            },
+                            "Referral issued — print it and send it with the specimens.",
+                          );
+                          if (done) {
+                            setReferring(false);
+                            setPicked({});
+                            setLabName("");
+                            setLabAddress("");
+                          }
+                        }}
+                        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                      >
+                        Issue referral
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReferring(false)}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Every test on this order has already been sent out.
+              </p>
+            ))}
+        </Card>
+      )}
 
       {/* ── Pass down ──────────────────────────────────────────────────── */}
       {a?.canPass && candidates.rung && candidates.desks.length > 0 && (

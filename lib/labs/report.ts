@@ -22,6 +22,7 @@ import {
   labDesksOfOffice,
   planForOffice,
   resultLines,
+  reportGaps,
 } from "@/lib/labs/testing";
 
 /**
@@ -132,7 +133,7 @@ export async function submitReport(args: { orderId: number; actor: LabActor; rem
 
   const lines = await resultLines(args.orderId);
   if (!lines) throw new Error("No such test order.");
-  const { verdict, gaps } = overallVerdict(
+  const { verdict } = overallVerdict(
     lines.lines.flatMap((l) =>
       l.bySample.map((s) => ({
         label: l.bySample.length > 1 ? `${l.label} (specimen ${s.specimenNo})` : l.label,
@@ -140,6 +141,12 @@ export async function submitReport(args: { orderId: number; actor: LabActor; rem
       })),
     ),
   );
+  // **Refused on the same list the screen shows**, `reportGaps()`, rather than
+  // on a second copy of the rule. The two were computed separately and have now
+  // diverged once: an outstanding referral is a gap (D140), and a submit that
+  // did not know it would have refused with "not tested" against a test the
+  // officer cannot run — true, and impossible to act on.
+  const gaps = await reportGaps(args.orderId);
   if (gaps.length) throw new Error(`Not ready to submit:\n· ${gaps.join("\n· ")}`);
 
   const { plan } = await planForOffice(order.officeId);

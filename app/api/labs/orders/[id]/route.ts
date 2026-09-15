@@ -9,6 +9,7 @@ import {
   returnReport,
   submitReport,
 } from "@/lib/labs/report";
+import { issueReferral, withdrawReferral } from "@/lib/labs/referral";
 import { applicationIdForOrder, syncLabState } from "@/lib/cm/lab-progress";
 
 /**
@@ -85,6 +86,38 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
           verdict: verdict as "pass" | "fail" | "inconclusive" | "not_tested",
           actor,
         });
+        break;
+      }
+      /**
+       * **Send a batch of this order's tests to an outside laboratory** (D140).
+       * One referral covers any number of tests, because capability is per
+       * parameter and an order is routinely split between our bench and
+       * somebody else's.
+       */
+      case "refer": {
+        const { orderItemIds, labName, labAddress } = body as {
+          orderItemIds?: unknown;
+          labName?: unknown;
+          labAddress?: unknown;
+        };
+        if (!Array.isArray(orderItemIds) || !orderItemIds.every((n) => Number.isInteger(n)))
+          return NextResponse.json({ error: "Which tests?" }, { status: 400 });
+        if (typeof labName !== "string" || !labName.trim())
+          return NextResponse.json({ error: "Name the laboratory." }, { status: 400 });
+        result = await issueReferral({
+          orderId,
+          orderItemIds: orderItemIds as number[],
+          labName,
+          labAddress: typeof labAddress === "string" ? labAddress : null,
+          note,
+          actor,
+        });
+        break;
+      }
+      case "withdraw-referral": {
+        if (!Number.isInteger(body.referralId))
+          return NextResponse.json({ error: "Which referral?" }, { status: 400 });
+        result = await withdrawReferral({ referralId: body.referralId as number, actor });
         break;
       }
       case "submit":

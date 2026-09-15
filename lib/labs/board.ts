@@ -212,6 +212,14 @@ export async function actionsFor(actor: LabActor, orderId: number) {
     canPass: (holds || isSuper) && ["received", "in_progress"].includes(order.state),
     canEnterResults:
       (holds || isSuper) && isTO && ["received", "in_progress"].includes(order.state),
+    /**
+     * **Sending a test out is the testing officer's act** (D140) — the client's
+     * rule: the TO issues the letter, hands it over, and enters the figures
+     * that come back. Exactly the window and the desk that may enter a result,
+     * because those are two halves of one job and splitting them across desks
+     * would leave the letter with one person and the figure with another.
+     */
+    canRefer: (holds || isSuper) && isTO && ["received", "in_progress"].includes(order.state),
     canSubmit: (holds || isSuper) && isTO && ["received", "in_progress"].includes(order.state),
     canCheck: (holds || isSuper) && order.state === "pending_check",
     canAuthorise: (holds || isSuper) && order.state === "pending_authorisation",

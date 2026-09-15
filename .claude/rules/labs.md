@@ -268,6 +268,35 @@ Product (one of the mandatory 315)
   all**, so every parameter filed at one of them falls through to another office
   on day one. That is what the map is for.
 
+- **A referral is the event; capability is the declaration** (D140).
+  `ParameterCapability.manner = third_party` says an office *may* send a test
+  out — no date, no laboratory, no paper. `LabReferral` says a batch actually
+  went: a memo number, a named laboratory, the day it left and the day the
+  figures came back. `lib/labs/referral.ts`.
+  - **Referred by the test, not by the order**, because capability is per
+    parameter and an order splits: Faridpur runs four of Ceramic Tiles' nine on
+    its own bench and sends three out. `@@unique([orderItemId])` — a test goes
+    out once; withdrawing a referral with no figures back frees its tests again.
+  - **This is where the outside laboratory is named, and the only place.** D65
+    keeps it off the capability because *which* company runs a test is a fact
+    about one consignment. There is still no third-party laboratory table.
+  - **The declaration is shown, never enforced.** An instrument fails and a test
+    declared in-house has to go out; refusing would leave a jar that can be
+    neither tested nor referred. The form pre-selects what capability says and
+    labels the disagreement.
+  - **The TO does both halves** — the guard is `enterResult()`'s exactly, since
+    issuing the letter and typing back what it returns are one job.
+  - **`TestResult.referralId` and `resultsInAt` are derived, never asked for.**
+    The stamp comes from the item's referral inside `enterResult()`; the date
+    comes from the first reading, so it cannot claim a return that left no
+    figure. **Withdrawal is refused once any reading cites it.**
+  - **The letter is the one document that leaves the building**, so it is built
+    from the order — no application column at all (D70) — and names specimens by
+    lab code. It asks for **figures, not a verdict**: the outside lab observes,
+    BSTI judges and signs.
+  - **`reportGaps()` is the one gap list.** It was three copies — the screen,
+    `submitReport()` and itself — and an outstanding referral is now named
+    rather than surfacing as an unactionable "no result".
 - **Third-party testing is a mode, not a destination** (D65).
   `LabRouting.labId` is always the accountable BSTI unit; `mode: third_party`
   means the sample is physically tested outside. Custody never leaves BSTI —

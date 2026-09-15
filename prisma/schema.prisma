@@ -697,6 +697,7 @@ model Employee {
   reportsApproved      InspectionReport[]         @relation("ReportApprovedBy")
   inspectionTeams      InspectionTeamMember[]
   testResultsEntered   TestResult[]               @relation("TestResultEnteredBy")
+  referralsIssued      LabReferral[]              @relation("ReferralIssuedBy")
   labMovementsSent     LabTestOrderMovement[]     @relation("LabMovementFrom")
   labMovementsReceived LabTestOrderMovement[]     @relation("LabMovementTo")
   labOrdersReceived    LabTestOrder[]             @relation("LabOrderReceivedByWing")
@@ -3556,6 +3557,7 @@ model LabTestOrder {
   specimens Sample[]
   movements LabTestOrderMovement[]
   report    LabTestReport?
+  referrals LabReferral[]
 
   /// Which rung the current holder is acting from. Stored rather than derived
   /// from their desk, because the ladder is per office and a person may hold a
@@ -3590,7 +3592,8 @@ model LabTestOrderItem {
 
   sortOrder Int @default(0)
 
-  results TestResult[]
+  results  TestResult[]
+  referral LabReferralItem?
 
   @@unique([orderId, parameterId])
   @@index([parameterId])
@@ -3625,11 +3628,103 @@ model TestResult {
   enteredBy           Employee? @relation("TestResultEnteredBy", fields: [enteredByEmployeeId], references: [id])
   enteredAt           DateTime  @default(now())
 
+  /// The referral this reading came back on, when the test was run outside
+  /// (D140). **Stamped from the item's referral, never asked for** — the
+  /// testing officer types the figure he was given, and whether it came off our
+  /// own bench or out of an envelope is already recorded on the order. Asking
+  /// him again would be a second source of truth for one fact.
+  referralId Int?
+  referral   LabReferral? @relation(fields: [referralId], references: [id])
+
   updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([orderItemId, sampleId, subParameterId])
   @@index([sampleId])
   @@index([subParameterId])
+  @@index([referralId])
+}
+
+/// One batch of an order's tests sent to an accredited outside laboratory, and
+/// the paper the testing officer hands over with it (D140).
+///
+/// **Capability says an office *may* send a test out; this says a batch
+/// actually went.** `ParameterCapability.manner = third_party` is a standing
+/// declaration about a parameter — it has no date, no laboratory and no
+/// document. A referral is one event on one order: a memo number, a named
+/// laboratory, the day it left and the day the figures came back.
+///
+/// **This is the one place the outside laboratory is named**, and D65 is why it
+/// is here rather than on the capability: *which* company runs a test is a fact
+/// about one consignment, not about what an office can do. So there is still no
+/// third-party laboratory table and the name is text — a registry of outside
+/// labs is a different decision, and nothing yet needs one.
+///
+/// **The accountable unit is still BSTI** (D65, D116). The office's own testing
+/// officer issues this, receives the figures and enters them; the report is
+/// BSTI's and carries BSTI's signatures. A referral changes who held the
+/// instrument, not who answers for the result.
+///
+/// **It is blind, like everything else lab-side** (D71). It is built from the
+/// order, which carries no application column at all (D70), so the letter names
+/// specimens by their lab code and can never name the applicant — which matters
+/// more here than anywhere: this is the one document that leaves the building.
+model LabReferral {
+  id Int @id @default(autoincrement())
+
+  /// `বিএসটিআই/<office>/বহিঃপরীক্ষণ/<serial>/<year>`, assigned at issue like
+  /// every other number in this system.
+  referralNo String @unique
+
+  orderId Int
+  order   LabTestOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Free text, deliberately — see the note above.
+  labName    String
+  labAddress String?
+
+  issuedByEmployeeId String
+  issuedBy           Employee @relation("ReferralIssuedBy", fields: [issuedByEmployeeId], references: [id])
+  issuedAt           DateTime @default(now())
+
+  /// Stamped by the first reading entered against it: the figures are back.
+  /// Derived from an act rather than typed, so it cannot claim a return that
+  /// left no result behind it.
+  resultsInAt DateTime?
+
+  note String?
+
+  items LabReferralItem[]
+
+  /// Readings that came back on this referral.
+  results TestResult[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+}
+
+/// Which of an order's tests went out on one referral.
+///
+/// **An order is referred by the test, not as a whole**, because capability is
+/// per parameter: Faridpur runs four of Ceramic Tiles' nine on its own bench
+/// and sends three out. A referral keyed to the order would have had to send
+/// all nine or none.
+///
+/// **A test goes out once**, which the unique on `orderItemId` enforces.
+/// Withdrawing a referral whose figures have not come back deletes its rows and
+/// frees them again — which is the way out of a mistyped laboratory name, and
+/// the reason the unique is affordable.
+model LabReferralItem {
+  id Int @id @default(autoincrement())
+
+  referralId Int
+  referral   LabReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  orderItemId Int              @unique
+  orderItem   LabTestOrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([referralId])
 }
 
 /// Every hand-off of a **test order** inside a laboratory. Append-only.

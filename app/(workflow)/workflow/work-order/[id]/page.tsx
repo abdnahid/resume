@@ -10,9 +10,16 @@ import { lettersForWorkOrders } from "@/lib/cm/letter-inbox";
 import { formatPoisha } from "@/lib/payments/money";
 import { hasAnyRole } from "@/lib/roles";
 import { actionsFor, canViewOrder, orderDetail } from "@/lib/labs/board";
-import { labActorFor, passCandidates, planForOffice, resultLines } from "@/lib/labs/testing";
+import {
+  labActorFor,
+  passCandidates,
+  planForOffice,
+  reportGaps,
+  resultLines,
+} from "@/lib/labs/testing";
 import { reportFor } from "@/lib/labs/report";
-import { RUNG_LABELS, describeLabMovement, overallVerdict } from "@/lib/labs/ladder";
+import { referrableItems, referralsFor } from "@/lib/labs/referral";
+import { RUNG_LABELS, describeLabMovement } from "@/lib/labs/ladder";
 import OrderWorkspace from "./OrderWorkspace";
 
 export const dynamic = "force-dynamic";
@@ -43,14 +50,17 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
   const order = await orderDetail(orderId);
   if (!order || !order.officeId) notFound();
 
-  const [actions, results, report, candidates, plan, letters] = await Promise.all([
-    actionsFor(actor, orderId),
-    resultLines(orderId),
-    reportFor(orderId),
-    passCandidates(orderId),
-    planForOffice(order.officeId),
-    lettersForWorkOrders([orderId], wfActor),
-  ]);
+  const [actions, results, report, candidates, plan, letters, referrable, referrals] =
+    await Promise.all([
+      actionsFor(actor, orderId),
+      resultLines(orderId),
+      reportFor(orderId),
+      passCandidates(orderId),
+      planForOffice(order.officeId),
+      lettersForWorkOrders([orderId], wfActor),
+      referrableItems(orderId),
+      referralsFor(orderId),
+    ]);
   const letter = letters.get(orderId) ?? null;
 
   const navItems = workflowNav({
@@ -61,16 +71,11 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
   const day = (d: Date) =>
     d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-  const gaps = results
-    ? overallVerdict(
-        results.lines.flatMap((l) =>
-          l.bySample.map((s) => ({
-            label: l.bySample.length > 1 ? `${l.label} (specimen ${s.specimenNo})` : l.label,
-            verdict: s.verdict,
-          })),
-        ),
-      ).gaps
-    : [];
+  // **The same list `submitReport()` refuses on**, asked of the service rather
+  // than recomputed here. There were three copies of this rule — the screen,
+  // the submit and `reportGaps()` — and the moment one of them learned about
+  // outstanding referrals (D140) the other two would have disagreed with it.
+  const gaps = await reportGaps(orderId);
 
   return (
     <>
@@ -122,6 +127,27 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
             holderName: order.holder?.nameEn ?? null,
             holderRung: order.holderRung,
           }}
+          referrable={referrable.map((i) => ({
+            orderItemId: i.orderItemId,
+            nameEn: i.nameEn,
+            discipline: i.discipline,
+            declared: i.declared,
+            referral: i.referral,
+          }))}
+          referrals={referrals.map((r) => ({
+            id: r.id,
+            referralNo: r.referralNo,
+            labName: r.labName,
+            labAddress: r.labAddress,
+            issuedOn: day(r.issuedAt),
+            resultsInOn: r.resultsInAt ? day(r.resultsInAt) : null,
+            issuedByName: r.issuedBy.nameEn,
+            note: r.note,
+            tests: r.items.map((i) => i.orderItem.parameter.nameEn),
+            resultCount: r._count.results,
+            href: `/workflow/work-order/${order.id}/referral/${r.id}`,
+            pdfHref: `/api/labs/referrals/${r.id}/pdf`,
+          }))}
           specimens={order.specimens.map((s) => ({
             id: s.id,
             labCode: s.labCode,
