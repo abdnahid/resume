@@ -587,6 +587,24 @@ offices with no wing head and no testing officer. Derived, 23 of 23 resolve.
 - **The test is a *testing* wing, not merely Executive.** Head office's
   `office_head` is the Director of the Certification Marks Wing and heads no
   laboratory.
+- **A pass-down is scoped to the holder's own wing, at an office that has
+  wings** (D142). `LabDesk.wing` comes from the unit's *Testing Wing* ancestor,
+  because head office's sections sit several units deep — *Organic Chemistry*
+  and *Food & Bacteriology* under Chemical, *Textile* and *Civil Physical* under
+  Physical — so the unit's own name says nothing. **Branches are not filtered**:
+  their labs sit in no wing, `wingByUnit()` returns nothing for them, and
+  narrowing would empty the list at the offices with fewest people. Before this,
+  the Director (Physical) saw **30 Deputy Directors**, three of them his —
+  the rest in Admin, Legal Metrology, Training, Publication, Halal and
+  Standards. **The wing comes from the holder's desk, never the order**: `labId`
+  is null on every order and an order's tests can be of both disciplines at
+  once.
+- **Pass down reaches every rung below, not only the next** (D142). D133's rule
+  that an unstaffed rung is skipped has to hold when a staffed rung is merely
+  *unavailable* too — a Director whose only DD is on leave would otherwise have
+  an order that stops. `passDown()` records the receiving desk's rung.
+  `groupByRung()` groups the picker the way the CM board groups by rank, and the
+  heading is *Pass down* rather than the name of one rung.
 - **`isTestingRung()` is the single place the bench question is answered** —
   `enterResult()`, `submitReport()` and the screen's `canEnterResults` all call
   it, so a control can never be offered that the service refuses.

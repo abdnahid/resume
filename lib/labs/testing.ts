@@ -212,7 +212,57 @@ export type LabDesk = {
   designation: string | null;
   rung: LabRung;
   isTestingOfficer: boolean;
+  /**
+   * Which testing wing this desk sits in, at an office that has wings — null
+   * everywhere else, which is every branch (D142).
+   */
+  wing: "physical" | "chemical" | null;
+  /** The unit the desk sits in, for the picker to say where somebody works. */
+  unitEn: string | null;
 };
+
+/**
+ * Which testing wing each org unit belongs to, by walking up to the ancestor
+ * that names one.
+ *
+ * **Head office is the only office with wings**, and its laboratory sections
+ * sit several units deep inside them — *Organic Chemistry* and *Food &
+ * Bacteriology* under the Chemical Testing Wing, *Textile* and *Civil* under
+ * the Physical. So a desk's own unit name says nothing about its wing and the
+ * ancestor has to be found; matching the unit name directly is what would
+ * misfile every section that is not itself called a wing.
+ *
+ * Returns an empty map at a branch, whose labs hang off the office rather than
+ * off a wing — and an empty map is exactly what tells `labDesksOfOffice()` not
+ * to filter there.
+ */
+async function wingByUnit(): Promise<Map<number, "physical" | "chemical">> {
+  const units = await prisma.orgUnit.findMany({
+    select: { id: true, parentId: true, nameEn: true },
+  });
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const out = new Map<number, "physical" | "chemical">();
+
+  for (const u of units) {
+    let cur: (typeof units)[number] | undefined = u;
+    const seen = new Set<number>();
+    while (cur) {
+      if (seen.has(cur.id)) break; // a cycle in the tree must not hang the page
+      seen.add(cur.id);
+      if (/testing wing/i.test(cur.nameEn)) {
+        const wing = /chemical|chemistry|রাসায়ন|রসায়ন/i.test(cur.nameEn)
+          ? ("chemical" as const)
+          : /physical|physics|পদার্থ|ভৌত/i.test(cur.nameEn)
+            ? ("physical" as const)
+            : null;
+        if (wing) out.set(u.id, wing);
+        break;
+      }
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+  }
+  return out;
+}
 
 /**
  * Everyone at this office who is on the laboratory ladder, by rung.
@@ -233,14 +283,15 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
       nameBn: true,
       designationEn: true,
       designationBn: true,
-      orgPost: { select: { nameEn: true } },
-      actingOrgPost: { select: { nameEn: true } },
+      orgPost: { select: { nameEn: true, unitId: true, unit: { select: { nameEn: true } } } },
+      actingOrgPost: { select: { nameEn: true, unitId: true, unit: { select: { nameEn: true } } } },
       user: { select: { role: true, roles: true } },
     },
     orderBy: { id: "asc" },
   });
 
   const headIds = new Set((await wingHeadsOfOffice(officeId)).map((h) => h.employeeId));
+  const wings = await wingByUnit();
 
   const out: LabDesk[] = [];
   for (const p of people) {
@@ -266,6 +317,8 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
       // is a fact about a person; it is a fact about a *desk*, and deriving it
       // means an office is never one forgotten grant away from a dead bench.
       isTestingOfficer: rung === "examiner" || rung === "assistant_director",
+      wing: post?.unitId ? (wings.get(post.unitId) ?? null) : null,
+      unitEn: post?.unit.nameEn ?? null,
     });
   }
   return out;
@@ -388,18 +441,64 @@ export async function receiveByWing(args: { orderId: number; actor: LabActor; no
  * for.
  */
 export async function passCandidates(orderId: number) {
+  const empty = { rung: null, desks: [] as LabDesk[], wing: null as "physical" | "chemical" | null };
   const order = await prisma.labTestOrder.findUnique({
     where: { id: orderId },
     select: { officeId: true, holderRung: true, holderEmployeeId: true },
   });
-  if (!order?.officeId || !order.holderRung) return { rung: null, desks: [] as LabDesk[] };
+  if (!order?.officeId || !order.holderRung) return empty;
 
-  const desks = await labDesksOfOffice(order.officeId);
-  const rung = nextRungBelow(order.holderRung as LabRung, staffedRungs(desks));
-  if (!rung) return { rung: null, desks: [] as LabDesk[] };
+  const all = await labDesksOfOffice(order.officeId);
+
+  /**
+   * **A wing head hands work down inside his own wing** (D142).
+   *
+   * Head office staffs two testing wings with two separate sets of people, and
+   * the list was scoped to the *office* — so the Director (Physical) opening
+   * his pass-down saw every Deputy Director in the building, the Chemical
+   * wing's included. A chemical Deputy Director cannot run a physical test and
+   * has no business on that order.
+   *
+   * **Only where the office actually has wings.** A branch's laboratories hang
+   * off the office and sit in no wing at all, so `wingByUnit()` returns nothing
+   * for them and nothing is filtered — which is the case the original
+   * office-wide scope was written to protect, and it still holds. Narrowing by
+   * unit unconditionally would empty the list at exactly the offices with
+   * fewest people.
+   *
+   * Taken from the **holder's own desk** rather than from the order, because an
+   * order carries no wing: `LabTestOrder.labId` is null on every order in the
+   * database, and its tests can be of both disciplines at once — the head
+   * office order on application 26 is four tests, chemical *and* physical.
+   */
+  const holder = all.find((d) => d.employeeId === order.holderEmployeeId);
+  const officeHasWings = all.some((d) => d.wing !== null);
+  const wing = officeHasWings ? (holder?.wing ?? null) : null;
+  const desks = wing ? all.filter((d) => d.wing === wing) : all;
+
+  /**
+   * **Everyone below him, not only the next rung down** (D142).
+   *
+   * It offered `nextRungBelow()` alone, which assumes the ladder is walked one
+   * step at a time — and the ladder's own rule is the opposite: *an office
+   * missing a rung skips it*, which is the normal case rather than the
+   * exception. The same freedom has to exist when the rung is staffed but
+   * unavailable: a Director whose only Deputy Director is on leave could not
+   * hand the work to an Assistant Director, and the order simply stopped.
+   *
+   * Seniority still only goes one way — strictly below the holder — so this
+   * widens who may receive work without letting it travel upwards.
+   */
+  const from = LAB_RUNGS.indexOf(order.holderRung as LabRung);
+  const below = desks.filter(
+    (d) => LAB_RUNGS.indexOf(d.rung) > from && d.employeeId !== order.holderEmployeeId,
+  );
+
   return {
-    rung,
-    desks: desks.filter((d) => d.rung === rung && d.employeeId !== order.holderEmployeeId),
+    /** The rung the ladder would ordinarily go to next, for wording only. */
+    rung: nextRungBelow(order.holderRung as LabRung, staffedRungs(below)),
+    desks: below,
+    wing,
   };
 }
 
@@ -422,13 +521,19 @@ export async function passDown(args: {
     throw new Error("This order is not on a desk that can pass it down.");
   }
 
-  const { rung, desks } = await passCandidates(args.orderId);
+  const { desks } = await passCandidates(args.orderId);
   const to = desks.find((d) => d.employeeId === args.toEmployeeId);
-  if (!rung || !to) {
+  if (!to) {
     // Re-checked here and not only at the picker: a rule enforced where the
-    // button is holds only for people who used the button.
-    throw new Error("That desk is not the next rung of this laboratory's ladder.");
+    // button is holds only for people who used the button. It answers for the
+    // wing as well as the rung — `passCandidates()` has already dropped the
+    // other wing's desks, so this refuses them too.
+    throw new Error("That desk cannot take this order — it is not below you in this wing.");
   }
+  // **The rung is the receiving desk's own**, not the ladder's next step: the
+  // order records which rung its holder is acting from (D133), and a Director
+  // handing straight to an Examiner leaves it on the Examiner's rung.
+  const rung = to.rung;
 
   return prisma.$transaction(async (tx) => {
     await tx.labTestOrder.update({

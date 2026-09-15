@@ -63,6 +63,29 @@ export function rungOf(title: string | null | undefined): LabRung | null {
   return null;
 }
 
+/**
+ * The desks of a pass-down, grouped by rung and top first (D142).
+ *
+ * The CM board's `groupByRank()` applied to the laboratory's own four rungs:
+ * a flat list of Deputy Directors, Assistant Directors and Examiners runs them
+ * together with nothing to read them by, and the whole point of offering more
+ * than the next rung is that the officer can see what the alternatives are.
+ *
+ * Prisma-free like everything else here (D9), and generic over the desk shape
+ * so the screen's own type can pass straight in.
+ */
+export function groupByRung<T extends { rung: string; nameEn: string }>(
+  desks: readonly T[],
+): { rung: LabRung; label: string; desks: T[] }[] {
+  return LAB_RUNGS.map((rung) => ({
+    rung,
+    label: RUNG_LABELS[rung],
+    desks: desks
+      .filter((d) => d.rung === rung)
+      .sort((a, b) => a.nameEn.localeCompare(b.nameEn)),
+  })).filter((g) => g.desks.length > 0);
+}
+
 /** Is `a` senior to `b` on this ladder? */
 export function isAbove(a: LabRung, b: LabRung): boolean {
   return LAB_RUNGS.indexOf(a) < LAB_RUNGS.indexOf(b);

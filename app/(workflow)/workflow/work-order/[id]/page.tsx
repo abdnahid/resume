@@ -160,11 +160,15 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
           candidates={{
             rung: candidates.rung,
             rungLabel: candidates.rung ? RUNG_LABELS[candidates.rung] : null,
+            wing: candidates.wing,
             desks: candidates.desks.map((d) => ({
               employeeId: d.employeeId,
               nameEn: d.nameEn,
               designation: d.designation,
               isTestingOfficer: d.isTestingOfficer,
+              rung: d.rung,
+              rungLabel: RUNG_LABELS[d.rung],
+              unitEn: d.unitEn,
             })),
           }}
           signaturePlan={{

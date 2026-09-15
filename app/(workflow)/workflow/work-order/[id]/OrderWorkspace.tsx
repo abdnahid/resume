@@ -7,7 +7,7 @@ import {
   AlertTriangle, Check, Download, ExternalLink, FlaskConical, Mail, PackageCheck, Send,
   Undo2,
 } from "lucide-react";
-import { ORDER_STATE_LABELS, type LabOrderState } from "@/lib/labs/ladder";
+import { ORDER_STATE_LABELS, groupByRung, type LabOrderState } from "@/lib/labs/ladder";
 
 /**
  * The bench: receive, pass down, record readings, and move the report up.
@@ -102,9 +102,20 @@ export default function OrderWorkspace({
   actions: Awaited<ReturnType<typeof import("@/lib/labs/board").actionsFor>>;
   gaps: string[];
   candidates: {
+    /** The rung the ladder would ordinarily go to next — wording only (D142). */
     rung: string | null;
     rungLabel: string | null;
-    desks: { employeeId: string; nameEn: string; designation: string | null; isTestingOfficer: boolean }[];
+    /** The wing the list is scoped to, null at an office with no wings. */
+    wing: "physical" | "chemical" | null;
+    desks: {
+      employeeId: string;
+      nameEn: string;
+      designation: string | null;
+      isTestingOfficer: boolean;
+      rung: string;
+      rungLabel: string;
+      unitEn: string | null;
+    }[];
   };
   /**
    * Sending tests out, and what has already gone (D140). `referrable` is every
@@ -678,8 +689,26 @@ export default function OrderWorkspace({
       )}
 
       {/* ── Pass down ──────────────────────────────────────────────────── */}
-      {a?.canPass && candidates.rung && candidates.desks.length > 0 && (
-        <Card title={`Pass to ${candidates.rungLabel}`}>
+      {a?.canPass && candidates.desks.length > 0 && (
+        /* **Not "Pass to Deputy Director"** (D142). The heading named the rung
+           the ladder would go to next, which is only sometimes where the work
+           actually goes: a rung an office does not staff is skipped, and a rung
+           it staffs can be unavailable — a Director whose only DD is on leave
+           hands straight to an Assistant Director. Naming one rung in the title
+           made the others look like a mistake. */
+        <Card title="Pass down">
+          <p className="mb-3 text-xs text-muted-foreground">
+            Anyone below you{" "}
+            {candidates.wing && (
+              <>
+                in the <span className="font-medium">{candidates.wing}</span> testing wing
+              </>
+            )}
+            . Ordinarily the next rung down
+            {candidates.rungLabel ? ` — ${candidates.rungLabel} —` : ""} takes it, but the
+            ladder skips a rung an office does not staff, and you may hand it
+            further down when one is unavailable.
+          </p>
           <div className="flex flex-wrap items-end gap-2">
             <label className="min-w-64 flex-1">
               <span className="text-xs font-medium text-foreground">Who</span>
@@ -689,12 +718,19 @@ export default function OrderWorkspace({
                 className="mt-1 w-full cursor-pointer rounded-lg border border-border bg-card px-3 py-2 text-sm"
               >
                 <option value="">Choose…</option>
-                {candidates.desks.map((d) => (
-                  <option key={d.employeeId} value={d.employeeId}>
-                    {d.nameEn}
-                    {d.designation ? ` — ${d.designation}` : ""}
-                    {d.isTestingOfficer ? " · testing officer" : ""}
-                  </option>
+                {/* Grouped by rung, the way the CM board groups by rank: a flat
+                    list runs Deputy Directors, Assistant Directors and
+                    Examiners together with nothing to read them by. */}
+                {groupByRung(candidates.desks).map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.desks.map((d) => (
+                      <option key={d.employeeId} value={d.employeeId}>
+                        {d.nameEn}
+                        {d.designation ? ` — ${d.designation}` : ""}
+                        {d.isTestingOfficer ? " · testing officer" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
@@ -707,10 +743,15 @@ export default function OrderWorkspace({
               Pass down
             </button>
           </div>
-          {!candidates.desks.some((d) => d.isTestingOfficer) && candidates.rung === "examiner" && (
+          {/* **A bench is what the order needs to reach**, so say when none of
+              these desks is one. It used to speak of a role to grant, which
+              D136 abolished — both lab roles come from the desk now, so the
+              answer is a seat to fill, not a grant to make. */}
+          {!candidates.desks.some((d) => d.isTestingOfficer) && (
             <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-              None of these desks holds the testing officer role, so none of them
-              can enter a result. Grant it at /hr/listing/roles.
+              None of these desks is a bench — an Examiner or an Assistant
+              Director is what may enter a result (D136) — so the order cannot
+              be tested below you as things stand.
             </p>
           )}
         </Card>
