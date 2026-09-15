@@ -409,14 +409,33 @@ function PackageRow({
   const [choice, setChoice] = useState<"full" | "partial">(
     pkg.level === "partial" ? "partial" : "full",
   );
-  // Per-test answers, seeded from what is recorded. A test the office has no
-  // bench for defaults to "sent out" rather than to nothing: that is Faridpur's
-  // case exactly, and it is the answer the model exists to allow.
+  // Per-test answers, seeded from what is recorded.
+  //
+  // **A missing row means "not ours", and only a package nobody has answered
+  // may be pre-filled.** This used to read `p.manner ?? (ownLabId ? in_house :
+  // third_party)` unconditionally, which made absence indistinguishable from a
+  // claim — and absence is exactly what saving "Not ours" writes, because
+  // `setPackageCoverage()` deletes the row rather than flagging it. So the
+  // answer saved correctly and came back as *Our bench* on the next load, which
+  // is a silent overwrite waiting to happen: the operator sees a claim this
+  // office never made, and the next save makes it true.
+  //
+  // The pre-fill itself is worth keeping where it is honest. On a package with
+  // no rows at all nothing has been asserted yet, so offering the likely answer
+  // — this office's own bench, or "sent out" where it has no bench of that
+  // discipline, which is Faridpur's case — saves an operator nine clicks. Once
+  // any row exists the package has been answered, and the form must show the
+  // answer rather than a suggestion.
   const [cover, setCover] = useState<Record<number, Cover>>(
     Object.fromEntries(
       pkg.parameters.map((p) => [
         p.id,
-        (p.manner ?? (p.ownLabId ? "in_house" : "third_party")) as Cover,
+        (p.manner ??
+          (pkg.level === "unanswered"
+            ? p.ownLabId
+              ? "in_house"
+              : "third_party"
+            : "none")) as Cover,
       ]),
     ),
   );
@@ -524,6 +543,39 @@ function PackageRow({
             ))}
           </div>
 
+          {/* **The three answers say what they mean, next to the buttons that
+              give them.** *Sent out* and *Not ours* both mean "no bench of ours
+              runs it" and are otherwise opposites — under the first this office
+              is still the accountable destination and its own testing officer
+              enters the result, under the second the file goes to a different
+              office entirely (D116). Read as labels alone the two invite
+              exactly one confusion, and it is the expensive direction: an
+              office that meant "we send this out" and clicked *Not ours* has
+              declared it cannot cover the test, and the routing will never
+              offer it. */}
+          {choice === "partial" && (
+            <dl className="mt-3 grid gap-1.5 rounded-xl bg-secondary/40 p-3 text-xs sm:grid-cols-3">
+              <div>
+                <dt className="font-medium text-foreground">Our bench</dt>
+                <dd className="text-muted-foreground">
+                  run here, in this office&rsquo;s own laboratory.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-foreground">Sent out</dt>
+                <dd className="text-muted-foreground">
+                  still ours — sent to an accredited outside laboratory, and this
+                  office&rsquo;s testing officer enters the result.
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-foreground">Not ours</dt>
+                <dd className="text-muted-foreground">
+                  not covered at all; the sample goes to another office that can.
+                </dd>
+              </div>
+            </dl>
+          )}
 
           {/* **The tests are always listed, and grouped by discipline.** "All of
               these" used to show only a one-line summary, which asked somebody

@@ -438,6 +438,23 @@ Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   Silently moving an office's samples somewhere it never chose would be worse
   than telling it — the arbitrariness D64 respects cuts both ways.
 
+- **A missing capability row means "not ours", and the form must not pre-fill
+  over it.** `setPackageCoverage()` records a withdrawal by **deleting** the row
+  — absence is what "we do not do this" means (D116) — so the wizard seeding
+  `p.manner ?? (ownLabId ? "in_house" : "third_party")` made a saved *Not ours*
+  come back as *Our bench* on the next load. The save was always correct; the
+  reload lied, which is worse than losing the answer: the operator is shown a
+  claim the office never made, and the next save makes it true. **Pre-fill only
+  where nothing has been asserted** — `pkg.level === "unanswered"`, meaning no
+  rows at all — and seed `manner ?? "none"` once any row exists.
+- **"Sent out" and "Not ours" are opposites, and the labels alone do not say
+  so.** Both mean no bench of ours runs the test. Under `third_party` this
+  office **is still the accountable destination** and its own testing officer
+  enters the result; under no-row the file goes to a different office entirely.
+  Confusing them is expensive in one direction: an office that meant *we send
+  this out* and clicked *Not ours* has declared it cannot cover the test at all,
+  and routing will never offer it. The partial form carries a three-term legend
+  for exactly that reason.
 - **The form asks full or partial, and drills in only for partial** (D118).
   Within the drill-down each test is *our bench*, *sent out*, or *not ours*, and
   a test the office has no bench for defaults to **sent out**. **Nothing asks
