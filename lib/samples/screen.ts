@@ -15,7 +15,22 @@ import { planProblems, type PlanCell } from "./plan";
 export type SamplingCell = PlanCell & {
   labName: string;
   labDiscipline: string;
-  parameterNames: string[];
+  /**
+   * **Every test routed to this destination, named** — not counted, and not
+   * the first three of them.
+   *
+   * The same correction D134 made to the wing-head letter, which said "9 tests"
+   * on all three of application 26's letters while Head Office was being sent
+   * 1, Faridpur 7 and Khulna 1. The FDO reads this row to decide how many jars
+   * to seal for this office, and that turns on *what* is being run — a test
+   * that destroys the specimen needs its own jar — so a count cannot answer it
+   * and neither can a truncated list.
+   *
+   * Carries the discipline because a destination is routinely mixed: Faridpur's
+   * seven are chemical *and* physical, and which bench runs which is the fact
+   * that shapes the box.
+   */
+  parameters: { id: number; nameEn: string; discipline: string }[];
   /** True while every routing row behind this cell is still a seeded stand-in. */
   routeIsPlaceholder: boolean;
   /** What the lab agreed last time, if anything — a suggestion, never a default. */
@@ -76,7 +91,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
     }),
     prisma.testParameter.findMany({
       where: { id: { in: parameterIds } },
-      select: { id: true, nameEn: true },
+      select: { id: true, nameEn: true, discipline: true },
     }),
     prisma.application.findUnique({
       where: { id: applicationId },
@@ -84,7 +99,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
     }),
   ]);
   const officeName = new Map(offices.map((o) => [o.id, o.nameEn]));
-  const paramName = new Map(parameters.map((p) => [p.id, p.nameEn]));
+  const paramById = new Map(parameters.map((p) => [p.id, p]));
 
   // How each destination came to be chosen: because the office runs the test
   // itself, because it is the only one that can, or because this office prefers
@@ -121,7 +136,23 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
     ...c,
     labName: officeName.get(c.officeId) ?? `Office ${c.officeId}`,
     labDiscipline: "",
-    parameterNames: c.parameterIds.map((id) => paramName.get(id) ?? `#${id}`),
+    // **Physical first, then chemical**, the order `/labs/coverage` groups by —
+    // one reading order for the same list wherever it appears, so an officer
+    // who has seen the package on one screen recognises it on the other.
+    parameters: c.parameterIds
+      .map(
+        (id) =>
+          paramById.get(id) ?? { id, nameEn: `#${id}`, discipline: "" },
+      )
+      .sort((a, b) => {
+        const order = ["physical", "chemical"];
+        const ia = order.indexOf(a.discipline);
+        const ib = order.indexOf(b.discipline);
+        return (
+          (ia === -1 ? order.length : ia) - (ib === -1 ? order.length : ib) ||
+          a.nameEn.localeCompare(b.nameEn)
+        );
+      }),
     routeIsPlaceholder: !(preferredByCell.get(`${c.applicationSubProductId}:${c.officeId}`) ?? false),
     remembered: remembered.get(`${c.subProductId}:${c.officeId}`) ?? null,
   }));

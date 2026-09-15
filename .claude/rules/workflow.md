@@ -503,6 +503,14 @@ can reuse them.
   rest itself rather than trusting the picker. **Nothing can be sealed while a
   test has no destination** — a specimen with nowhere to go is a jar nobody can
   account for.
+- **The sampling plan names every test routed to each destination**, grouped
+  physical then chemical — the order `/labs/coverage` uses, so the same package
+  reads the same way on both screens. It showed three names and *"+4 more"*,
+  which is D134's fault in a smaller costume: the officer is deciding how many
+  jars to seal for that office, and that turns on *what* is being run — a test
+  that consumes the specimen needs its own jar — so the four he could not see
+  were the ones that might have changed his answer. On application 26 the hidden
+  four at Faridpur were **all three chemical tests** plus one physical.
 - **Destinations are derived, counts are entered** (D69), and the screen says
   which is which. Every row is resolved from `LabRouting` — the officer cannot
   forget a lab or prepare a box nobody needs — and the one unknown is specimens

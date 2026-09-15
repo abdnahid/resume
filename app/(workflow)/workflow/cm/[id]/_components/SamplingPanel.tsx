@@ -28,7 +28,7 @@ export type Cell = {
   subProductName: string;
   labName: string;
   labDiscipline: string;
-  parameterNames: string[];
+  parameters: { id: number; nameEn: string; discipline: string }[];
   variantCount: number;
   samplesPerVariant: number | null;
   sampleCount: number | null;
@@ -224,7 +224,7 @@ export default function SamplingPanel({
               <tr className="border-b border-border text-left">
                 <th className="pb-2 pr-3 font-medium text-muted-foreground">Sub-product</th>
                 <th className="pb-2 pr-3 font-medium text-muted-foreground">Laboratory</th>
-                <th className="pb-2 pr-3 font-medium text-muted-foreground">Tests</th>
+                <th className="w-[24rem] pb-2 pr-3 font-medium text-muted-foreground">Tests</th>
                 <th className="pb-2 pr-3 text-right font-medium text-muted-foreground">Variants</th>
                 <th className="pb-2 pr-3 font-medium text-muted-foreground">Per variant</th>
                 <th className="pb-2 text-right font-medium text-muted-foreground">Specimens</th>
@@ -251,10 +251,37 @@ export default function SamplingPanel({
                         </span>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-xs text-muted-foreground">
-                      {c.parameterNames.length} —{" "}
-                      {c.parameterNames.slice(0, 3).join(", ")}
-                      {c.parameterNames.length > 3 && `, +${c.parameterNames.length - 3} more`}
+                    {/* **Every test, named** — the correction D134 made to the
+                        wing-head letter, which counted the catalogue package
+                        instead of naming what that office was actually being
+                        sent. This column showed three and "+4 more", which is
+                        the same fault in a smaller costume: the officer is
+                        deciding how many jars to seal for this destination, and
+                        that turns on what is being run — a test that consumes
+                        the specimen needs its own jar — so the four he could
+                        not see were the ones that might have changed his
+                        answer. Grouped physical then chemical, the order
+                        `/labs/coverage` uses, because a destination is
+                        routinely mixed. */}
+                    <td className="py-2 pr-3 align-top">
+                      <p className="text-xs text-muted-foreground">
+                        {c.parameters.length} {c.parameters.length === 1 ? "test" : "tests"}
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {c.parameters.map((p, i) => {
+                          const first = i === 0 || c.parameters[i - 1].discipline !== p.discipline;
+                          return (
+                            <li key={p.id} className="text-xs leading-snug">
+                              {first && p.discipline && (
+                                <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:mt-0">
+                                  {p.discipline}
+                                </span>
+                              )}
+                              <span className="text-foreground">{p.nameEn}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </td>
                     <td className="py-2 pr-3 text-right text-foreground">{c.variantCount}</td>
                     <td className="py-2 pr-3">
