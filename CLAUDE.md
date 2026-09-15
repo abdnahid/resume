@@ -449,6 +449,8 @@ npm run import:office-head-desks # seat each office head on their office's Execu
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
                                 # desks are otherwise corrected at /hr/listing/desks (D131)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)
+npm run fix:rewind-letters      # DEV ONLY — rewind a CM file to just before its sampling
+                                # letters went out, keeping the sealing (--yes to write)
 npm run fix:sample-letters      # letters issued before D128/D129/D130 brought up to the rule (--dry)
 
 npm run import:test-parameters # every .xlsx parameter file → the catalogue (--dry, --only=<key>)
