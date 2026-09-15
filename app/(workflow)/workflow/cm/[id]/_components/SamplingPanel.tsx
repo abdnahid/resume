@@ -294,8 +294,11 @@ export default function SamplingPanel({
                                   below. Said on the test, because it is a fact
                                   about one test and not about the destination. */}
                               {p.manner === "third_party" && (
-                                <span className="ml-1.5 rounded bg-amber-500/10 px-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                                  sent out
+                                <span
+                                  title="This office has no bench for it and sends it to an accredited private laboratory. It stays this office's responsibility, and its own testing officer enters the result."
+                                  className="ml-1.5 rounded bg-amber-500/10 px-1 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                                >
+                                  outsourced
                                 </span>
                               )}
                               <TestDestination

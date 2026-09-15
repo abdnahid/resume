@@ -476,14 +476,17 @@ Decisions D102–D118. `lib/labs/` holds it: `urgent-fee.ts`, `grid.ts` and
   claim the office never made, and the next save makes it true. **Pre-fill only
   where nothing has been asserted** — `pkg.level === "unanswered"`, meaning no
   rows at all — and seed `manner ?? "none"` once any row exists.
-- **"Sent out" and "Not ours" are opposites, and the labels alone do not say
-  so.** Both mean no bench of ours runs the test. Under `third_party` this
-  office **is still the accountable destination** and its own testing officer
-  enters the result; under no-row the file goes to a different office entirely.
-  Confusing them is expensive in one direction: an office that meant *we send
-  this out* and clicked *Not ours* has declared it cannot cover the test at all,
-  and routing will never offer it. The partial form carries a three-term legend
-  for exactly that reason.
+- **The three answers are named for where the jar ends up**, because the
+  earlier labels were read backwards twice by the person entering them:
+  *We test it here* (`in_house`) · *We outsource it* (`third_party`) · *Another
+  BSTI office* (no row). Under `third_party` this office **is still the
+  accountable destination** and its own testing officer issues the referral and
+  enters the result (D140); under no-row the sample travels to a different
+  office entirely. *Sent out* and *Not ours* both said "no bench of ours" and
+  were otherwise opposites, so the pair invited exactly one confusion, in the
+  expensive direction: an office that meant *we outsource this* and clicked
+  *Not ours* has declared it cannot cover the test at all, and routing will
+  never offer it. Stored values are unchanged — the rename is presentational.
 - **The form asks full or partial, and drills in only for partial** (D118).
   Within the drill-down each test is *our bench*, *sent out*, or *not ours*, and
   a test the office has no bench for defaults to **sent out**. **Nothing asks

@@ -368,7 +368,7 @@ function StepCapability({
         <strong>{answered}</strong> of {packages.length} packages answered.{" "}
         <span className="text-muted-foreground">
           Each one saves on its own, so you can stop and come back. You only say what you{" "}
-          <em>can</em> test — anything you leave out is simply not yours, and the system finds an
+          <em>can</em> test — anything you leave out travels to another BSTI office, and the system finds an
           office that can.
         </span>
       </div>
@@ -414,9 +414,10 @@ function PackageRow({
   // **A missing row means "not ours", and only a package nobody has answered
   // may be pre-filled.** This used to read `p.manner ?? (ownLabId ? in_house :
   // third_party)` unconditionally, which made absence indistinguishable from a
-  // claim — and absence is exactly what saving "Not ours" writes, because
+  // claim — and absence is exactly what "Another BSTI office" writes, because
   // `setPackageCoverage()` deletes the row rather than flagging it. So the
-  // answer saved correctly and came back as *Our bench* on the next load, which
+  // answer saved correctly and came back as *We test it here* on the next load,
+  // which
   // is a silent overwrite waiting to happen: the operator sees a claim this
   // office never made, and the next save makes it true.
   //
@@ -495,7 +496,7 @@ function PackageRow({
     if (!res.ok) { setError(json.error ?? "That did not save."); return; }
     setNote(
       `Saved — ${json.inHouse} on your own bench, ${json.thirdParty} sent out` +
-        (json.notCovered ? `, ${json.notCovered} not yours.` : "."),
+        (json.notCovered ? `, ${json.notCovered} left to another BSTI office.` : "."),
     );
     start(() => router.refresh());
   }
@@ -543,35 +544,39 @@ function PackageRow({
             ))}
           </div>
 
-          {/* **The three answers say what they mean, next to the buttons that
-              give them.** *Sent out* and *Not ours* both mean "no bench of ours
-              runs it" and are otherwise opposites — under the first this office
-              is still the accountable destination and its own testing officer
-              enters the result, under the second the file goes to a different
-              office entirely (D116). Read as labels alone the two invite
-              exactly one confusion, and it is the expensive direction: an
-              office that meant "we send this out" and clicked *Not ours* has
-              declared it cannot cover the test, and the routing will never
-              offer it. */}
+          {/* **Each answer is named for where the jar ends up**, because the
+              labels it had were read backwards twice by the person entering
+              them. *Sent out* and *Not ours* both mean "no bench of ours runs
+              it" and are otherwise opposites — under the first this office is
+              still the accountable destination and its own testing officer
+              enters the result (D65, D140), under the second the sample travels
+              to a different office entirely (D116). Described by the office's
+              relationship to the test, the two invite exactly one confusion,
+              and it is the expensive direction: an office that meant "we
+              outsource this" and clicked *Not ours* has declared it cannot
+              cover the test at all, and routing will never offer it. Named for
+              the destination, there is nothing left to swap. */}
           {choice === "partial" && (
             <dl className="mt-3 grid gap-1.5 rounded-xl bg-secondary/40 p-3 text-xs sm:grid-cols-3">
               <div>
-                <dt className="font-medium text-foreground">Our bench</dt>
+                <dt className="font-medium text-foreground">We test it here</dt>
                 <dd className="text-muted-foreground">
-                  run here, in this office&rsquo;s own laboratory.
+                  run on this office&rsquo;s own bench.
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-foreground">Sent out</dt>
+                <dt className="font-medium text-foreground">We outsource it</dt>
                 <dd className="text-muted-foreground">
-                  still ours — sent to an accredited outside laboratory, and this
-                  office&rsquo;s testing officer enters the result.
+                  the sample stays with this office, which sends it to an
+                  accredited private laboratory; our own testing officer issues
+                  the referral and enters the result.
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-foreground">Not ours</dt>
+                <dt className="font-medium text-foreground">Another BSTI office</dt>
                 <dd className="text-muted-foreground">
-                  not covered at all; the sample goes to another office that can.
+                  we do not cover it — the sample travels to an office that does,
+                  and nothing here asks you which.
                 </dd>
               </div>
             </dl>
@@ -627,15 +632,15 @@ function PackageRow({
                                     : undefined
                                 }
                               >
-                                {v === "third_party" ? "Sent out" : "Our bench"}
+                                {v === "third_party" ? "We outsource it" : "We test it here"}
                               </span>
                             ) : (
                               <div className="flex justify-end gap-1">
                                 {(
                                   [
-                                    ["in_house", "Our bench", p.ownLabId !== null],
-                                    ["third_party", "Sent out", true],
-                                    ["none", "Not ours", true],
+                                    ["in_house", "We test it here", p.ownLabId !== null],
+                                    ["third_party", "We outsource it", true],
+                                    ["none", "Another BSTI office", true],
                                   ] as const
                                 ).map(([k, label, allowed]) => (
                                   <button
@@ -679,8 +684,8 @@ function PackageRow({
               </>
             ) : (
               <>
-                {pkg.parameters.filter((p) => effective(p) === "none").length} left as not yours —
-                another office will be found for those, and nothing here asks you where.
+                {pkg.parameters.filter((p) => effective(p) === "none").length} left to another
+                BSTI office — one will be found for those, and nothing here asks you which.
               </>
             )}
           </p>
