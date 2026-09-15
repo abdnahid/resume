@@ -493,6 +493,22 @@ can reuse them.
   approved — sealing samples for an unauthorised visit would be jars nobody sent
   anyone to collect. `lib/samples/screen.ts` assembles it; the arithmetic stays
   Prisma-free in `plan.ts`.
+- **A BSTI bench beats an outsourced one, wherever it is** (D141). Preference:
+  the officer's choice · our own bench · any office's bench · our own office
+  outsourcing it · any office outsourcing it. An office that outsources is a
+  valid destination and stays accountable (D65), but it is not the *better* one
+  when BSTI can run the test itself — that pays an outside laboratory for work a
+  bench down the road does, and adds a referral, a courier and a second pair of
+  hands to the custody chain. The FDO may still choose to outsource; his choice
+  beats every rule.
+- **Ties are broken, not raised, and that is what killed the second picker.**
+  Within a tier: keep it here if we can, else the standing preference, else an
+  office **already receiving another test of this sub-product** (fewest boxes —
+  a fresh office is one more counter to visit and one more seal to check), else
+  the lowest office id. D125's objection is answered rather than overruled:
+  defaulting silently was wrong when the answer was invisible and permanent, and
+  is safe now that every test shows its destination, its alternatives and the
+  rule that placed it. `openChoices` is gone.
 - **Every routed test shows where else it could go, and the officer may move
   it** — not only the ties. `openChoices` holds only what *nothing* could
   settle, so the moment a route resolved by any rule the test dropped off the

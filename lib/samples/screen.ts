@@ -9,7 +9,7 @@
  * Server half (D9). `plan.ts` holds the Prisma-free arithmetic.
  */
 import { prisma } from "@/lib/prisma";
-import { buildPlanFor, type OpenChoice } from "./service";
+import { buildPlanFor } from "./service";
 import { planProblems, type PlanCell } from "./plan";
 
 export type SamplingCell = PlanCell & {
@@ -46,7 +46,7 @@ export type SamplingCell = PlanCell & {
     alternatives: { officeId: number; officeName: string; manner: string }[];
     /** True when a person put it here, false when a rule did. */
     chosenByOfficer: boolean;
-    reason: "officer" | "here" | "preference" | "sole";
+    reason: "officer" | "own_bench" | "in_house" | "own_outsourced" | "outsourced";
   }[];
   /** True while every routing row behind this cell is still a seeded stand-in. */
   routeIsPlaceholder: boolean;
@@ -55,13 +55,6 @@ export type SamplingCell = PlanCell & {
 };
 
 export type SamplingView = {
-  /**
-   * Parameters several offices can run, with nothing to settle which — the
-   * officer chooses (D125). The plan cannot be sealed while any remain, and
-   * before this they were computed and thrown away, so the screen showed the
-   * problem and offered no way to answer it.
-   */
-  openChoices: OpenChoice[];
   cells: SamplingCell[];
   boxes: { labId: number; labName: string; sampleCount: number | null }[];
   totalSamples: number | null;
@@ -89,7 +82,7 @@ export type SamplingView = {
 };
 
 export async function samplingView(applicationId: number): Promise<SamplingView> {
-  const { plan, problems, openChoices, routing } = await buildPlanFor(applicationId);
+  const { plan, problems, routing } = await buildPlanFor(applicationId);
   const routeBy = new Map(
     routing.map((r) => [`${r.applicationSubProductId}:${r.parameterId}`, r]),
   );
@@ -168,7 +161,7 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
           manner: r?.manner ?? "in_house",
           alternatives: r?.alternatives ?? [],
           chosenByOfficer: r?.chosenByOfficer ?? false,
-          reason: r?.reason ?? ("sole" as const),
+          reason: r?.reason ?? ("own_bench" as const),
         };
       })
       .sort((a, b) => {
@@ -218,7 +211,6 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
 
   return {
     /** Parameters the officer must place before the plan is complete (D125). */
-    openChoices,
     cells,
     boxes: plan.boxes.map((b) => ({
       ...b, labId: b.officeId,

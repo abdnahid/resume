@@ -104,13 +104,16 @@ export async function resolveDestinations(
     /** True when a person picked this, false when a rule did. */
     chosenByOfficer: boolean;
     /** Which rule put it here, for the screen to say so. */
-    reason: "officer" | "here" | "preference" | "sole";
-  }[] = [];
-  const choices: {
-    parameterId: number; parameterName: string;
-    offices: { officeId: number; officeName: string; manner: string }[];
+    reason: "officer" | "own_bench" | "in_house" | "own_outsourced" | "outsourced";
   }[] = [];
   const problems: string[] = [];
+  /**
+   * Offices this sub-product is already going to, so a tie prefers one of them.
+   * Filled as we go: the parameters are in catalogue order, which is the order
+   * the officer reads them in, so the box that grows is the one he has already
+   * seen named.
+   */
+  const alreadyUsed = new Set<number>();
 
   for (const p of parameters) {
     const candidates = byParameter.get(p.id) ?? [];
@@ -119,16 +122,59 @@ export async function resolveDestinations(
       continue;
     }
 
-    // Keep it here if we can — a sample that does not travel is a box nobody
-    // has to carry. Otherwise the office's standing preference, if it names one
-    // that is actually capable. Otherwise, if exactly one office can do it,
-    // there is nothing to choose.
+    /**
+     * **A real bench beats an outsourced one, wherever it is** — the client's
+     * rule, 2026-09-15. An office that covers a test by sending it to a private
+     * laboratory is a valid destination and stays accountable for it (D65), but
+     * it is not the *better* destination when BSTI can run the test itself:
+     * choosing it would pay an outside laboratory for work a bench down the
+     * road does, and add a referral, a courier and a second set of hands to the
+     * chain of custody. So travelling to a BSTI bench is preferred over
+     * outsourcing at home, and only when nothing is run in-house anywhere does
+     * the receiving office's own outsourcing win.
+     *
+     * Within each tier, keep it here if we can — a sample that does not travel
+     * is a box nobody has to carry.
+     *
+     *   1. what the officer chose            — always, and he may choose an
+     *                                          outsourced office deliberately
+     *   2. our own bench
+     *   3. any other office's bench
+     *   4. our own office, outsourcing it
+     *   5. any other office, outsourcing it
+     */
     const picked = chosen?.get(p.id);
     const byOfficer = picked ? candidates.find((c) => c.officeId === picked) : undefined;
-    const here = candidates.find((c) => c.officeId === officeId);
-    const pref = candidates.find((c) => c.officeId === preferred.get(p.id));
-    const sole = candidates.length === 1 ? candidates[0] : undefined;
-    const chose = byOfficer ?? here ?? pref ?? sole;
+
+    const bench = candidates.filter((c) => c.manner === "in_house");
+    const sentOut = candidates.filter((c) => c.manner !== "in_house");
+    const ownBench = bench.find((c) => c.officeId === officeId);
+    const ownSentOut = sentOut.find((c) => c.officeId === officeId);
+
+    /**
+     * Which of several equal offices, when neither we nor a standing preference
+     * settles it.
+     *
+     * **Fewest boxes wins.** An office already receiving another test of this
+     * sub-product costs the applicant no extra errand, while a fresh office is
+     * one more counter to visit and one more seal to check. Where even that is
+     * level it falls to the lowest office id, which decides nothing on the
+     * merits but decides it the same way every time — and the officer sees the
+     * answer on the row and can move it.
+     */
+    const tieBreak = (from: typeof candidates) => {
+      if (!from.length) return undefined;
+      const pref = from.find((c) => c.officeId === preferred.get(p.id));
+      if (pref) return pref;
+      return [...from].sort(
+        (a, b) =>
+          (alreadyUsed.has(b.officeId) ? 1 : 0) - (alreadyUsed.has(a.officeId) ? 1 : 0) ||
+          a.officeId - b.officeId,
+      )[0];
+    };
+
+    const chose =
+      byOfficer ?? ownBench ?? tieBreak(bench) ?? ownSentOut ?? tieBreak(sentOut);
 
     // A choice the officer made against an office that has since dropped the
     // capability is not silently ignored — he picked it, and it stopped being
@@ -138,24 +184,21 @@ export async function resolveDestinations(
         `${p.nameEn} was sent to an office that no longer says it can run it — choose again`,
       );
 
-    if (!chose) {
-      choices.push({
-        parameterId: p.id, parameterName: p.nameEn,
-        offices: candidates.map((c) => ({
-          officeId: c.officeId, officeName: c.office.nameEn, manner: c.manner,
-        })),
-      });
-      problems.push(
-        `${p.nameEn} can be run at ${candidates.length} offices — ${candidates
-          .map((c) => c.office.nameEn.split(",").pop()?.trim())
-          .join(", ")} — and nobody has chosen one`,
-      );
-      continue;
-    }
-    if (preferred.has(p.id) && !pref)
+    // **Every candidate list now resolves**, because the tie-break has a final
+    // rung that always answers. A test with no destination used to be listed in
+    // `choices` and rendered by a second picker above the grid, which is the
+    // duplication the client asked to be rid of: a cell cannot exist for a test
+    // going nowhere, so it could not be shown on the row like every other test.
+    // Defaulting is safe now in a way it was not before D141 — the destination
+    // is visible on the row, carries its alternatives, and can be moved.
+    if (!chose) continue;
+
+    if (preferred.has(p.id) && !candidates.some((c) => c.officeId === preferred.get(p.id)))
       problems.push(
         `${p.nameEn} is preferred to an office that has not said it can run it`,
       );
+
+    alreadyUsed.add(chose.officeId);
 
     routed.push({
       parameterId: p.id, parameterName: p.nameEn,
@@ -165,14 +208,20 @@ export async function resolveDestinations(
         officeId: c.officeId, officeName: c.office.nameEn, manner: c.manner,
       })),
       chosenByOfficer: !!byOfficer,
-      reason: byOfficer ? "officer" : here ? "here" : pref ? "preference" : "sole",
+      reason: byOfficer
+        ? "officer"
+        : chose === ownBench
+          ? "own_bench"
+          : chose.manner === "in_house"
+            ? "in_house"
+            : chose === ownSentOut
+              ? "own_outsourced"
+              : "outsourced",
     });
   }
 
   return {
     routed,
-    /** Parameters with several capable offices and no preference to break the tie. */
-    choices,
     problems,
     /** True while nobody has declared anything for this package at all. */
     noCapability: caps.length === 0,
@@ -188,14 +237,12 @@ export type RoutingDetail = {
   manner: string;
   alternatives: { officeId: number; officeName: string; manner: string }[];
   chosenByOfficer: boolean;
-  reason: "officer" | "here" | "preference" | "sole";
+  reason: "officer" | "own_bench" | "in_house" | "own_outsourced" | "outsourced";
 };
 
 export async function buildPlanFor(applicationId: number): Promise<{
   plan: SamplePlan;
   problems: string[];
-  /** Parameters still waiting for the officer to name a destination (D125). */
-  openChoices: OpenChoice[];
   /**
    * Every *settled* route, with its alternatives — so the screen can show where
    * each test is going and let the officer move it. `openChoices` covers only
@@ -227,13 +274,6 @@ export async function buildPlanFor(applicationId: number): Promise<{
 
   const subProducts: PlanSubProduct[] = [];
   const problems: string[] = [];
-  /**
-   * Parameters with several capable offices and nothing to settle it. They used
-   * to be computed and dropped here, which left the sampling screen nothing to
-   * render a picker from — so a package like Ceramic Tiles at Faridpur could be
-   * planned right up to the point of sealing and no further (D125).
-   */
-  const openChoices: OpenChoice[] = [];
   const routing: RoutingDetail[] = [];
 
   const chosenRows = await prisma.applicationParameterDestination.findMany({
@@ -248,14 +288,6 @@ export async function buildPlanFor(applicationId: number): Promise<{
     );
     const d = await resolveDestinations(app.bstiOfficeId, sp.subProductId, chosen);
     problems.push(...d.problems.map((p) => `${sp.subProduct.nameEn}: ${p}`));
-    for (const c of d.choices)
-      openChoices.push({
-        applicationSubProductId: sp.id,
-        subProductName: sp.subProduct.nameEn,
-        parameterId: c.parameterId,
-        parameterName: c.parameterName,
-        offices: c.offices,
-      });
     for (const r of d.routed)
       routing.push({
         applicationSubProductId: sp.id,
@@ -295,17 +327,8 @@ export async function buildPlanFor(applicationId: number): Promise<{
     if (e.officeId !== null)
       known.set(cellKey(e.applicationSubProductId, e.officeId), e.samplesPerVariant);
 
-  return { plan: buildPlan(subProducts, known), problems, openChoices, routing };
+  return { plan: buildPlan(subProducts, known), problems, routing };
 }
-
-/** A parameter waiting for the officer to name its destination (D125). */
-export type OpenChoice = {
-  applicationSubProductId: number;
-  subProductName: string;
-  parameterId: number;
-  parameterName: string;
-  offices: { officeId: number; officeName: string; manner: string }[];
-};
 
 /**
  * Record where the officer is sending one test.

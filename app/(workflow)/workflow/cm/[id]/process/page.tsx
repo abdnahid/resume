@@ -374,7 +374,6 @@ export default async function ProcessPage({
                 cells={sampling.cells}
                 boxes={sampling.boxes}
                 problems={sampling.problems}
-              openChoices={sampling.openChoices}
                 committed={sampling.committed}
                 canEdit={isHolder && isVisitingOfficer}
               />
