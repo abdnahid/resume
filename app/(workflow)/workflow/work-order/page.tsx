@@ -8,7 +8,6 @@ import { workflowNav } from "@/lib/workflow/nav";
 import { actorFor } from "@/lib/workflow/inbox";
 import {
   lettersForWorkOrders,
-  letterCountForViewer,
   type WorkOrderLetter,
 } from "@/lib/cm/letter-inbox";
 import { formatPoisha } from "@/lib/payments/money";
@@ -44,7 +43,7 @@ export default async function WorkOrdersPage() {
 
   const labActor = labActorFor(actor);
 
-  const [orders, health, office, letterCount] = await Promise.all([
+  const [orders, health, office] = await Promise.all([
     ordersForViewer(labActor),
     actor.officeId ? ladderHealth(actor.officeId) : Promise.resolve(null),
     actor.officeId
@@ -53,7 +52,6 @@ export default async function WorkOrdersPage() {
           select: { nameEn: true },
         })
       : Promise.resolve(null),
-    letterCountForViewer(actor),
   ]);
 
   // The letter behind each order, resolved in one pass rather than per card.
@@ -64,7 +62,6 @@ export default async function WorkOrdersPage() {
 
   const navItems = workflowNav({
     counter: hasAnyRole(actor, "one_stop", "superadmin") && actor.officeId !== null,
-    letters: letterCount > 0,
     workOrders: true,
   });
 

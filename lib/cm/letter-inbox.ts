@@ -19,15 +19,19 @@
  * - anyone with standing on the file may read either, which is how the officer
  *   who issued them can see what he sent.
  *
- * **`/workflow/letters` is the counter's inbox only** (D138). A wing-head
- * letter *is* a work order — it says test these parameters on this package, and
- * `submitSamplingPlan()` has already written that same sentence as a
- * `LabTestOrder` — so listing it as a letter too made one instruction into two
- * destinations, and the wing head had to reconcile them himself. It is read at
- * `/workflow/work-order` now, through `lettersForWorkOrders()` below;
- * `internalLetterFor()` still serves the paper itself, because a letter is a
- * printed document and needs a page. **A counter letter is not a work order** —
- * the counter takes the box and never tests anything — so it keeps the inbox.
+ * **There is no letter inbox at all any more** (D139, completing D138). Both
+ * kinds of internal letter are read where the work is: a wing head reads his on
+ * the work order (D138), and a counter clerk reads his on the box, because
+ * `/workflow/counter` and `/workflow/letters` were **the same list rendered
+ * twice**. Both were scoped to `officeId`, both split on whether the box had
+ * been handed in, and the rows were strictly one to one — one `one_stop` letter
+ * per office, and the unique on `Consignment` (application, office) guaranteeing
+ * exactly one box to match it. D138 at least had a shape mismatch to excuse it;
+ * this had none.
+ *
+ * So `lettersForCounterBoxes()` below hands the counter what the letter said,
+ * and `internalLetterFor()` still serves the paper itself, because a letter is
+ * a printed document and needs a page whichever screen reached it.
  *
  * An **applicant** letter is not in here at all. It lives on the client
  * surface (D98), and the applicant is the one person who could not open it
@@ -40,103 +44,81 @@ import { hasRole } from "@/lib/roles";
 import { canViewApplication, type WorkflowActor } from "@/lib/workflow/inbox";
 import { sampleSubmissionDueOn } from "./policy";
 
-/** One line on the inbox. */
-export type LetterInboxRow = {
+/**
+ * What the counter's letter said, for the box it is about (D139).
+ *
+ * **The counter's box is its work order, and this is the letter attached to
+ * it.** The same move D138 made for the testing bench, and for a stronger
+ * reason: the inbox and the counter were not merely two destinations for one
+ * instruction, they were the same list. One `one_stop` letter per office and —
+ * by the unique on `Consignment` — exactly one box per (application, office),
+ * so the two screens had the same rows, scoped the same way, split on the same
+ * field, in different words.
+ *
+ * **It lives on the CM side, and that is the point.** `consignmentsForCounter()`
+ * is in `lib/workflow/`, which may not import `lib/cm/` (D135) — and the counter
+ * is service-agnostic on purpose: it takes boxes for whatever sent them. A
+ * metrology box will arrive with a metrology letter behind it, and keeping the
+ * CM letter's knowledge here is what makes that a second supplier rather than a
+ * rewrite of the counter.
+ *
+ * Keyed by **application id alone**, because the office is fixed by the caller
+ * and (application, office) is unique.
+ *
+ * One query, whatever the counter's size — a round trip to Neon is about half a
+ * second and a busy counter has a column of boxes.
+ */
+export type CounterLetter = {
   id: number;
-  kind: "wing_head" | "one_stop";
   letterNo: string;
   issuedAt: Date;
-  officeName: string;
-  /** What is coming, and whether it has arrived. */
-  boxCode: string | null;
-  sealNo: string | null;
-  submittedAt: Date | null;
-  specimenCount: number;
-  /** The box cannot be received until this is settled (D129). */
-  feePaid: boolean;
-  feePoisha: number | null;
+  /** When the applicant was told to have the box in (D98, a stand-in). */
+  dueOn: Date;
+  issuedBy: { name: string; designation: string | null };
   /** Urgent testing, decided when the letters went out (D134). */
   urgent: boolean;
 };
 
-/**
- * The letters at this person's **counter**, newest first (D138).
- *
- * Wing-head letters are deliberately not here — see the note at the top of the
- * file. `kind` survives on the row because the letter *page* still renders both
- * and the two read differently (D71: the counter's names the applicant, the
- * wing head's does not).
- */
-export async function lettersForViewer(actor: WorkflowActor): Promise<LetterInboxRow[]> {
-  if (!(hasRole(actor, "one_stop") && actor.officeId)) return [];
+export async function lettersForCounterBoxes(
+  applicationIds: readonly number[],
+  actor: WorkflowActor,
+  officeId: number,
+): Promise<Map<number, CounterLetter>> {
+  const found = new Map<number, CounterLetter>();
+  if (applicationIds.length === 0) return found;
+  // The same rule the inbox enforced and `internalLetterFor()` still does: a
+  // counter letter belongs to whoever holds `one_stop` at the office it names,
+  // because a counter is a desk and not a person (D93).
+  if (!(hasRole(actor, "superadmin") || (hasRole(actor, "one_stop") && actor.officeId === officeId))) {
+    return found;
+  }
 
-  const rows = await prisma.sampleLetter.findMany({
-    where: { kind: "one_stop", officeId: actor.officeId },
-    orderBy: { id: "desc" },
+  const letters = await prisma.sampleLetter.findMany({
+    where: { kind: "one_stop", officeId, applicationId: { in: [...new Set(applicationIds)] } },
     select: {
       id: true,
-      kind: true,
       letterNo: true,
       issuedAt: true,
-      officeId: true,
-      office: { select: { nameEn: true } },
       applicationId: true,
-      application: {
-        select: {
-          testFeePoisha: true,
-          isUrgent: true,
-          testFeePayment: { select: { status: true } },
-        },
+      issuedBy: { select: { nameEn: true, designationEn: true, designationBn: true } },
+      application: { select: { isUrgent: true } },
+    },
+  });
+
+  for (const l of letters) {
+    found.set(l.applicationId, {
+      id: l.id,
+      letterNo: l.letterNo,
+      issuedAt: l.issuedAt,
+      dueOn: sampleSubmissionDueOn(l.issuedAt),
+      issuedBy: {
+        name: l.issuedBy.nameEn,
+        designation: l.issuedBy.designationEn ?? l.issuedBy.designationBn,
       },
-    },
-  });
-
-  // The box each letter is about — one per (application, office), which is what
-  // the unique on `Consignment` guarantees.
-  const boxes = await prisma.consignment.findMany({
-    where: {
-      applicationId: { in: [...new Set(rows.map((r) => r.applicationId))] },
-    },
-    select: {
-      applicationId: true,
-      officeId: true,
-      code: true,
-      sealNo: true,
-      submittedAt: true,
-      _count: { select: { registry: true } },
-    },
-  });
-  const boxFor = new Map(boxes.map((b) => [`${b.applicationId}:${b.officeId}`, b]));
-
-  return rows.map((r) => {
-    const box = boxFor.get(`${r.applicationId}:${r.officeId}`);
-    return {
-      id: r.id,
-      kind: r.kind as "wing_head" | "one_stop",
-      letterNo: r.letterNo,
-      issuedAt: r.issuedAt,
-      officeName: r.office?.nameEn ?? "—",
-      boxCode: box?.code ?? null,
-      sealNo: box?.sealNo ?? null,
-      submittedAt: box?.submittedAt ?? null,
-      specimenCount: box?._count.registry ?? 0,
-      feePaid: r.application.testFeePayment?.status === "paid",
-      feePoisha: r.application.testFeePoisha,
-      urgent: r.application.isUrgent,
-    };
-  });
-}
-
-/**
- * How many letters this desk has — for the navbar, which must not offer a
- * screen that answers `notFound()`.
- *
- * A count rather than `lettersForViewer().length`: the board renders on every
- * file view and the boxes behind those rows are not wanted there.
- */
-export async function letterCountForViewer(actor: WorkflowActor): Promise<number> {
-  if (!(hasRole(actor, "one_stop") && actor.officeId)) return 0;
-  return prisma.sampleLetter.count({ where: { kind: "one_stop", officeId: actor.officeId } });
+      urgent: l.application.isUrgent,
+    });
+  }
+  return found;
 }
 
 /** What one letter says. Two shapes, because the two ask different things. */

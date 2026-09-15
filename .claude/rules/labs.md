@@ -614,5 +614,7 @@ paper for printing. **`lettersForWorkOrders()` returns those facts, not just an
 id**, because this screen replaced the inbox row that used to carry them; losing
 the unpaid-fee warning would leave a wing head waiting on a box the counter is
 refusing. The fee flag is on the board card too, where the waiting is done.
-`/workflow/letters` is the **counter's** inbox now and is labelled *Counter
-letters*.
+**And the counter's letter went the same way** (D139): its box is its work
+order, so `/workflow/letters` is gone entirely and the nav is Files · Work
+orders · One Stop. `/workflow/letters/[id]` survives as the printed paper,
+reached from whichever work the letter instructs.

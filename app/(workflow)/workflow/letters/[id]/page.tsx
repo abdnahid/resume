@@ -43,14 +43,16 @@ export default async function InternalLetterPage({
       d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
     );
 
-  // **Back to wherever this kind of letter is read** (D138). A wing-head letter
-  // is no longer listed in the inbox — it is a work order, and that is the
-  // screen it is reached from — so sending its reader to `/workflow/letters`
-  // would land them on a page that does not mention it.
+  // **Back to wherever this kind of letter is read** (D138, D139). Neither kind
+  // is listed in an inbox any more: a wing-head letter is a work order, a
+  // counter letter is the box on the counter's own screen, and there is no
+  // `/workflow/letters` list left to return to. The paper keeps this page
+  // because it is a printed document; it is reached from the work it belongs to
+  // and goes back there.
   const back =
     letter.kind === "wing_head"
       ? { href: "/workflow/work-order", label: "Back to work orders" }
-      : { href: "/workflow/letters", label: "Back to my letters" };
+      : { href: "/workflow/counter", label: "Back to the counter" };
 
   return (
     <InternalLetterDocument

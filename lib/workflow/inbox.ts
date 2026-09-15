@@ -91,6 +91,13 @@ export async function inboxScope(actor: WorkflowActor): Promise<{
  * where the applicant carries it — the file may belong to another office
  * entirely, which is exactly the case a single-office inbox would miss.
  */
+/**
+ * **The letter is deliberately not selected here** (D139). The counter's box is
+ * its work order and the letter is attached to it — but the join lives on the
+ * CM side, in `lettersForCounterBoxes()`, because this module may not import
+ * `lib/cm/` (D135) and the counter is service-agnostic: a metrology box will
+ * arrive with a metrology letter behind it.
+ */
 export async function consignmentsForCounter(officeId: number) {
   return prisma.consignment.findMany({
     // Scoped to the destination **office** — which is what a box is addressed
@@ -117,12 +124,6 @@ export async function consignmentsForCounter(officeId: number) {
           // cannot change it.
           testFeePoisha: true,
           testFeePayment: { select: { status: true } },
-          // The letter this counter was sent, so the clerk can check the box
-          // against the seal numbers on it rather than against a screen.
-          letters: {
-            where: { kind: "one_stop", officeId },
-            select: { id: true, letterNo: true },
-          },
         },
       },
       _count: { select: { registry: true } },

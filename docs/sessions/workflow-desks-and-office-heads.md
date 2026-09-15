@@ -2687,3 +2687,117 @@ Nothing about access changed. D130 still decides who may read a letter, and the
 work order only ever shows one to the officer it is addressed to.
 
 Recorded as **D138**.
+
+---
+
+## Session 10 — 2026-09-15 (Linux machine) — the counter's box is its work order
+
+The client, reading D138 back and finding it half-applied:
+
+> why letters for counter again another route. Bring those under counter route
+> and also like testing workflow it can be a work order and the letter is
+> attached to it.
+
+He is right, and the interesting part is that the case for it here is *stronger*
+than the one D138 acted on.
+
+### They were not two views of one instruction. They were the same list.
+
+D138 had a genuine shape mismatch to point at: the wing head's inbox was keyed
+one row per **letter**, which is one per box, and his board one row per
+**order**, which is one per package — so a two-package box showed up once on one
+screen and twice on the other. That asymmetry is what made the duplication
+visible.
+
+The counter had no such excuse. Measured against the code rather than assumed:
+
+| | `/workflow/counter` | `/workflow/letters` |
+|---|---|---|
+| scope | `Consignment where officeId` | `SampleLetter where kind: one_stop, officeId` |
+| rows | one per box | one per letter |
+| split | `state === awaiting_submission` | `submittedAt === null` |
+| sections | Expected / Received | Awaiting the box / Received |
+
+**The rows are strictly one to one.** There is one `one_stop` letter per office
+on a file, and `@@unique([applicationId, officeId])` on `Consignment` guarantees
+exactly one box to match it — a fact the inbox's own code already knew, in a
+comment reading *"one per (application, office), which is what the unique on
+`Consignment` guarantees"*. Same scope, same rows, same split, different words.
+The counter card even linked to the letter already.
+
+So the clerk's two tabs were one tab, and he was the one being asked to notice.
+
+### What moved is the substance, not the link
+
+The trap D138 named, and it was live here too. Each screen carried facts the
+other dropped:
+
+- **only the inbox had** the memo number, who issued it and when, the urgent
+  badge, the fee as an **amount**, and the applicant's due date;
+- **only the counter had** the organisation, the application number, where the
+  file was filed, the application-fee status, the seal badge and the **Receive**
+  button.
+
+Deleting either one as it stood loses something a clerk uses. The box card now
+carries both: identity and state on top, then a letter block — memo number,
+issuer and date, the seal to check, the jar count, the date the applicant was
+given, and *Read the letter* / *PDF* — with the fee and Receive still in the
+right-hand column where the waiting is done.
+
+The letter block renders its seal and jar count **whether or not a letter
+resolves**. A box with no readable letter still has to be checked against its
+seal, and hanging those facts off the letter would have lost them in exactly the
+case where the clerk has least to go on.
+
+### Where the join had to live, and why the kernel query got smaller
+
+`consignmentsForCounter()` is in `lib/workflow/inbox.ts`, and D135 forbids
+`lib/workflow/` importing `lib/cm/`. It was already selecting
+`application.letters` inline — no import, so not a violation, but the wrong
+direction of travel.
+
+The counter is **service-agnostic on purpose** (D135): it takes boxes for
+whatever sent them, and a metrology box will arrive with a metrology letter
+behind it. Widening that inline select would have built the CM letter deeper
+into the kernel screen. So the select was **removed**, and
+`lettersForCounterBoxes()` added to `lib/cm/letter-inbox.ts` beside
+`lettersForWorkOrders()` — the same crossing pattern D138 established, for a
+different reason. The coupling is shallower after the change than before it.
+
+Keyed by application id alone, because the office is fixed by the caller and
+(application, office) is unique. One query for the whole counter.
+
+Access is unchanged and deliberately re-stated in the new function: `one_stop`
+at the office the letter names, or superadmin — exactly what the inbox enforced
+and what `internalLetterFor()` still enforces on the paper.
+
+### What is gone, and what stayed
+
+- **Gone:** `app/(workflow)/workflow/letters/page.tsx`, `lettersForViewer()`,
+  `letterCountForViewer()`, the `LetterInboxRow` type, and the `letters` entry
+  in `workflowNav()` — which now reads **Files · Work orders · One Stop**.
+- **Stayed:** `/workflow/letters/[id]`, the printed letter itself, serving both
+  kinds. A letter is a document and needs a page; what it does not need is a
+  list. Its back link now follows the work rather than an inbox — a wing head to
+  `/workflow/work-order`, a counter clerk to `/workflow/counter`.
+- `/workflow/letters` with no id now 404s, and nothing links to it.
+
+**The rule this settles, for both kinds at once:** an internal letter is an
+instruction about work, and it is read where that work is done. Neither kind has
+an inbox any more.
+
+Two things corrected in passing: the counter page was hand-rolling
+`max-w-[1440px] px-5 py-12 lg:px-10` in a bare `<main>` instead of using
+`PageContainer` like its sibling `/workflow/work-order`, and its `loading.tsx`
+matched the hand-rolled box with 28-unit cards — which the folded-in letter has
+made roughly twice as tall, so the skeleton would have jumped exactly the way
+the organogram's used to.
+
+Recorded as **D139**.
+
+### Still open
+
+Unchanged from Session 9, and the client has said he will answer them next: the
+reverse letter → order link, the third-party referral mark, `LabTestOrder.dueOn`
+never being set, whether an approved report can be revised, and the printed test
+report (no signature image on `Employee`).

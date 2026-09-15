@@ -79,8 +79,8 @@ async function visibleOrdersWhere(actor: LabActor, officeId: number) {
  *
  * A count rather than `ordersForViewer().length`: this runs on every workflow
  * screen to decide whether the tab exists, and the packages, specimens and
- * reports behind those rows are not wanted there. Same reasoning as
- * `letterCountForViewer()`.
+ * reports behind those rows are not wanted there. It is the navbar's only
+ * conditional query now that the letter inbox is gone (D139).
  *
  * **Zero is the honest test for whether the tab belongs.** A CM officer has no
  * testing work and should not be offered a bench; a wing head gets the tab the

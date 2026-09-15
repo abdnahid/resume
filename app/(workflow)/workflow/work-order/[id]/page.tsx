@@ -6,7 +6,7 @@ import PageContainer from "@/components/PageContainer";
 import { requireInternal } from "@/lib/auth-guard";
 import { workflowNav } from "@/lib/workflow/nav";
 import { actorFor } from "@/lib/workflow/inbox";
-import { lettersForWorkOrders, letterCountForViewer } from "@/lib/cm/letter-inbox";
+import { lettersForWorkOrders } from "@/lib/cm/letter-inbox";
 import { formatPoisha } from "@/lib/payments/money";
 import { hasAnyRole } from "@/lib/roles";
 import { actionsFor, canViewOrder, orderDetail } from "@/lib/labs/board";
@@ -43,20 +43,18 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
   const order = await orderDetail(orderId);
   if (!order || !order.officeId) notFound();
 
-  const [actions, results, report, candidates, plan, letters, letterCount] = await Promise.all([
+  const [actions, results, report, candidates, plan, letters] = await Promise.all([
     actionsFor(actor, orderId),
     resultLines(orderId),
     reportFor(orderId),
     passCandidates(orderId),
     planForOffice(order.officeId),
     lettersForWorkOrders([orderId], wfActor),
-    letterCountForViewer(wfActor),
   ]);
   const letter = letters.get(orderId) ?? null;
 
   const navItems = workflowNav({
     counter: hasAnyRole(wfActor, "one_stop", "superadmin") && wfActor.officeId !== null,
-    letters: letterCount > 0,
     workOrders: true,
   });
 
