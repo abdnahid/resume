@@ -2518,3 +2518,172 @@ static siblings of a `[id]` that could have swallowed them.
    different *product* model rather than a different workflow, and may be the
    larger piece of work.
 
+
+---
+
+## Session 9 — 2026-09-15 (Windows) — the letter and the work order are one thing
+
+The client, looking at the screens rather than the code:
+
+> Maybe my prompt was confusing or something the design is not the way I want.
+> letters issued by FDO to wing head is found at /workflow/letters and work
+> order is found at /labs/orders. Why is that? This is a single package. That
+> letter is the work order. Maybe do this-> bring that order to
+> /workflow/work-order. On the work order card show a link/button to open the
+> letter.
+
+He is right, and it is worth being clear about what the mistake actually was.
+Nothing was wrong with either screen. The fault was that **the two halves of one
+instruction were a module apart**: the FDO issues a letter saying *test these
+parameters on this package*, and `submitSamplingPlan()` creates a `LabTestOrder`
+which is that same sentence as a row with a state. A wing head read the paper at
+`/workflow/letters` and did the work at `/labs/orders`, and neither screen
+mentioned the other.
+
+The split was an artefact of sequencing. The order table was built inside the
+lab module (D133) because that is where the ladder, the report and the bench
+live, and at the time there was nowhere else to put a screen over it. `/labs`
+had a nav bar, so it got the tab.
+
+### The line `/labs` actually draws
+
+**Maintenance against work.** The catalogue, an office's coverage, the routing
+map and the registry of laboratories are tables somebody maintains — a
+superadmin prices a test, an office declares what its bench can run. A work
+order is a file somebody works, and every other file in the institution is
+worked in `/workflow`.
+
+That line was already written down in `.claude/rules/workflow.md` as *"the
+catalogue is a table you maintain, the order is a file you work"* — and the
+order was sitting on the wrong side of it.
+
+### Named for the thing, not the activity
+
+D135 had pencilled in `/workflow/testing/[id]/…`. Taken as `/workflow/work-order`
+instead, which is the client's own word. The officer knows this by the letter he
+was sent; naming the route after the paper is what makes the two obviously one
+package rather than two features that happen to be related. Nothing else about
+D135 changes — testing is still one workflow for both disciplines, and it still
+sits beside the shared desks rather than under a service prefix, because
+metrology's samples will arrive on the same bench.
+
+### Where the crossing had to live
+
+Reaching from an order to its letter is order → specimen → `SampleRegistration`
+→ consignment → application, and then `(applicationId, officeId)` finds the
+`wing_head` letter.
+
+`SampleRegistration` is **the cut** (D71). Its own schema comment is that
+nothing lab-facing reads it, and `lib/labs/board.ts` opens with *"blind by
+construction"*. So `lettersForWorkOrders()` went into `lib/cm/letter-inbox.ts`,
+beside the rules about who may read a letter, and it hands back an **id and a
+letter number** — never a company, a brand or an application number. The board
+stays blind; the route under `app/(workflow)` is what imports both.
+
+Two queries whatever the board's size, rather than one per card: a round trip to
+Neon is about half a second and a wing head at head office has a column of them.
+
+### Who gets the link
+
+**Only the officer the letter is addressed to.** That is not a new rule — it is
+what `internalLetterFor()` already enforces, because a wing-head letter belongs
+to the person named on it. The alternative was to widen that so anyone with
+standing on the order could read it, and it was not taken: an Assistant Director
+holding the order has the order, which says the same thing, and a link that
+opens on a refusal is the dead-button rule broken.
+
+So the wing head sees the letter number on every card and in the order's header;
+the bench sees neither and loses nothing.
+
+### The reverse link is not built, and it is a real question
+
+A letter → order link looks symmetrical and is not. **One letter covers one
+box, and a box can hold several packages** — application 26's Faridpur box would
+be one letter over however many sub-products were sealed into it — so the
+reverse is one-to-many. Whether the letter should lead to the board filtered to
+that box, or list each order on the letter itself, is a design call the client
+should make rather than a guess. Put back to him.
+
+### Two things corrected in passing
+
+- **The board resolved its office by reading `Employee.officeId` directly**,
+  while every other `/workflow` screen uses `actorFor()`, which takes the
+  current posting with that column as the fallback. The two disagree the first
+  time somebody transfers. Now `actorFor()`, via `labActorFor()` — which also
+  resolves an actor with no employee id to no office, so a user account with no
+  employment gets no bench instead of an empty string matching nothing.
+- **`ladderHealth()` was still telling offices to grant roles D136 abolished**
+  — *"Nobody at this office holds the wing head role"*, with the page pointing
+  at `/hr/listing/roles`. Both facts come from the organogram now, so that was
+  advice nobody could act on. It names the empty desk and points at
+  `/hr/listing/desks`.
+
+### The navbar
+
+`workflowNav()` grew a fourth entry on the same terms as the other two
+conditional ones: `workOrderCountForViewer() > 0`. A CM officer is never offered
+a bench, and a wing head gets the tab the moment a letter is issued, because
+issuing one creates the order in `awaiting_sample`. The count and
+`ordersForViewer()` share `visibleOrdersWhere()` — a navbar offering a screen
+the board then shows nothing on is the dead-link rule in a costume.
+
+### Not moved
+
+`lib/labs/board.ts`, `testing.ts`, `ladder.ts` and `report.ts` stayed exactly
+where they are, and so did `/api/labs/orders/[id]`. The module boundary is the
+domain; the route is only where the work is done.
+
+### Still open
+
+- The reverse link, above.
+- Everything Session 6 left open is still open: **no printed test report**
+  (`Employee` carries no signature image), `LabTestOrder.dueOn` still never set,
+  a third-party referral still unmarked on an order, and whether an approved
+  report can be revised.
+
+### Session 9, continued — the link was a half-measure
+
+The client, on seeing the letter chip:
+
+> I think the letter and work order section should not be different. Make the
+> related letter available on the work-order section.
+
+Right, and it is worth saying why the first answer was not enough. A link
+between two sections still asserts there are two sections. **One instruction
+should have one destination**, and the two lists were not even the same shape:
+the inbox is keyed one row per *letter*, which is one per box, and the board is
+one row per *order*, which is one per package. Application 26's Faridpur box
+holds one package today, but the moment a box carries two, the wing head's two
+screens disagree about how many things he has to do.
+
+So the wing-head letter loses its inbox row.
+
+**What had to move with it.** The row was not merely a link — it carried facts
+the board did not: the box code and its seal, how many jars, whether the box had
+been handed in, whether the **testing fee** was settled, and the urgent basis.
+Deleting the row and keeping only a link would have left a wing head waiting on
+a box the counter was refusing over an unpaid fee (D129), with nothing on screen
+saying so. That is the exact case in the screenshot that started this: head
+office's *Testing fee unpaid · ৳5,632.00*.
+
+So `lettersForWorkOrders()` now returns those facts rather than an id and a
+number, and they render as a card at the top of the order — memo number, who
+issued it and when, urgent or normal, box and seal, jars and whether handed in,
+the fee and its state, and the date the samples are due. The unpaid-fee warning
+is on the **board card** too, because that is where the waiting is done.
+
+**The paper is still a page.** `internalLetterFor()` is untouched and serves
+both kinds. A letter is a printed document with a PDF route and a print
+stylesheet; a workspace is not where you print from. *Read the letter* and *PDF*
+sit in the card, and the letter's back link now follows its kind — a wing head
+returns to the work orders, a counter clerk to the inbox.
+
+**The counter keeps its inbox**, and that is the line that explains the whole
+change: a One Stop letter has no work order behind it, because the clerk takes
+the box and tests nothing. Renamed *Counter letters* so the tab says what it
+holds.
+
+Nothing about access changed. D130 still decides who may read a letter, and the
+work order only ever shows one to the officer it is addressed to.
+
+Recorded as **D138**.

@@ -2,6 +2,8 @@ import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import { hasAnyRole } from "@/lib/roles";
 import { workflowNav } from "@/lib/workflow/nav";
 import { letterCountForViewer } from "@/lib/cm/letter-inbox";
+import { workOrderCountForViewer } from "@/lib/labs/board";
+import { labActorFor } from "@/lib/labs/testing";
 import { requireInternal } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import {
@@ -40,6 +42,7 @@ export default async function WorkflowPage() {
   const navItems = workflowNav({
     counter: hasAnyRole(actor, "one_stop", "superadmin") && actor.officeId !== null,
     letters: (await letterCountForViewer(actor)) > 0,
+    workOrders: (await workOrderCountForViewer(labActorFor(actor))) > 0,
   });
   const scope = await inboxScope(actor);
 

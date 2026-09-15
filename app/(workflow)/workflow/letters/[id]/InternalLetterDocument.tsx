@@ -47,11 +47,14 @@ export default function InternalLetterDocument({
   org,
   letter,
   pdfHref,
+  backLabel = "Back to my letters",
   backHref,
 }: {
   org: OrgInfo;
   letter: InternalLetterView;
   pdfHref: string;
+  /** Where the reader came from — the inbox, or the work order (D138). */
+  backLabel?: string;
   backHref: string;
 }) {
   const isCounter = letter.kind === "one_stop";
@@ -60,7 +63,7 @@ export default function InternalLetterDocument({
     <div className="bg-muted px-4 py-8 print:m-0 print:bg-white print:p-0">
       <div className="print:hidden mx-auto mb-4 flex max-w-4xl items-center justify-between gap-3">
         <a href={backHref} className="text-sm text-muted-foreground hover:text-foreground">
-          ← Back to my letters
+          ← {backLabel}
         </a>
         <div className="flex gap-2">
           <button

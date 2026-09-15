@@ -7,6 +7,8 @@ import { lettersForViewer } from "@/lib/cm/letter-inbox";
 import { formatPoisha } from "@/lib/payments/money";
 import { hasAnyRole } from "@/lib/roles";
 import { workflowNav } from "@/lib/workflow/nav";
+import { workOrderCountForViewer } from "@/lib/labs/board";
+import { labActorFor } from "@/lib/labs/testing";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +22,14 @@ export const dynamic = "force-dynamic";
  * were refused, and the letters sat in the database with no reader.
  *
  * So it lists letters, and each one leads to the letter itself rather than to
- * the file behind it. What the lab module will start from (spec A§2) is the
- * box named here arriving and being marked received.
+ * the file behind it.
+ *
+ * **It is the counter's inbox and nothing else now** (D138). A wing-head letter
+ * *is* a work order — the same instruction, already written as a `LabTestOrder`
+ * — so listing it here as well made one thing into two destinations and left
+ * the wing head to reconcile them. It is read at `/workflow/work-order`, where
+ * the work is. A counter letter has no work order behind it: the counter takes
+ * the box and tests nothing, so this screen is where it belongs.
  */
 export default async function MyLettersPage() {
   const viewer = await requireInternal("/workflow/letters");
@@ -30,6 +38,7 @@ export default async function MyLettersPage() {
   const navItems = workflowNav({
     counter: hasAnyRole(actor, "one_stop", "superadmin") && actor.officeId !== null,
     letters: true,
+    workOrders: (await workOrderCountForViewer(labActorFor(actor))) > 0,
   });
 
   const waiting = letters.filter((l) => l.submittedAt === null);
@@ -42,11 +51,13 @@ export default async function MyLettersPage() {
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
           Sampling letters
         </p>
-        <h1 className="mt-2 font-display text-3xl font-medium text-foreground">My letters</h1>
+        <h1 className="mt-2 font-display text-3xl font-medium text-foreground">Counter letters</h1>
         <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-          Letters addressed to you or to your counter after an approved
-          inspection. Each names one sealed box and the office it is coming to.
-          Testing cannot begin until that box has been received.
+          Letters addressed to your One Stop counter after an approved
+          inspection. Each names one sealed box coming to this office, who is
+          carrying it, and whether the testing fee is settled — the box cannot
+          be taken in until it is. A letter asking a wing to <em>test</em>
+          something is a work order and is read there instead.
         </p>
 
         {letters.length === 0 ? (
@@ -54,8 +65,8 @@ export default async function MyLettersPage() {
             <Mail className="mx-auto h-6 w-6 text-muted-foreground" strokeWidth={1.6} />
             <p className="mt-3 text-sm font-medium text-foreground">No letters</p>
             <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-              A sampling letter reaches you when an inspection sends samples to
-              your office&rsquo;s laboratories, or to the counter you hold.
+              A letter reaches your counter when an inspection sends a sealed
+              box to this office.
             </p>
           </div>
         ) : (
@@ -91,8 +102,10 @@ function Section({
             >
               <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <div className="min-w-0">
+                  {/* Every row here is a counter letter now (D138), so the
+                      kind is stated rather than branched on. */}
                   <p className="text-sm font-medium text-foreground">
-                    {l.kind === "wing_head" ? "For testing" : "One Stop counter"}
+                    One Stop counter
                     <span className="text-muted-foreground"> · {l.officeName}</span>
                   </p>
                   <p className="mt-0.5 font-mono text-xs text-muted-foreground">{l.letterNo}</p>

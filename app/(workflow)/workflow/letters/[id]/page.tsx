@@ -43,10 +43,20 @@ export default async function InternalLetterPage({
       d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }),
     );
 
+  // **Back to wherever this kind of letter is read** (D138). A wing-head letter
+  // is no longer listed in the inbox — it is a work order, and that is the
+  // screen it is reached from — so sending its reader to `/workflow/letters`
+  // would land them on a page that does not mention it.
+  const back =
+    letter.kind === "wing_head"
+      ? { href: "/workflow/work-order", label: "Back to work orders" }
+      : { href: "/workflow/letters", label: "Back to my letters" };
+
   return (
     <InternalLetterDocument
       org={org}
-      backHref="/workflow/letters"
+      backHref={back.href}
+      backLabel={back.label}
       pdfHref={`/api/workflow/letters/${letter.id}/pdf`}
       letter={{
         kind: letter.kind,

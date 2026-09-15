@@ -3,11 +3,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import ModuleNavbar from "@/components/layout/ModuleNavbar";
 import PageContainer from "@/components/PageContainer";
-import { prisma } from "@/lib/prisma";
 import { requireInternal } from "@/lib/auth-guard";
-import { LABS_NAV } from "../../_components/nav";
+import { workflowNav } from "@/lib/workflow/nav";
+import { actorFor } from "@/lib/workflow/inbox";
+import { lettersForWorkOrders, letterCountForViewer } from "@/lib/cm/letter-inbox";
+import { formatPoisha } from "@/lib/payments/money";
+import { hasAnyRole } from "@/lib/roles";
 import { actionsFor, canViewOrder, orderDetail } from "@/lib/labs/board";
-import { type LabActor, passCandidates, planForOffice, resultLines } from "@/lib/labs/testing";
+import { labActorFor, passCandidates, planForOffice, resultLines } from "@/lib/labs/testing";
 import { reportFor } from "@/lib/labs/report";
 import { RUNG_LABELS, describeLabMovement, overallVerdict } from "@/lib/labs/ladder";
 import OrderWorkspace from "./OrderWorkspace";
@@ -24,36 +27,41 @@ export const dynamic = "force-dynamic";
  * nobody can enumerate which orders exist by probing ids.
  */
 export default async function LabOrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const viewer = await requireInternal("/labs/orders");
+  const viewer = await requireInternal("/workflow/work-order");
   const orderId = Number((await params).id);
   if (!Number.isInteger(orderId)) notFound();
 
-  const me = viewer.employeeId
-    ? await prisma.employee.findUnique({
-        where: { id: viewer.employeeId },
-        select: { officeId: true },
-      })
-    : null;
-  const actor: LabActor = {
-    employeeId: viewer.employeeId ?? "",
-    userId: viewer.id,
-    officeId: me?.officeId ?? null,
-    roles: viewer.roles,
-    role: viewer.role,
-  };
+  // `actorFor()` rather than a bare `Employee.officeId` read: every other
+  // `/workflow` screen resolves the office from the current posting, and a
+  // board sitting in the module that resolved it differently is drift waiting
+  // for somebody's transfer.
+  const wfActor = await actorFor(viewer);
+  const actor = labActorFor(wfActor);
 
   if (!(await canViewOrder(actor, orderId))) notFound();
 
   const order = await orderDetail(orderId);
   if (!order || !order.officeId) notFound();
 
-  const [actions, results, report, candidates, plan] = await Promise.all([
+  const [actions, results, report, candidates, plan, letters, letterCount] = await Promise.all([
     actionsFor(actor, orderId),
     resultLines(orderId),
     reportFor(orderId),
     passCandidates(orderId),
     planForOffice(order.officeId),
+    lettersForWorkOrders([orderId], wfActor),
+    letterCountForViewer(wfActor),
   ]);
+  const letter = letters.get(orderId) ?? null;
+
+  const navItems = workflowNav({
+    counter: hasAnyRole(wfActor, "one_stop", "superadmin") && wfActor.officeId !== null,
+    letters: letterCount > 0,
+    workOrders: true,
+  });
+
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   const gaps = results
     ? overallVerdict(
@@ -68,16 +76,38 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
 
   return (
     <>
-      <ModuleNavbar moduleName="Laboratory" moduleSubtitle="BSTI e-Services" navItems={LABS_NAV} />
+      <ModuleNavbar
+        moduleName="Workflow"
+        moduleSubtitle="BSTI e-Services"
+        navItems={navItems}
+        activeHref="/workflow/work-order"
+      />
       <PageContainer>
         <Link
-          href="/labs/orders"
+          href="/workflow/work-order"
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary"
         >
-          <ArrowLeft size={14} /> Test orders
+          <ArrowLeft size={14} /> Work orders
         </Link>
 
         <OrderWorkspace
+          letter={
+            letter && {
+              id: letter.id,
+              letterNo: letter.letterNo,
+              issuedOn: day(letter.issuedAt),
+              dueOn: day(letter.dueOn),
+              issuedBy: letter.issuedBy,
+              urgent: letter.urgent,
+              feeTaka: letter.feePoisha !== null ? formatPoisha(letter.feePoisha) : null,
+              feePaid: letter.feePaid,
+              boxCode: letter.boxCode,
+              sealNo: letter.sealNo,
+              handedIn: letter.submittedAt !== null,
+              specimenCount: letter.specimenCount,
+              pdfHref: `/api/workflow/letters/${letter.id}/pdf`,
+            }
+          }
           order={{
             id: order.id,
             code: order.code,

@@ -31,6 +31,35 @@ export type LabActor = {
   role?: string | null;
 };
 
+/**
+ * A `/workflow` actor as a lab one — the two differ only in whether the
+ * employee id may be null.
+ *
+ * Written once because the work order board moved into `/workflow` (D137) and
+ * four screens there now need both shapes. Structurally typed rather than
+ * importing `WorkflowActor`, so `lib/labs/` still depends on nothing outside
+ * itself.
+ *
+ * **An actor with no employee id resolves to no office and therefore no
+ * orders**, which is the right answer: a user account with no employment has no
+ * bench.
+ */
+export function labActorFor(a: {
+  employeeId: string | null;
+  userId: string;
+  officeId: number | null;
+  roles: readonly string[];
+  role?: string | null;
+}): LabActor {
+  return {
+    employeeId: a.employeeId ?? "",
+    userId: a.userId,
+    officeId: a.employeeId ? a.officeId : null,
+    roles: a.roles,
+    role: a.role,
+  };
+}
+
 // ── Who heads a wing ────────────────────────────────────────────────────────
 
 /**

@@ -19,6 +19,16 @@
  * - anyone with standing on the file may read either, which is how the officer
  *   who issued them can see what he sent.
  *
+ * **`/workflow/letters` is the counter's inbox only** (D138). A wing-head
+ * letter *is* a work order — it says test these parameters on this package, and
+ * `submitSamplingPlan()` has already written that same sentence as a
+ * `LabTestOrder` — so listing it as a letter too made one instruction into two
+ * destinations, and the wing head had to reconcile them himself. It is read at
+ * `/workflow/work-order` now, through `lettersForWorkOrders()` below;
+ * `internalLetterFor()` still serves the paper itself, because a letter is a
+ * printed document and needs a page. **A counter letter is not a work order** —
+ * the counter takes the box and never tests anything — so it keeps the inbox.
+ *
  * An **applicant** letter is not in here at all. It lives on the client
  * surface (D98), and the applicant is the one person who could not open it
  * under `/workflow`.
@@ -50,21 +60,18 @@ export type LetterInboxRow = {
 };
 
 /**
- * Everything addressed to this person, newest first.
+ * The letters at this person's **counter**, newest first (D138).
  *
- * Two queries rather than one `OR`, because the two kinds are addressed by
- * different things — a person and a desk — and collapsing them into one filter
- * is what makes it easy to widen the wrong one later.
+ * Wing-head letters are deliberately not here — see the note at the top of the
+ * file. `kind` survives on the row because the letter *page* still renders both
+ * and the two read differently (D71: the counter's names the applicant, the
+ * wing head's does not).
  */
 export async function lettersForViewer(actor: WorkflowActor): Promise<LetterInboxRow[]> {
-  const where: object[] = [];
-  if (actor.employeeId) where.push({ kind: "wing_head" as const, addressedToEmployeeId: actor.employeeId });
-  if (hasRole(actor, "one_stop") && actor.officeId)
-    where.push({ kind: "one_stop" as const, officeId: actor.officeId });
-  if (where.length === 0) return [];
+  if (!(hasRole(actor, "one_stop") && actor.officeId)) return [];
 
   const rows = await prisma.sampleLetter.findMany({
-    where: { OR: where },
+    where: { kind: "one_stop", officeId: actor.officeId },
     orderBy: { id: "desc" },
     select: {
       id: true,
@@ -128,12 +135,8 @@ export async function lettersForViewer(actor: WorkflowActor): Promise<LetterInbo
  * file view and the boxes behind those rows are not wanted there.
  */
 export async function letterCountForViewer(actor: WorkflowActor): Promise<number> {
-  const where: object[] = [];
-  if (actor.employeeId) where.push({ kind: "wing_head" as const, addressedToEmployeeId: actor.employeeId });
-  if (hasRole(actor, "one_stop") && actor.officeId)
-    where.push({ kind: "one_stop" as const, officeId: actor.officeId });
-  if (where.length === 0) return 0;
-  return prisma.sampleLetter.count({ where: { OR: where } });
+  if (!(hasRole(actor, "one_stop") && actor.officeId)) return 0;
+  return prisma.sampleLetter.count({ where: { kind: "one_stop", officeId: actor.officeId } });
 }
 
 /** What one letter says. Two shapes, because the two ask different things. */
@@ -341,4 +344,158 @@ export async function internalLetterFor(
           }
         : null,
   };
+}
+
+/**
+ * The letter each work order *is* — resolved for a whole board in one pass.
+ *
+ * **The FDO's wing-head letter and the `LabTestOrder` are one thing said
+ * twice** (D137): the letter instructs an office to test named parameters on a
+ * named package, and the order is that instruction as a row somebody works. The
+ * two lived in different modules and neither pointed at the other, so a wing
+ * head read the paper at `/workflow/letters` and did the work at a different
+ * URL with no way across.
+ *
+ * **This is a CM-side read and it has to stay one.** `SampleRegistration` is
+ * the cut (D71) — the only row where a specimen meets an applicant — and its
+ * own comment is that nothing lab-facing reads it. So the join from order to
+ * application lives here, beside the letter rules, rather than in
+ * `lib/labs/board.ts`, which is blind by construction and must remain so. What
+ * goes back is an **id and a letter number**, never a company.
+ *
+ * **Permission is the addressee, not standing on the order.** A wing-head
+ * letter belongs to the officer named on it and to nobody else, which is the
+ * rule `internalLetterFor()` already enforces — so the link is offered only to
+ * somebody it will actually open for, rather than being offered to the bench
+ * and refused on the click. An Assistant Director holding the order sees no
+ * link because it is not his letter; he has the order, which says the same
+ * thing.
+ *
+ * One query for the orders and one for the letters, whatever the board's size:
+ * the round trip to Neon is the cost here, and a board of twenty orders
+ * resolving one letter each would be twenty of them.
+ */
+export type WorkOrderLetter = {
+  id: number;
+  letterNo: string;
+  issuedAt: Date;
+  /** When the applicant was told to have the box in (D98, a stand-in). */
+  dueOn: Date;
+  issuedBy: { name: string; designation: string | null };
+  /** Urgent testing, decided when the letters went out (D134). */
+  urgent: boolean;
+  /** The box cannot be received until this is settled (D129). */
+  feePoisha: number | null;
+  feePaid: boolean;
+  boxCode: string | null;
+  sealNo: string | null;
+  submittedAt: Date | null;
+  specimenCount: number;
+};
+
+export async function lettersForWorkOrders(
+  orderIds: readonly number[],
+  actor: WorkflowActor,
+): Promise<Map<number, WorkOrderLetter>> {
+  const found = new Map<number, WorkOrderLetter>();
+  if (orderIds.length === 0) return found;
+  if (!actor.employeeId && !hasRole(actor, "superadmin")) return found;
+
+  // One specimen is enough: every specimen of an order is sealed into the box
+  // for that order's office, which is what the unique on `Consignment`
+  // (application, office) guarantees.
+  const orders = await prisma.labTestOrder.findMany({
+    where: { id: { in: [...orderIds] } },
+    select: {
+      id: true,
+      officeId: true,
+      specimens: {
+        take: 1,
+        select: { registry: { select: { consignment: { select: { applicationId: true } } } } },
+      },
+    },
+  });
+
+  const keyed = orders.flatMap((o) => {
+    const applicationId = o.specimens[0]?.registry?.consignment.applicationId;
+    // An order whose specimens are not sealed yet has no box and no letter.
+    if (!applicationId || !o.officeId) return [];
+    return [{ orderId: o.id, applicationId, officeId: o.officeId }];
+  });
+  if (keyed.length === 0) return found;
+
+  const letters = await prisma.sampleLetter.findMany({
+    where: {
+      kind: "wing_head",
+      OR: keyed.map((k) => ({ applicationId: k.applicationId, officeId: k.officeId })),
+    },
+    select: {
+      id: true,
+      letterNo: true,
+      issuedAt: true,
+      applicationId: true,
+      officeId: true,
+      addressedToEmployeeId: true,
+      issuedBy: { select: { nameEn: true, designationEn: true, designationBn: true } },
+      application: {
+        select: {
+          testFeePoisha: true,
+          isUrgent: true,
+          testFeePayment: { select: { status: true } },
+        },
+      },
+    },
+  });
+
+  const isSuper = hasRole(actor, "superadmin");
+  const mine = letters.filter((l) => isSuper || l.addressedToEmployeeId === actor.employeeId);
+  if (mine.length === 0) return found;
+
+  // The box each letter is about — one per (application, office), which is what
+  // the unique on `Consignment` guarantees. One query for all of them.
+  const boxes = await prisma.consignment.findMany({
+    where: { applicationId: { in: [...new Set(mine.map((l) => l.applicationId))] } },
+    select: {
+      applicationId: true,
+      officeId: true,
+      code: true,
+      sealNo: true,
+      submittedAt: true,
+      _count: { select: { registry: true } },
+    },
+  });
+  const boxFor = new Map(boxes.map((b) => [`${b.applicationId}:${b.officeId}`, b]));
+
+  const byKey = new Map(
+    mine.map((l) => {
+      const key = `${l.applicationId}:${l.officeId}`;
+      const box = boxFor.get(key);
+      return [
+        key,
+        {
+          id: l.id,
+          letterNo: l.letterNo,
+          issuedAt: l.issuedAt,
+          dueOn: sampleSubmissionDueOn(l.issuedAt),
+          issuedBy: {
+            name: l.issuedBy.nameEn,
+            designation: l.issuedBy.designationEn ?? l.issuedBy.designationBn,
+          },
+          urgent: l.application.isUrgent,
+          feePoisha: l.application.testFeePoisha,
+          feePaid: l.application.testFeePayment?.status === "paid",
+          boxCode: box?.code ?? null,
+          sealNo: box?.sealNo ?? null,
+          submittedAt: box?.submittedAt ?? null,
+          specimenCount: box?._count.registry ?? 0,
+        } satisfies WorkOrderLetter,
+      ] as const;
+    }),
+  );
+
+  for (const k of keyed) {
+    const l = byKey.get(`${k.applicationId}:${k.officeId}`);
+    if (l) found.set(k.orderId, l);
+  }
+  return found;
 }

@@ -566,3 +566,53 @@ on orders whose box was still at the counter, and the refusal arrived on the
 click. It now carries `awaitingBoxes` — the same read `receiveByWing()` refuses
 on — and the screen names the box instead of offering a dead button.
 
+
+## The work order left `/labs` (D137)
+
+**`/labs/orders` is now `/workflow/work-order`.** `/labs` is what an office
+*maintains* — the catalogue, its coverage, the routing map, the registry of
+laboratories. A work order is a file somebody works, and files are worked in
+`/workflow`.
+
+- **The FDO's wing-head letter and the `LabTestOrder` are one instruction said
+  twice.** The letter says *test these parameters on this package*; the order is
+  that sentence as a row with a state. They were two modules apart and neither
+  pointed at the other, so a wing head read the paper at `/workflow/letters` and
+  did the work at `/labs/orders` with nothing joining them.
+- **`lettersForWorkOrders()` in `lib/cm/letter-inbox.ts` is the crossing, and it
+  belongs on the CM side.** `SampleRegistration` is the cut (D71) and its own
+  comment is that nothing lab-facing reads it — so the join from order to
+  application lives beside the letter rules, not in `lib/labs/board.ts`, which
+  is blind by construction. What comes back is an id and a letter number, never
+  a company. One query for the orders and one for the letters, whatever the
+  board's size.
+- **The link is offered only to the letter's addressee.** A wing-head letter
+  belongs to the officer named on it and nobody else — the rule
+  `internalLetterFor()` already enforces — so offering it to the bench would be
+  a button that opens on a refusal. An Assistant Director holding the order sees
+  no link; he has the order, which says the same thing.
+- **`lib/labs/` still owns the logic.** `board.ts`, `testing.ts`, `ladder.ts`
+  and `report.ts` did not move and should not: the module boundary is the
+  domain, and the route is only where the work is done. `/api/labs/orders/[id]`
+  likewise stays where it is.
+- **`labActorFor()` converts a `/workflow` actor to a `LabActor`** — the two
+  differ only in whether the employee id may be null. Structurally typed, so
+  `lib/labs/` still imports nothing from `lib/workflow/`. **It resolves an actor
+  with no employee id to no office**, so a user with no employment gets no
+  bench.
+- **The board resolves its office with `actorFor()`**, like every other
+  `/workflow` screen — the current posting, with `Employee.officeId` as the
+  fallback. It used to read the column directly, which would have disagreed the
+  first time somebody transferred.
+
+**The letter is read on the work order, not in an inbox (D138).** The wing-head
+letter and the `LabTestOrder` are one instruction, so there is one place to read
+it. `/workflow/work-order/[id]` carries the letter's substance — memo number,
+who issued it and when, urgent or normal, the box and its seal, the jar count,
+whether the testing fee is settled, when the samples are due — and links to the
+paper for printing. **`lettersForWorkOrders()` returns those facts, not just an
+id**, because this screen replaced the inbox row that used to carry them; losing
+the unpaid-fee warning would leave a wing head waiting on a box the counter is
+refusing. The fee flag is on the board card too, where the waiting is done.
+`/workflow/letters` is the **counter's** inbox now and is labelled *Counter
+letters*.

@@ -23,31 +23,8 @@ import { rungOf } from "@/lib/labs/ladder";
 export async function ordersForViewer(actor: LabActor) {
   if (!actor.officeId) return [];
 
-  // Heading a wing is derived from the desk now, so there is no role to test
-  // first — gating on one is what kept this list empty at every office.
-  const heads = await wingHeadsOfOffice(actor.officeId);
-  const mine = heads.find((h) => h.employeeId === actor.employeeId);
-  const isSuper = hasAnyRole(actor, "superadmin");
-
   const orders = await prisma.labTestOrder.findMany({
-    where: {
-      officeId: actor.officeId,
-      ...(isSuper
-        ? {}
-        : {
-            OR: [
-              { holderEmployeeId: actor.employeeId },
-              { movements: { some: { toEmployeeId: actor.employeeId } } },
-              { movements: { some: { fromEmployeeId: actor.employeeId } } },
-              // A wing head sees everything coming to their own discipline,
-              // including what has not been received yet — that is the letter
-              // they were sent telling them to expect it.
-              ...(mine
-                ? [{ lab: { discipline: { in: mine.disciplines } } }, { labId: null }]
-                : []),
-            ],
-          }),
-    },
+    where: await visibleOrdersWhere(actor, actor.officeId),
     select: {
       id: true,
       code: true,
@@ -67,6 +44,52 @@ export async function ordersForViewer(actor: LabActor) {
   });
 
   return orders;
+}
+
+/**
+ * The standing filter, factored out so the list and its count cannot drift.
+ *
+ * A navbar that offers *Work orders* to somebody the board would then show
+ * nothing to is the dead-link failure in a different costume, and the only way
+ * to be sure the two agree is for them to ask the same question.
+ */
+async function visibleOrdersWhere(actor: LabActor, officeId: number) {
+  // Heading a wing is derived from the desk now, so there is no role to test
+  // first — gating on one is what kept this list empty at every office.
+  const heads = await wingHeadsOfOffice(officeId);
+  const mine = heads.find((h) => h.employeeId === actor.employeeId);
+  if (hasAnyRole(actor, "superadmin")) return { officeId };
+
+  return {
+    officeId,
+    OR: [
+      { holderEmployeeId: actor.employeeId },
+      { movements: { some: { toEmployeeId: actor.employeeId } } },
+      { movements: { some: { fromEmployeeId: actor.employeeId } } },
+      // A wing head sees everything coming to their own discipline, including
+      // what has not been received yet — that is the letter they were sent
+      // telling them to expect it.
+      ...(mine ? [{ lab: { discipline: { in: mine.disciplines } } }, { labId: null }] : []),
+    ],
+  };
+}
+
+/**
+ * How much testing work this person can see — for the `/workflow` navbar.
+ *
+ * A count rather than `ordersForViewer().length`: this runs on every workflow
+ * screen to decide whether the tab exists, and the packages, specimens and
+ * reports behind those rows are not wanted there. Same reasoning as
+ * `letterCountForViewer()`.
+ *
+ * **Zero is the honest test for whether the tab belongs.** A CM officer has no
+ * testing work and should not be offered a bench; a wing head gets the tab the
+ * moment a letter is issued, because issuing it creates the order in
+ * `awaiting_sample`.
+ */
+export async function workOrderCountForViewer(actor: LabActor): Promise<number> {
+  if (!actor.officeId) return 0;
+  return prisma.labTestOrder.count({ where: await visibleOrdersWhere(actor, actor.officeId) });
 }
 
 /** One order, in the shape the bench screen needs. Still blind. */
@@ -211,14 +234,18 @@ export async function ladderHealth(officeId: number) {
   const desks = await labDesksOfOffice(officeId);
   const heads = await wingHeadsOfOffice(officeId);
   const problems: string[] = [];
+  // **Said as a seating problem, not a grant one** (D136). Both facts are read
+  // from the organogram now, so "nobody holds the role" was advice nobody could
+  // act on — there is no role to grant, and the screen used to send them to
+  // /hr/listing/roles to grant it.
   if (!heads.length) {
     problems.push(
-      "Nobody at this office holds the wing head role, so no samples can be received.",
+      "Nobody at this office sits on a wing head's desk, so no samples can be received.",
     );
   }
   if (!desks.some((d) => d.isTestingOfficer)) {
     problems.push(
-      "Nobody at this office holds the testing officer role, so no result can be entered.",
+      "Nobody at this office sits on an examiner's or assistant director's desk, so no result can be entered.",
     );
   }
   return { desks, heads, problems, rungsStaffed: desks.map((d) => d.rung) };

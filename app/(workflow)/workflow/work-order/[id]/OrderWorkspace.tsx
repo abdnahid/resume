@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, FlaskConical, PackageCheck, Send, Undo2 } from "lucide-react";
+import {
+  AlertTriangle, Check, Download, FlaskConical, Mail, PackageCheck, Send, Undo2,
+} from "lucide-react";
 import { ORDER_STATE_LABELS, type LabOrderState } from "@/lib/labs/ladder";
 
 /**
@@ -37,6 +40,7 @@ type Sig = { nameEn: string; nameBn: string; designation: string | null; at: str
 
 export default function OrderWorkspace({
   order,
+  letter,
   specimens,
   lines,
   actions,
@@ -46,6 +50,32 @@ export default function OrderWorkspace({
   report,
   flow,
 }: {
+  /**
+   * The wing-head letter this order came from, when the reader is the officer
+   * it is addressed to (D137). Null for everybody else — the bench holds the
+   * order, which says the same thing, and offering a link that opens on a
+   * refusal is the dead-button rule broken.
+   *
+   * **Its substance is rendered here, not merely linked** (D138). This screen
+   * replaced the letter's own inbox row, so everything that row carried — the
+   * box, the seal, the jar count, whether the fee is settled, whether it is
+   * urgent — has to be readable without opening the paper.
+   */
+  letter: {
+    id: number;
+    letterNo: string;
+    issuedOn: string;
+    dueOn: string;
+    issuedBy: { name: string; designation: string | null };
+    urgent: boolean;
+    feeTaka: string | null;
+    feePaid: boolean;
+    boxCode: string | null;
+    sealNo: string | null;
+    handedIn: boolean;
+    specimenCount: number;
+    pdfHref: string;
+  } | null;
   order: {
     id: number;
     code: string;
@@ -161,6 +191,88 @@ export default function OrderWorkspace({
           )}
         </p>
       </div>
+
+      {/* ── The letter ─────────────────────────────────────────────────── */}
+      {/* **The instruction this work order is** (D137, D138). The FDO's letter
+          says test these parameters on this package; this screen is that
+          sentence as work. It used to be a row in a separate inbox, so its
+          substance lives here now — the box, the seal, the jars, the fee and
+          the basis — and the paper itself is one click away for printing. */}
+      {letter && (
+        <Card title="The letter that ordered this work">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-sm font-semibold text-foreground">{letter.letterNo}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {letter.issuedOn} · {letter.issuedBy.name}
+                {letter.issuedBy.designation ? `, ${letter.issuedBy.designation}` : ""}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Link
+                href={`/workflow/letters/${letter.id}`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/40 hover:text-primary"
+              >
+                <Mail size={14} strokeWidth={1.8} /> Read the letter
+              </Link>
+              <a
+                href={letter.pdfHref}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
+              >
+                <Download size={14} strokeWidth={1.8} /> PDF
+              </a>
+            </div>
+          </div>
+
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* **Said either way, never only when urgent** — a blank where a
+                basis should be is ambiguous, which is the rule the letter
+                itself follows (D134). */}
+            <Fact label="Basis">
+              <span className={letter.urgent ? "font-semibold text-foreground" : undefined}>
+                {letter.urgent ? "Urgent" : "Normal"}
+              </span>
+            </Fact>
+            <Fact label="Box">
+              {letter.boxCode ? (
+                <span className="font-mono">{letter.boxCode}</span>
+              ) : (
+                <span className="text-muted-foreground">not sealed yet</span>
+              )}
+              {letter.sealNo && (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · seal <span className="font-mono">{letter.sealNo}</span>
+                </span>
+              )}
+            </Fact>
+            <Fact label="Specimens">
+              {letter.specimenCount} in the box
+              <span className="text-muted-foreground">
+                {letter.handedIn ? " · handed in" : " · not handed in yet"}
+              </span>
+            </Fact>
+            {/* The fee is what the counter refuses a box over (D129), so the
+                wing head reads it here rather than learning it from a box that
+                never arrives. */}
+            <Fact label="Testing fee">
+              {letter.feeTaka ?? "—"}
+              {letter.feeTaka && (
+                <span
+                  className={
+                    letter.feePaid
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "font-medium text-amber-700 dark:text-amber-400"
+                  }
+                >
+                  {letter.feePaid ? " · paid" : " · unpaid"}
+                </span>
+              )}
+            </Fact>
+            <Fact label="Samples due in by">{letter.dueOn}</Fact>
+          </dl>
+        </Card>
+      )}
 
       {error && (
         <p className="flex gap-2 whitespace-pre-line rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -636,5 +748,15 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
       <h2 className="mb-3 text-sm font-semibold text-foreground">{title}</h2>
       {children}
     </section>
+  );
+}
+
+/** One label-over-value pair in the letter card. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-sm text-foreground">{children}</dd>
+    </div>
   );
 }

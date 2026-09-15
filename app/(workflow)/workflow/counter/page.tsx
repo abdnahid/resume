@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { hasAnyRole } from "@/lib/roles";
 import { workflowNav } from "@/lib/workflow/nav";
 import { letterCountForViewer } from "@/lib/cm/letter-inbox";
+import { workOrderCountForViewer } from "@/lib/labs/board";
+import { labActorFor } from "@/lib/labs/testing";
 import ReceiveBox from "./_components/ReceiveBox";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +41,7 @@ export default async function CounterPage() {
   const navItems = workflowNav({
     counter: true,
     letters: (await letterCountForViewer(actor)) > 0,
+    workOrders: (await workOrderCountForViewer(labActorFor(actor))) > 0,
   });
 
   const [office, boxes] = await Promise.all([

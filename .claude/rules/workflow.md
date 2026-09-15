@@ -16,11 +16,35 @@ paths:
 ```
 /workflow                    my files — every service I work on
 /workflow/counter            One Stop desk    ⎤ service-agnostic: a counter takes
-/workflow/letters/[id]       my letters       ⎦ boxes and letters for any service
+/workflow/letters/[id]       counter letters  ⎦ boxes and letters for any service
+/workflow/work-order/[id]    the testing bench — one workflow, both disciplines
 /workflow/cm/[id]/…          CM: process · order · reports · labels
 /workflow/metrology/…        [not built] 12 services, each doing different work
-/workflow/testing/[id]/…     [not built] one testing workflow, both disciplines
 ```
+
+**A wing-head letter has no inbox row; it is a work order** (D138). The FDO's
+letter says *test these parameters on this package* and `submitSamplingPlan()`
+has already written that same sentence as a `LabTestOrder` — so listing it as a
+letter *and* as an order made one instruction into two destinations, and the
+wing head had to reconcile them himself. `/workflow/work-order` carries its
+substance (memo number, who issued it, urgent or normal, the box and seal, the
+jar count, whether the fee is settled, when samples are due) and links to the
+paper for printing. **`/workflow/letters` is the counter's inbox only** — a
+counter takes the box and tests nothing, so its letter has no work order behind
+it and needs a home. `lettersForViewer()` and `letterCountForViewer()` filter to
+`kind: "one_stop"`; `internalLetterFor()` still serves both, because the letter
+is a printed document and needs a page whichever screen reached it. Its back
+link follows the kind.
+
+**The testing sub-workflow is `/workflow/work-order`, not `/workflow/testing`**
+(D137, amending D135's placeholder). It is named for the thing somebody opens —
+a work order — rather than for the activity, because the FDO's wing-head letter
+and the `LabTestOrder` are **one instruction said twice** and the officer knows
+it by the letter. It moved out of `/labs/orders` for the same reason: the two
+halves of one package were a module apart, so a wing head read the paper on one
+screen and did the work on another with nothing joining them. **It sits beside
+the shared desks rather than under a service prefix**, because a metrology
+sample will arrive on the same bench.
 
 - **The shared three are keyed on something other than the file.** The counter is
   scoped to `Consignment` and never holds an application; the letter inbox is
@@ -37,7 +61,8 @@ paths:
   across the contract `lib/cm/lab-progress.ts` models. A service module is a thing
   a citizen applies for; a sub-workflow is work a service hands out and gets back.
 - **`/labs` keeps the catalogue, coverage, mapping and registry.** The line is:
-  *the catalogue is a table you maintain, the order is a file you work.*
+  *the catalogue is a table you maintain, the order is a file you work* — and
+  since D137 the order is on the working side of it, at `/workflow/work-order`.
 
 **Two kernel rules that keep the eventual split cheap (D135):**
 
@@ -378,7 +403,10 @@ can reuse them.
   Khulna's wing head was issued a letter naming *Physical Lab, Barisal*. The
   same collision that put the wrong lab on the sealing screen. Never pass an
   office id to anything keyed on `Lab`, and name the variable for what it holds.
-- **A sampling letter is read from the letter, not from the file** (D130).
+- **A sampling letter is read from the letter, not from the file** (D130) —
+  though since D138 a wing head reads his at `/workflow/work-order` rather than
+  in an inbox, because that letter *is* the work order. The access rule below is
+  unchanged and is still what decides.
   `/workflow/letters` and `lib/cm/letter-inbox.ts`. `canViewApplication()`
   grants the file you hold, handled, or head the office of (D80) — and the
   officer a letter is addressed to is **none of those**: a Faridpur inspection
@@ -397,7 +425,12 @@ can reuse them.
   `workflowNav()` in `lib/workflow/nav.ts` (Prisma-free). The counter and the
   letter inbox both answer `notFound()` to someone without them, and the board
   used to link neither — so a One Stop clerk could only reach their own screen
-  by typing its URL.
+  by typing its URL. **Work orders joined it on the same terms** (D137):
+  `workOrderCountForViewer()` is the flag, so a CM officer is never offered a
+  bench and a wing head gets the tab the moment a letter is issued, because
+  issuing one creates the order in `awaiting_sample`. That count and
+  `ordersForViewer()` share `visibleOrdersWhere()` — a navbar offering a screen
+  the board then shows nothing on is the dead-link rule broken in a costume.
 - **The One Stop counter is a desk, not a person** (D93). `one_stop` is a role,
   so the counter keeps working when the officer on it changes, and
   `/workflow/counter` lists what is coming to their office.
