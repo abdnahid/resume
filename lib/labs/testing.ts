@@ -13,6 +13,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { hasRole } from "@/lib/roles";
+import { displayDesignation } from "@/lib/desk-title";
 import {
   type LabRung,
   type SignaturePlan,
@@ -283,6 +284,7 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
       nameBn: true,
       designationEn: true,
       designationBn: true,
+      orgPostIsInferred: true,
       orgPost: { select: { nameEn: true, unitId: true, unit: { select: { nameEn: true } } } },
       actingOrgPost: { select: { nameEn: true, unitId: true, unit: { select: { nameEn: true } } } },
       user: { select: { role: true, roles: true } },
@@ -296,17 +298,43 @@ export async function labDesksOfOffice(officeId: number): Promise<LabDesk[]> {
   const out: LabDesk[] = [];
   for (const p of people) {
     const post = p.actingOrgPost ?? p.orgPost;
-    // The post is the job where there is one (D124); the recorded designation
-    // answers for the 249 people who hold no desk.
-    const rung =
-      rungOf(post?.nameEn) ?? rungOf(p.designationEn) ?? rungOf(p.designationBn);
+    /**
+     * **The credible title, by D124's rule — not the raw post** (D143).
+     *
+     * This module read `post.nameEn` directly and was the one place in the
+     * system that trusted an inferred seat. It shows: BSTI's organogram has
+     * **no post titled Examiner at all** — both testing wings staff the bench
+     * as *Inspector (Textile)*, *Senior Inspector (Chemistry)* — while 114
+     * employees are *designated* Examiner, so `import:desks` had no title to
+     * match and seated every one of them on an Inspector post by grade. All
+     * flagged `orgPostIsInferred`. Reading the post made the pass-down call
+     * them Inspectors, which is not their job, and put two Assistant Directors
+     * on the bench rung because their guessed seats say *Senior Inspector*.
+     *
+     * `displayDesignation()` is the rule the CM chain has always applied: take
+     * the desk's title where it agrees in rank with what HR recorded, fall back
+     * where it does not, because a rank disagreement is the signal the seat was
+     * a guess. A confirmed seat still wins outright, so the fallback stops
+     * firing by itself as the organogram is corrected at `/hr/listing/desks`
+     * (D131).
+     *
+     * **The rung follows the same title**, and it has to: a title shown as
+     * *Assistant Director* under an *Examiner* heading is a contradiction on
+     * one row, and the rung is not merely a label — it decides who may enter a
+     * result and who signs the report.
+     */
+    const recorded = p.designationEn ?? p.designationBn;
+    const title =
+      displayDesignation(recorded, post?.nameEn ?? null, !!p.actingOrgPost, p.orgPostIsInferred) ??
+      recorded;
+    const rung = rungOf(title) ?? rungOf(p.designationEn) ?? rungOf(p.designationBn);
     if (!rung) continue;
     const isHead = headIds.has(p.id);
     out.push({
       employeeId: p.id,
       nameEn: p.nameEn,
       nameBn: p.nameBn,
-      designation: post?.nameEn ?? p.designationEn ?? p.designationBn,
+      designation: title,
       // Heading this office's testing is what puts somebody at the top of the
       // ladder. A Director who heads no testing wing — Certification Marks, say
       // — reads as the rung below, because that is where his title sits.

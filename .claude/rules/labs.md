@@ -587,6 +587,22 @@ offices with no wing head and no testing officer. Derived, 23 of 23 resolve.
 - **The test is a *testing* wing, not merely Executive.** Head office's
   `office_head` is the Director of the Certification Marks Wing and heads no
   laboratory.
+- **The ladder reads the credible title, not the raw post** (D143).
+  `displayDesignation()` from `lib/desk-title.ts` decides both the name shown
+  and the rung. **The organogram has no post titled Examiner** — both wings
+  staff the bench as *Inspector (Textile)*, *Senior Inspector (Chemistry)* —
+  while 114 employees are *designated* Examiner, so `import:desks` seated them
+  all on Inspector posts by grade and flagged the lot `orgPostIsInferred`. This
+  module was the only one trusting an inferred seat: 210 of 396 ladder desks
+  showed a title the rest of the system would not have. **The rung follows the
+  same title**, because a label fix alone prints *Assistant Director* under an
+  *Examiner* heading — two head office desks are exactly that — and the rung
+  decides who may enter a result and who signs. Effect on signatures: **3
+  offices of 23**. The fallback stops firing as seats are confirmed (D131).
+- **`lib/labs/` still imports nothing from `lib/workflow/`**, which is why
+  `deskRank()` and `displayDesignation()` live in `lib/desk-title.ts` rather
+  than in `lib/workflow/chain.ts`: they are facts about an employee and their
+  post, not about a file moving.
 - **A pass-down is scoped to the holder's own wing, at an office that has
   wings** (D142). `LabDesk.wing` comes from the unit's *Testing Wing* ancestor,
   because head office's sections sit several units deep — *Organic Chemistry*
