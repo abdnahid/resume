@@ -493,6 +493,19 @@ can reuse them.
   approved — sealing samples for an unauthorised visit would be jars nobody sent
   anyone to collect. `lib/samples/screen.ts` assembles it; the arithmetic stays
   Prisma-free in `plan.ts`.
+- **Every routed test shows where else it could go, and the officer may move
+  it** — not only the ties. `openChoices` holds only what *nothing* could
+  settle, so the moment a route resolved by any rule the test dropped off the
+  screen and its destination became unchangeable. Two consequences, both live on
+  application 26: a choice the officer had already made was invisible and
+  unrevisitable, and a test the receiving office covers **by sending it out**
+  (D65) could never be handed to an office with a real bench for it — Faridpur
+  outsources *Breaking strength in N* while Dhaka and Khulna both run it.
+  `resolveDestinations()` always let the officer's choice win over every rule;
+  what was missing was a control that reached it. **The default is unchanged** —
+  keep it here if we can, else the standing preference, else the sole candidate
+  — and *clear* returns a test to the rule rather than pinning it to the office
+  the rule happens to name today.
 - **Where several offices can run a test, the officer chooses** (D125). The
   order is **chosen → here → preferred → sole**: an explicit choice wins over
   everything, a standing `RoutingPreference` only pre-fills. The choice is

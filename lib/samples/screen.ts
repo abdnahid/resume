@@ -29,8 +29,25 @@ export type SamplingCell = PlanCell & {
    * Carries the discipline because a destination is routinely mixed: Faridpur's
    * seven are chemical *and* physical, and which bench runs which is the fact
    * that shapes the box.
+   *
+   * **And it carries where else the test could go**, so the officer can move
+   * one. A destination used to be unchangeable once decided — the picker
+   * rendered only the unresolved ties — which meant a test the receiving office
+   * covers by sending it out (D65) could never be given to an office with a
+   * real bench for it, and a choice already made could not be revisited.
    */
-  parameters: { id: number; nameEn: string; discipline: string }[];
+  parameters: {
+    id: number;
+    nameEn: string;
+    discipline: string;
+    /** How this office covers it: `in_house`, or `third_party` (D65). */
+    manner: string;
+    /** Every office that could run it, this one included. */
+    alternatives: { officeId: number; officeName: string; manner: string }[];
+    /** True when a person put it here, false when a rule did. */
+    chosenByOfficer: boolean;
+    reason: "officer" | "here" | "preference" | "sole";
+  }[];
   /** True while every routing row behind this cell is still a seeded stand-in. */
   routeIsPlaceholder: boolean;
   /** What the lab agreed last time, if anything — a suggestion, never a default. */
@@ -72,7 +89,10 @@ export type SamplingView = {
 };
 
 export async function samplingView(applicationId: number): Promise<SamplingView> {
-  const { plan, problems, openChoices } = await buildPlanFor(applicationId);
+  const { plan, problems, openChoices, routing } = await buildPlanFor(applicationId);
+  const routeBy = new Map(
+    routing.map((r) => [`${r.applicationSubProductId}:${r.parameterId}`, r]),
+  );
 
   const officeIds = [...new Set(plan.cells.map((c) => c.officeId))];
   const parameterIds = [...new Set(plan.cells.flatMap((c) => c.parameterIds))];
@@ -140,10 +160,17 @@ export async function samplingView(applicationId: number): Promise<SamplingView>
     // one reading order for the same list wherever it appears, so an officer
     // who has seen the package on one screen recognises it on the other.
     parameters: c.parameterIds
-      .map(
-        (id) =>
-          paramById.get(id) ?? { id, nameEn: `#${id}`, discipline: "" },
-      )
+      .map((id) => {
+        const p = paramById.get(id) ?? { id, nameEn: `#${id}`, discipline: "" };
+        const r = routeBy.get(`${c.applicationSubProductId}:${id}`);
+        return {
+          ...p,
+          manner: r?.manner ?? "in_house",
+          alternatives: r?.alternatives ?? [],
+          chosenByOfficer: r?.chosenByOfficer ?? false,
+          reason: r?.reason ?? ("sole" as const),
+        };
+      })
       .sort((a, b) => {
         const order = ["physical", "chemical"];
         const ia = order.indexOf(a.discipline);

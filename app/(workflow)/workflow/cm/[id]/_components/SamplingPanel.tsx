@@ -28,7 +28,15 @@ export type Cell = {
   subProductName: string;
   labName: string;
   labDiscipline: string;
-  parameters: { id: number; nameEn: string; discipline: string }[];
+  parameters: {
+    id: number;
+    nameEn: string;
+    discipline: string;
+    manner: string;
+    alternatives: { officeId: number; officeName: string; manner: string }[];
+    chosenByOfficer: boolean;
+    reason: "officer" | "here" | "preference" | "sole";
+  }[];
   variantCount: number;
   samplesPerVariant: number | null;
   sampleCount: number | null;
@@ -267,17 +275,38 @@ export default function SamplingPanel({
                       <p className="text-xs text-muted-foreground">
                         {c.parameters.length} {c.parameters.length === 1 ? "test" : "tests"}
                       </p>
-                      <ul className="mt-1 space-y-0.5">
+                      <ul className="mt-1 space-y-1">
                         {c.parameters.map((p, i) => {
                           const first = i === 0 || c.parameters[i - 1].discipline !== p.discipline;
                           return (
                             <li key={p.id} className="text-xs leading-snug">
                               {first && p.discipline && (
-                                <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:mt-0">
+                                <span className="mt-1.5 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70 first:mt-0">
                                   {p.discipline}
                                 </span>
                               )}
                               <span className="text-foreground">{p.nameEn}</span>
+                              {/* **Where this office covers it by sending it
+                                  out** (D65): the office is still accountable
+                                  and its own testing officer enters the result
+                                  (D140), so it stays in this box — but the
+                                  officer can say otherwise with the control
+                                  below. Said on the test, because it is a fact
+                                  about one test and not about the destination. */}
+                              {p.manner === "third_party" && (
+                                <span className="ml-1.5 rounded bg-amber-500/10 px-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                                  sent out
+                                </span>
+                              )}
+                              <TestDestination
+                                applicationId={applicationId}
+                                applicationSubProductId={c.applicationSubProductId}
+                                parameterId={p.id}
+                                here={c.officeId}
+                                alternatives={p.alternatives}
+                                chosenByOfficer={p.chosenByOfficer}
+                                canEdit={canEdit}
+                              />
                             </li>
                           );
                         })}
@@ -421,6 +450,117 @@ export default function SamplingPanel({
  * a test with no destination: the box it would belong to is exactly what is
  * being decided.
  */
+/**
+ * Where one test goes, on the row it is listed on — and every other office that
+ * could run it.
+ *
+ * **A destination used to be decidable exactly once.** `DestinationPicker`
+ * above renders `openChoices`, which holds only the ties nothing could settle;
+ * the moment a route resolved — by the officer choosing, by a standing
+ * preference, by the receiving office being capable, or by there being just one
+ * candidate — the test dropped out of that list and off the screen. So a choice
+ * already made could not be revisited, and a test the receiving office covers
+ * by **sending it out** (D65) could never be handed to an office with a real
+ * bench for it, even when one existed. Faridpur's *Breaking strength in N* is
+ * that case exactly: Faridpur has no physical bench and outsources it, while
+ * Head Office and Khulna both run it themselves.
+ *
+ * Nothing about the default changed: keep it here if we can, else the standing
+ * preference, else the only candidate. `resolveDestinations()` already lets the
+ * officer's choice win over all of it — this is the control that reaches it.
+ *
+ * Renders nothing where there is nothing to decide, because a picker with one
+ * option is a control that cannot do anything.
+ */
+function TestDestination({
+  applicationId, applicationSubProductId, parameterId, here, alternatives, chosenByOfficer, canEdit,
+}: {
+  applicationId: number;
+  applicationSubProductId: number;
+  parameterId: number;
+  /** The office this test is routed to today. */
+  here: number;
+  alternatives: { officeId: number; officeName: string; manner: string }[];
+  chosenByOfficer: boolean;
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (alternatives.length < 2) return null;
+
+  async function send(officeId: number | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workflow/applications/${applicationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "parameter-destination",
+          applicationSubProductId,
+          parameterId,
+          officeId,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "That did not save.");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-1">
+      {alternatives.map((o) => {
+        const active = o.officeId === here;
+        return (
+          <button
+            key={o.officeId}
+            type="button"
+            disabled={!canEdit || busy || active}
+            onClick={() => send(o.officeId)}
+            title={
+              o.manner === "third_party"
+                ? `${o.officeName} covers this by sending it to an accredited outside laboratory — it stays that office's responsibility`
+                : `${o.officeName} runs this on its own bench`
+            }
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+              active
+                ? "bg-primary/10 text-primary"
+                : "border border-border text-muted-foreground hover:border-primary/50 hover:text-primary disabled:opacity-40"
+            }`}
+          >
+            {o.officeName.split(",").pop()?.trim()}
+            {o.manner === "third_party" && " ↗"}
+          </button>
+        );
+      })}
+      {/* **Undoing a choice is not the same as choosing the default**, so it is
+          its own control: clearing the row hands the test back to the rule, and
+          a later change of capability then moves it. Picking the same office by
+          hand would pin it there for good. */}
+      {chosenByOfficer && canEdit && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => send(null)}
+          title="Forget my choice and let the routing rule decide again"
+          className="px-1 text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:opacity-40"
+        >
+          clear
+        </button>
+      )}
+      {error && <span className="text-[10px] text-destructive">{error}</span>}
+    </span>
+  );
+}
+
 function DestinationPicker({
   applicationId, choices, canEdit,
 }: {

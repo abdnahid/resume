@@ -83,6 +83,28 @@ export async function resolveDestinations(
   const routed: {
     parameterId: number; parameterName: string; officeId: number;
     manner: string; officeName: string;
+    /**
+     * **Every office that could run this test, on every routed row** — not only
+     * on the ones nothing could settle.
+     *
+     * A destination used to become unchangeable the moment it was decided: the
+     * picker rendered `choices`, which holds only the *unresolved* ties, so a
+     * test that resolved by any rule — it can be done here, a preference names
+     * somewhere, one office is the only candidate — vanished from the officer's
+     * view with no way back. On application 26 that meant Sabbir's own two
+     * choices, made and then invisible, and no way at all to move a test the
+     * receiving office covers by sending it out (D65) to an office with a real
+     * bench for it.
+     *
+     * Carrying the candidates on every row is what makes the plan editable
+     * rather than merely computed. `chosen` already wins over everything in the
+     * rule below; this is what lets a person reach it.
+     */
+    alternatives: { officeId: number; officeName: string; manner: string }[];
+    /** True when a person picked this, false when a rule did. */
+    chosenByOfficer: boolean;
+    /** Which rule put it here, for the screen to say so. */
+    reason: "officer" | "here" | "preference" | "sole";
   }[] = [];
   const choices: {
     parameterId: number; parameterName: string;
@@ -139,6 +161,11 @@ export async function resolveDestinations(
       parameterId: p.id, parameterName: p.nameEn,
       officeId: chose.officeId, manner: chose.manner,
       officeName: chose.office.nameEn,
+      alternatives: candidates.map((c) => ({
+        officeId: c.officeId, officeName: c.office.nameEn, manner: c.manner,
+      })),
+      chosenByOfficer: !!byOfficer,
+      reason: byOfficer ? "officer" : here ? "here" : pref ? "preference" : "sole",
     });
   }
 
@@ -153,11 +180,29 @@ export async function resolveDestinations(
 }
 
 /** The grid, with every cell we already know an answer for filled in. */
+/** Where one test is going, and everywhere else it could go. */
+export type RoutingDetail = {
+  applicationSubProductId: number;
+  parameterId: number;
+  officeId: number;
+  manner: string;
+  alternatives: { officeId: number; officeName: string; manner: string }[];
+  chosenByOfficer: boolean;
+  reason: "officer" | "here" | "preference" | "sole";
+};
+
 export async function buildPlanFor(applicationId: number): Promise<{
   plan: SamplePlan;
   problems: string[];
   /** Parameters still waiting for the officer to name a destination (D125). */
   openChoices: OpenChoice[];
+  /**
+   * Every *settled* route, with its alternatives — so the screen can show where
+   * each test is going and let the officer move it. `openChoices` covers only
+   * the ties nothing could settle, which left a decided destination with no way
+   * back to it.
+   */
+  routing: RoutingDetail[];
 }> {
   const app = await prisma.application.findUniqueOrThrow({
     where: { id: applicationId },
@@ -189,6 +234,7 @@ export async function buildPlanFor(applicationId: number): Promise<{
    * planned right up to the point of sealing and no further (D125).
    */
   const openChoices: OpenChoice[] = [];
+  const routing: RoutingDetail[] = [];
 
   const chosenRows = await prisma.applicationParameterDestination.findMany({
     where: { applicationSubProduct: { applicationId } },
@@ -209,6 +255,16 @@ export async function buildPlanFor(applicationId: number): Promise<{
         parameterId: c.parameterId,
         parameterName: c.parameterName,
         offices: c.offices,
+      });
+    for (const r of d.routed)
+      routing.push({
+        applicationSubProductId: sp.id,
+        parameterId: r.parameterId,
+        officeId: r.officeId,
+        manner: r.manner,
+        alternatives: r.alternatives,
+        chosenByOfficer: r.chosenByOfficer,
+        reason: r.reason,
       });
     subProducts.push({
       applicationSubProductId: sp.id,
@@ -239,7 +295,7 @@ export async function buildPlanFor(applicationId: number): Promise<{
     if (e.officeId !== null)
       known.set(cellKey(e.applicationSubProductId, e.officeId), e.samplesPerVariant);
 
-  return { plan: buildPlan(subProducts, known), problems, openChoices };
+  return { plan: buildPlan(subProducts, known), problems, openChoices, routing };
 }
 
 /** A parameter waiting for the officer to name its destination (D125). */
