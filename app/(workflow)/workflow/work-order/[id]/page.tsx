@@ -19,6 +19,8 @@ import {
 } from "@/lib/labs/testing";
 import { reportFor } from "@/lib/labs/report";
 import { referrableItems, referralsFor } from "@/lib/labs/referral";
+import { declaredLimitsForOrder, declaredKey } from "@/lib/cm/declared-limits";
+import { limitForReport } from "@/lib/labs/limits";
 import { RUNG_LABELS, describeLabMovement } from "@/lib/labs/ladder";
 import OrderWorkspace from "./OrderWorkspace";
 
@@ -61,6 +63,15 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
       referrableItems(orderId),
       referralsFor(orderId),
     ]);
+
+  /**
+   * **What the applicant declared, where the standard delegates** (D144).
+   * Resolved through the CM-side crossing, like the letter (D137): the bench is
+   * blind by construction and may not reach an application, but a figure the
+   * manufacturer stated is a number rather than a name, so it can come across
+   * without telling the wing whose sample it holds.
+   */
+  const declared = await declaredLimitsForOrder(orderId);
   const letter = letters.get(orderId) ?? null;
 
   const navItems = workflowNav({
@@ -154,7 +165,16 @@ export default async function LabOrderPage({ params }: { params: Promise<{ id: s
             specimenNo: s.specimenNo,
             state: s.state,
           }))}
-          lines={results?.lines ?? []}
+          lines={(results?.lines ?? []).map((l) => ({
+            ...l,
+            // The declared figure **replaces** the catalogue's instruction to
+            // declare, and keeps it where it carries a tolerance.
+            limit: limitForReport(
+              { limitKind: l.limitKind, limitText: l.limit },
+              declared.get(declaredKey(l.parameterId, l.subParameterId)),
+            ),
+            isDeclared: declared.has(declaredKey(l.parameterId, l.subParameterId)),
+          }))}
           actions={actions}
           gaps={gaps}
           candidates={{

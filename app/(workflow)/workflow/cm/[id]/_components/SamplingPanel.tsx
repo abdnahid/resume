@@ -68,6 +68,7 @@ export default function SamplingPanel({
   boxes,
   problems,
   committed,
+  declarable,
   canEdit,
 }: {
   applicationId: number;
@@ -75,6 +76,21 @@ export default function SamplingPanel({
   boxes: { labId: number; labName: string; sampleCount: number | null }[];
   problems: string[];
   committed: Committed | null;
+  /**
+   * Leaves whose standard delegates the requirement to the manufacturer, so the
+   * FDO has to ask him for it (D144). Empty for most packages.
+   */
+  declarable: {
+    applicationSubProductId: number;
+    subProductName: string;
+    parameterId: number;
+    subParameterId: number | null;
+    label: string;
+    discipline: string;
+    limitText: string | null;
+    declaredValue: string | null;
+    declaredByName: string | null;
+  }[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -204,6 +220,15 @@ export default function SamplingPanel({
           ? "Where only one office can run a test, it is placed for you. Where several can, you choose. What nobody can work out is how many specimens each wants — ask them, then type it."
           : "The visiting officer plans this and seals the samples. You are seeing it as it stands."}
       </p>
+
+      {/* **What the applicant has to state** (D144). Above the grid, because it
+          is a question for the person standing in front of the officer rather
+          than a number he works out — and because nothing can be tested against
+          it until it is answered. Renders only where a package actually
+          delegates a limit, which most of the time it does not. */}
+      {declarable.length > 0 && (
+        <DeclaredLimits applicationId={applicationId} leaves={declarable} canEdit={canEdit} />
+      )}
 
       {cells.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -424,6 +449,158 @@ export default function SamplingPanel({
   );
 }
 
+
+
+/**
+ * The limits the applicant states, asked at the visit (D144).
+ *
+ * **Some standards do not fix a value — they require the manufacturer to.** A
+ * tile's breaking strength, a fabric's length: the specification reads *as
+ * declared*, so the *Standard limits* column of the test report has nothing to
+ * print and the bench has nothing to judge against. The FDO asks, and this is
+ * where the answer goes.
+ *
+ * **Asked here and not at the bench**, because the officer is at the factory
+ * with the person who knows and the jars are about to be sealed. By the time
+ * the box reaches a laboratory the applicant is not in the room.
+ *
+ * Saved per leaf (D61), and saved on blur rather than behind a button: this is
+ * a column of short figures copied off a datasheet, and a save control on each
+ * row would double the clicks.
+ */
+function DeclaredLimits({
+  applicationId, leaves, canEdit,
+}: {
+  applicationId: number;
+  leaves: {
+    applicationSubProductId: number;
+    subProductName: string;
+    parameterId: number;
+    subParameterId: number | null;
+    label: string;
+    discipline: string;
+    limitText: string | null;
+    declaredValue: string | null;
+    declaredByName: string | null;
+  }[];
+  canEdit: boolean;
+}) {
+  const router = useRouter();
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const keyOf = (l: (typeof leaves)[number]) =>
+    `${l.applicationSubProductId}:${l.parameterId}:${l.subParameterId ?? "self"}`;
+  // **Falls back to the prop rather than syncing with an effect** — the house
+  // rule for a panel holding draft state over a server-derived list, and the
+  // fault this very file hit once: an effect would fight the officer's typing.
+  const valueFor = (l: (typeof leaves)[number]) => draft[keyOf(l)] ?? l.declaredValue ?? "";
+
+  async function save(l: (typeof leaves)[number]) {
+    const k = keyOf(l);
+    const value = (draft[k] ?? "").trim();
+    if (value === (l.declaredValue ?? "")) return;
+    setBusy(k);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workflow/applications/${applicationId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "declared-limit",
+          applicationSubProductId: l.applicationSubProductId,
+          parameterId: l.parameterId,
+          subParameterId: l.subParameterId,
+          declaredValue: value || null,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setError(json.error ?? "That did not save.");
+        return;
+      }
+      setDraft((d) => {
+        const next = { ...d };
+        delete next[k];
+        return next;
+      });
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const missing = leaves.filter((l) => !l.declaredValue).length;
+
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-secondary/30 p-4">
+      <h3 className="text-sm font-semibold text-foreground">
+        Values the applicant declares ({leaves.length})
+      </h3>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {canEdit
+          ? "These tests have no limit in the standard — it is whatever the manufacturer states. Ask him and record it: the laboratory tests against this figure and the test report prints it."
+          : "These tests have no limit in the standard. The visiting officer records what the manufacturer states."}
+      </p>
+      {missing > 0 && (
+        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-300">
+          {missing} still unanswered — the bench has nothing to judge those against.
+        </p>
+      )}
+
+      {error && (
+        <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+          {error}
+        </p>
+      )}
+
+      <table className="mt-3 w-full text-sm">
+        <tbody>
+          {leaves.map((l, i) => {
+            const first = i === 0 || leaves[i - 1].subProductName !== l.subProductName;
+            return (
+              <tr key={keyOf(l)} className="border-b border-border/50 align-top last:border-0">
+                <td className="py-1.5 pr-3">
+                  {first && (
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                      {l.subProductName}
+                    </p>
+                  )}
+                  <span className="text-foreground">{l.label}</span>
+                  <span className="ml-2 text-[11px] text-muted-foreground">{l.discipline}</span>
+                  {/* The catalogue's own wording, kept in view: where it carries
+                      a tolerance — "As declared ± 2%" — the tolerance is the
+                      requirement and the declared figure only its centre. */}
+                  {l.limitText && (
+                    <span className="ml-2 rounded bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {l.limitText}
+                    </span>
+                  )}
+                </td>
+                <td className="w-56 py-1.5 text-right">
+                  <input
+                    value={valueFor(l)}
+                    disabled={!canEdit || busy === keyOf(l)}
+                    onChange={(e) => setDraft((d) => ({ ...d, [keyOf(l)]: e.target.value }))}
+                    onBlur={() => canEdit && save(l)}
+                    placeholder="what he states"
+                    className="w-48 rounded-lg border border-border bg-background px-2 py-1 text-sm text-foreground focus:border-primary focus:outline-none disabled:opacity-60"
+                  />
+                  {l.declaredByName && !draft[keyOf(l)] && (
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      recorded by {l.declaredByName}
+                    </p>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 /**
  * Where one test goes, on the row it is listed on — and every other office that

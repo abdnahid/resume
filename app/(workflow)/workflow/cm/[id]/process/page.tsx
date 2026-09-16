@@ -21,6 +21,7 @@ import { plannedLettersFor } from "@/lib/cm/letters";
 import FoundAtFactoryPanel from "../_components/FoundAtFactoryPanel";
 import { choicesFor, testFeeFor } from "@/lib/cm/sub-products";
 import { samplingView } from "@/lib/samples/screen";
+import { declarableLimitsFor } from "@/lib/samples/declared";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +79,10 @@ export default async function ProcessPage({
    * rather than in the batch above, because it needs the plan's answer first.
    */
   const sampling = plan?.approvedAt ? await samplingView(applicationId) : null;
+  // **The limits the applicant has to state** (D144) — asked here because the
+  // FDO is at the factory with the person who knows, and the jars are about to
+  // be sealed.
+  const declarable = sampling ? await declarableLimitsFor(applicationId) : [];
 
   // The letters only exist once the visit is approved (D95); before that there
   // is nothing to tell a laboratory about.
@@ -375,6 +380,17 @@ export default async function ProcessPage({
                 boxes={sampling.boxes}
                 problems={sampling.problems}
                 committed={sampling.committed}
+                declarable={declarable.map((d) => ({
+                  applicationSubProductId: d.applicationSubProductId,
+                  subProductName: d.subProductName,
+                  parameterId: d.parameterId,
+                  subParameterId: d.subParameterId,
+                  label: d.label,
+                  discipline: d.discipline,
+                  limitText: d.limitText,
+                  declaredValue: d.declaredValue,
+                  declaredByName: d.declaredByName,
+                }))}
                 canEdit={isHolder && isVisitingOfficer}
               />
             )}

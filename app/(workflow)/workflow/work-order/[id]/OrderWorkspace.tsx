@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, Check, Download, ExternalLink, FlaskConical, Mail, PackageCheck, Send,
-  Undo2,
+  AlertTriangle, Check, Download, ExternalLink, FileText, FlaskConical, Mail, PackageCheck,
+  Send, Undo2,
 } from "lucide-react";
 import { ORDER_STATE_LABELS, groupByRung, type LabOrderState } from "@/lib/labs/ladder";
 
@@ -28,6 +28,8 @@ type Line = {
   limit: string | null;
   limitKind: string;
   subParameterId: number | null;
+  /** True when the limit shown is what the applicant declared (D144). */
+  isDeclared?: boolean;
   /** Null when the test was run on this office's own bench (D140). */
   referral: { id: number; referralNo: string; labName: string } | null;
   bySample: {
@@ -451,8 +453,23 @@ export default function OrderWorkspace({
                   </td>
                   <td className="py-2 pr-3 text-xs text-muted-foreground">
                     {l.limit ?? <span className="italic">not specified</span>}
+                    {/* **Said out loud, because it is not the standard's own
+                        figure** (D144): the specification delegates here and
+                        this is what the manufacturer stated at the visit. A
+                        tester judging against it should know whose number it
+                        is. Where nothing was declared the chip still shows,
+                        which is the honest reading — the requirement is
+                        outstanding, not absent. */}
                     {l.limitKind === "declared" && (
-                      <span className="ml-1 rounded bg-secondary px-1 text-[10px]">declared</span>
+                      <span
+                        className={`ml-1 rounded px-1 text-[10px] ${
+                          l.isDeclared
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                        }`}
+                      >
+                        {l.isDeclared ? "declared by applicant" : "not declared"}
+                      </span>
                     )}
                   </td>
                   {l.bySample.map((s) => (
@@ -759,6 +776,30 @@ export default function OrderWorkspace({
 
       {/* ── The report ─────────────────────────────────────────────────── */}
       <Card title="Test report">
+        {/* **Readable at every stage** (D145), not only once approved. The
+            officer about to send it up needs to read exactly what the next desk
+            will read, and a document that only exists after approval cannot be
+            checked before it. */}
+        <p className="mb-3 flex flex-wrap items-center gap-3 text-xs">
+          <Link
+            href={`/workflow/work-order/${order.id}/report`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 font-medium text-foreground hover:border-primary/50 hover:text-primary"
+          >
+            <FileText className="h-3.5 w-3.5" strokeWidth={1.8} />
+            {report?.reportNo ? "Read the report" : "Preview the report"}
+          </Link>
+          <a
+            href={`/api/labs/reports/${order.id}/pdf`}
+            className="text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+          >
+            PDF
+          </a>
+          {!report?.reportNo && (
+            <span className="text-muted-foreground">
+              draft — it carries no number until the wing head approves
+            </span>
+          )}
+        </p>
         <p className="text-xs text-muted-foreground">
           Signed by {signaturePlan.testedBy} (tested)
           {signaturePlan.checkedBy ? `, ${signaturePlan.checkedBy} (checked)` : ""}, then{" "}

@@ -13,6 +13,7 @@ import {
 import { setRequirement, commitSampling,
   setParameterDestination,
 } from "@/lib/samples/service";
+import { setDeclaredLimit } from "@/lib/samples/declared";
 import { issueSampleLetters } from "@/lib/cm/letters";
 import { addSubProduct, removeSubProduct, setSubProductInProduction } from "@/lib/cm/sub-products";
 import { addSku, removeSku, setSkuInProduction } from "@/lib/cm/skus";
@@ -381,7 +382,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (
       body.action === "sample-count" ||
       body.action === "seal-samples" ||
-      body.action === "parameter-destination"
+      body.action === "parameter-destination" ||
+      body.action === "declared-limit"
     ) {
       if (!(await canViewApplication(actor, applicationId))) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -420,6 +422,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             applicationSubProductId: asp,
             parameterId,
             officeId,
+            employeeId: actor.employeeId,
+          });
+          return NextResponse.json({ ok: true, ...r });
+        } catch (e) {
+          return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+        }
+      }
+
+      /**
+       * **What the applicant states, where the standard delegates** (D144).
+       * The service refuses a leaf that has a limit of its own, so a declared
+       * figure can never overwrite a real requirement.
+       */
+      if (body.action === "declared-limit") {
+        const asp = Number(body.applicationSubProductId);
+        const parameterId = Number(body.parameterId);
+        const subParameterId =
+          body.subParameterId === null || body.subParameterId === undefined
+            ? null
+            : Number(body.subParameterId);
+        if (!Number.isInteger(asp) || !Number.isInteger(parameterId))
+          return NextResponse.json({ error: "Which test?" }, { status: 400 });
+        if (subParameterId !== null && !Number.isInteger(subParameterId))
+          return NextResponse.json({ error: "Which sub-parameter?" }, { status: 400 });
+        try {
+          const r = await setDeclaredLimit({
+            applicationSubProductId: asp,
+            parameterId,
+            subParameterId,
+            declaredValue:
+              typeof body.declaredValue === "string" ? body.declaredValue : null,
             employeeId: actor.employeeId,
           });
           return NextResponse.json({ ok: true, ...r });
