@@ -19,6 +19,7 @@
  * it would be supervising work he is not accountable for.
  */
 import { prisma } from "@/lib/prisma";
+import { officeShortNames } from "@/lib/labs/grid";
 
 export type LabStage =
   | "fee_unpaid"
@@ -37,6 +38,27 @@ export const LAB_STAGE_LABELS: Record<LabStage, string> = {
   reported: "Test report approved",
 };
 
+/**
+ * One test order, as the FDO is allowed to see it (D147).
+ *
+ * **The report, not the bench.** An approved report is a document about his
+ * sample and he is accountable for the file, so he gets its number, its verdict
+ * and a way to open it. What he still does not get is who tested it, which rung
+ * it is on or how long it sat — D133's line is unmoved, and `state` is here
+ * only to answer *has this one finished*.
+ */
+export type OrderProgress = {
+  orderId: number;
+  orderCode: string;
+  packageName: string;
+  /** True once the wing head has approved and the report carries a number. */
+  approved: boolean;
+  reportNo: string | null;
+  verdict: "pass" | "fail" | "inconclusive" | "not_tested" | null;
+  /** How many tests this order carries — what the wing-head letter asked for. */
+  tests: number;
+};
+
 /** One destination office's progress, as the FDO is allowed to see it. */
 export type DestinationProgress = {
   officeId: number | null;
@@ -47,6 +69,8 @@ export type DestinationProgress = {
   /** How many of this box's orders have an approved report, out of how many. */
   reported: number;
   orders: number;
+  /** Each order at this office, so an approved report can be opened (D147). */
+  orderList: OrderProgress[];
   stage: LabStage;
   /** Only ever set once every order at this office has been approved. */
   verdict: "pass" | "fail" | null;
@@ -59,11 +83,32 @@ export type DestinationProgress = {
  * box to each — and because one office finishing tells the FDO something real
  * while the others are still running.
  */
-export async function labProgressFor(applicationId: number): Promise<{
+export type LabProgress = {
   destinations: DestinationProgress[];
   stage: LabStage;
   verdict: "pass" | "fail" | null;
-}> {
+  /** Approved reports, and how many there are to come. */
+  approvedReports: number;
+  totalReports: number;
+  /**
+   * Offices with a report still outstanding, by short name.
+   *
+   * **Named rather than counted** (D147). "Awaiting 2 reports" tells the FDO
+   * nothing he can act on; the offices are who he telephones, and one of them
+   * being his own office is the case where the delay is his to chase.
+   *
+   * **Short names, because the full ones contain commas.** Joined for display,
+   * *District Office, BSTI, Faridpur* and *Divisional Office, BSTI, Khulna*
+   * read as five destinations rather than two. `officeShortNames()` is the same
+   * disambiguation the 23-column routing map uses, so an office is called the
+   * same thing on both screens.
+   */
+  awaiting: string[];
+  /** Every report is in — the gate the consolidated report waits on (A§8). */
+  complete: boolean;
+};
+
+export async function labProgressFor(applicationId: number): Promise<LabProgress> {
   const app = await prisma.application.findUnique({
     where: { id: applicationId },
     select: {
@@ -82,8 +127,11 @@ export async function labProgressFor(applicationId: number): Promise<{
                   labTestOrder: {
                     select: {
                       id: true,
+                      code: true,
                       state: true,
-                      report: { select: { reportNo: true, verdict: true } },
+                      subProduct: { select: { nameEn: true } },
+                      _count: { select: { items: true } },
+                      report: { select: { reportNo: true, verdict: true, approvedAt: true } },
                     },
                   },
                 },
@@ -95,23 +143,51 @@ export async function labProgressFor(applicationId: number): Promise<{
       },
     },
   });
-  if (!app) return { destinations: [], stage: "fee_unpaid", verdict: null };
+  if (!app) {
+    return {
+      destinations: [], stage: "fee_unpaid", verdict: null,
+      approvedReports: 0, totalReports: 0, awaiting: [], complete: false,
+    };
+  }
 
   const feePaid = app.testFeePayment?.status === "paid";
 
   const destinations: DestinationProgress[] = app.consignments.map((c) => {
     // One box can hold specimens from several orders; de-duplicate by order id.
-    const orders = new Map<number, { state: string; reportNo: string | null; verdict: string }>();
+    const orders = new Map<
+      number,
+      { state: string; reportNo: string | null; verdict: string; row: OrderProgress }
+    >();
     for (const r of c.registry) {
       const o = r.sample.labTestOrder;
+      // **Approved is `approvedAt` and a number together.** The number is
+      // minted at approval (D133) and nothing else mints one, so either alone
+      // would do — but a report is a document the FDO is about to read and act
+      // on, and requiring both means a half-written approval can never present
+      // itself as a finished one.
+      const approved = !!o.report?.approvedAt && !!o.report.reportNo;
       orders.set(o.id, {
         state: o.state,
         reportNo: o.report?.reportNo ?? null,
         verdict: o.report?.verdict ?? "not_tested",
+        row: {
+          orderId: o.id,
+          orderCode: o.code,
+          packageName: o.subProduct?.nameEn ?? "—",
+          approved,
+          reportNo: o.report?.reportNo ?? null,
+          // **No verdict before approval.** A draft's stored verdict is the
+          // testing officer's working conclusion, and showing it to the FDO
+          // would let him act on a finding no wing head has signed for.
+          verdict: approved
+            ? ((o.report?.verdict ?? "not_tested") as OrderProgress["verdict"])
+            : null,
+          tests: o._count.items,
+        },
       });
     }
     const all = [...orders.values()];
-    const approved = all.filter((o) => o.state === "reported" && o.reportNo);
+    const approved = all.filter((o) => o.row.approved);
 
     const stage: LabStage = !feePaid
       ? "fee_unpaid"
@@ -135,6 +211,7 @@ export async function labProgressFor(applicationId: number): Promise<{
       boxState: c.state,
       reported: approved.length,
       orders: all.length,
+      orderList: all.map((o) => o.row),
       stage,
       verdict:
         approved.length === all.length && all.length > 0
@@ -172,7 +249,35 @@ export async function labProgressFor(applicationId: number): Promise<{
         : ("pass" as const)
       : null;
 
-  return { destinations, stage, verdict };
+  const approvedReports = destinations.reduce((n, d) => n + d.reported, 0);
+  const totalReports = destinations.reduce((n, d) => n + d.orders, 0);
+  // De-duplicated: one office can hold several orders and being told to chase
+  // it twice is being told nothing twice.
+  const shortNames = officeShortNames(
+    destinations
+      .filter((d): d is DestinationProgress & { officeId: number } => d.officeId !== null)
+      .map((d) => ({ id: d.officeId, nameEn: d.officeName })),
+  );
+  const awaiting = [
+    ...new Set(
+      destinations
+        .filter((d) => d.reported < d.orders)
+        .map((d) => (d.officeId ? (shortNames.get(d.officeId) ?? d.officeName) : d.officeName)),
+    ),
+  ];
+
+  return {
+    destinations,
+    stage,
+    verdict,
+    approvedReports,
+    totalReports,
+    awaiting,
+    // **Every order, not every office** — an office with two packages owes two
+    // reports, and `stage === "reported"` is the same claim read off the least
+    // advanced destination (D73).
+    complete: totalReports > 0 && approvedReports === totalReports,
+  };
 }
 
 /**

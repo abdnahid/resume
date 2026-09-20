@@ -26,21 +26,44 @@ import {
 } from "@/lib/labs/testing";
 
 /**
- * Whoever handed this order down to the desk holding it — the rule D84 settled
- * for the inspection plan, applied to the bench.
+ * Whoever this order was delegated down to at the rung it is now going up to —
+ * the rule D84 settled for the inspection plan, applied to the bench.
  *
- * **There is nothing to choose.** He delegated the work, so the work comes back
- * to him; offering a list of seniors both asks a question the order's own
- * history already answers and lets the wrong person be picked. Only a `down`
- * counts: a `receive` had no sender and an `up` came from somebody junior.
+ * **There is nothing to choose.** The work was handed down through this desk,
+ * so it comes back to it; offering a list of seniors both asks a question the
+ * order's own history already answers and lets the wrong person be picked.
+ *
+ * **Asked of the rung, not of the sender** (D146). It used to ask who handed
+ * the order to *me*, which is the same person in an unbroken chain and the
+ * wrong one twice over:
+ *
+ * - **A send-back is recorded as a `down`**, because a returned draft really
+ *   does travel to a more junior desk. So after the wing head returns a report,
+ *   "who handed this to me" is the *wing head* — who is not at the rung the
+ *   resubmission is going to, so the preference missed and the fallback picked
+ *   a stranger. That is the bug the client found on order 13: the report went
+ *   up the first time to the Assistant Director who had delegated it, and after
+ *   one correction round went to an Assistant Director in another wing who had
+ *   never seen it.
+ * - **A pass-down may skip a rung** (D142), so the person who delegated the
+ *   work is routinely senior to the desk that signs next, and was never going
+ *   to be found at it.
+ *
+ * Asking which desk *at the receiving rung* the order was delegated through
+ * answers both, and answers the ordinary case identically.
+ *
+ * Only a `down` counts: a `receive` had no sender, and an `up` is where a
+ * misrouted report would have landed — reading those would make one wrong
+ * delivery teach the next one to repeat it.
  */
-async function delegatorOf(orderId: number, employeeId: string) {
+async function delegatedThrough(orderId: number, candidates: readonly string[]) {
+  if (!candidates.length) return null;
   const m = await prisma.labTestOrderMovement.findFirst({
-    where: { orderId, toEmployeeId: employeeId, direction: "down" },
+    where: { orderId, direction: "down", toEmployeeId: { in: [...candidates] } },
     orderBy: { id: "desc" },
-    select: { fromEmployeeId: true },
+    select: { toEmployeeId: true },
   });
-  return m?.fromEmployeeId ?? null;
+  return m?.toEmployeeId ?? null;
 }
 
 async function orderForSigning(orderId: number) {
@@ -64,11 +87,27 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 /**
  * Send the order up to the desk that signs next.
  *
- * Prefers the delegator, and **falls back to any desk at that rung** — he may
- * have retired, or the order may have reached the bench by a route with no
- * `down` in it. A finished report that cannot find its next signer would
- * otherwise sit on a desk with no way forward, which is the deadlock D76 had to
- * write a script to undo.
+ * **Three preferences, narrowing** (D146):
+ *
+ * 1. **The desk this order was delegated through** at that rung. A recorded
+ *    delegation is a fact about this file and beats every inference below it.
+ * 2. **A desk in the sender's own wing**, which is D142's rule applied going
+ *    up. It scoped the pass-down so a Director (Physical) stopped seeing the
+ *    Chemical wing's Deputy Directors, and left the upward journey scoped to
+ *    the *office* — where head office has **43 Assistant Directors and 8 of
+ *    them are in a testing wing**, so an unscoped fallback is a lottery with
+ *    thirty-five wrong answers in it. A chemical bench cannot check a physical
+ *    report any more than it can run one.
+ * 3. **Any desk at that rung** — the deadlock guard the original rule was
+ *    written for, and still needed: the delegator may have retired, and the
+ *    order may have reached the bench by a route with no `down` in it. A
+ *    finished report that cannot find its next signer sits on a desk with no
+ *    way forward, which is the deadlock D76 had to write a script to undo.
+ *
+ * **The wing is the sender's, and only where the office has wings** — the same
+ * asymmetry D142 draws. A branch's laboratories hang off the office and sit in
+ * no wing, so filtering there would empty the list at exactly the offices with
+ * fewest people.
  */
 async function sendUpTo(
   tx: Tx,
@@ -83,8 +122,19 @@ async function sendUpTo(
 ) {
   const desks = await labDesksOfOffice(args.officeId);
   const atRung = desks.filter((d) => d.rung === args.rung && d.employeeId !== args.from);
-  const preferred = await delegatorOf(args.orderId, args.from);
-  const to = atRung.find((d) => d.employeeId === preferred) ?? atRung[0];
+
+  const preferred = await delegatedThrough(
+    args.orderId,
+    atRung.map((d) => d.employeeId),
+  );
+
+  const officeHasWings = desks.some((d) => d.wing !== null);
+  const wing = officeHasWings
+    ? (desks.find((d) => d.employeeId === args.from)?.wing ?? null)
+    : null;
+  const inWing = wing ? atRung.filter((d) => d.wing === wing) : atRung;
+
+  const to = atRung.find((d) => d.employeeId === preferred) ?? inWing[0] ?? atRung[0];
   if (!to) {
     throw new Error(
       `This office has nobody at ${args.rung.replace(/_/g, " ")} for the report to go to.`,

@@ -21,6 +21,8 @@ import { plannedLettersFor } from "@/lib/cm/letters";
 import FoundAtFactoryPanel from "../_components/FoundAtFactoryPanel";
 import { choicesFor, testFeeFor } from "@/lib/cm/sub-products";
 import { samplingView } from "@/lib/samples/screen";
+import { labProgressFor } from "@/lib/cm/lab-progress";
+import LabProgress from "../_components/LabProgress";
 import { declarableLimitsFor } from "@/lib/samples/declared";
 import { FileHeader, Card, Empty } from "../_components/FileShell";
 
@@ -58,7 +60,7 @@ export default async function ProcessPage({
   const app = await getApplication(applicationId);
   if (!app) notFound();
 
-  const [movements, rounds, artworkTargets, plan, team, approver, report, units] =
+  const [movements, rounds, artworkTargets, plan, team, approver, report, units, lab] =
     await Promise.all([
     movementsFor(applicationId),
     roundsFor(applicationId),
@@ -71,6 +73,13 @@ export default async function ProcessPage({
     actor.employeeId ? delegatorOf(applicationId, actor.employeeId) : Promise.resolve(null),
     reportFor(applicationId),
     prisma.sizeUnit.findMany({ select: { id: true, code: true, nameEn: true }, orderBy: { code: "asc" } }),
+    // **Testing belongs on the working page, not only on the preview** (D147).
+    // The officer stands here after the letters go out and every act left to
+    // him waits on the laboratories; reading their progress on the *other*
+    // page meant the one question he has — what am I waiting for — was one
+    // click away from every answer to it. It returns stages and never desks,
+    // so the D133 line is unmoved by being shown twice.
+    labProgressFor(applicationId),
   ]);
 
   /**
@@ -231,106 +240,25 @@ export default async function ProcessPage({
 
         <div className="mt-8 grid gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2">
-            {/* The review closes when the file is marked ready: no shortfall
-                may follow, so the panel that raises one goes away rather than
-                offering a button the service would refuse (D82). */}
-            {isHolder && !reviewIsClosed(app.state) && (
-              <ReviewPanel
-                applicationId={app.id}
-                targets={[
-                  ...allShortfallTargets().map((t) => ({ ...t, step: t.step })),
-                  // Artwork is per variant (D53), so the officer picks the jar
-                  // rather than reopening every wrapper on the licence.
-                  ...artworkTargets.map((a) => ({
-                    target: a.target,
-                    label: `Artwork — ${a.label}`,
-                    hint: `${a.subProduct}. ${a.hasArtwork ? "A label is on file." : "No label has been provided."}`,
-                    step: 2 as const,
-                  })),
-                ]}
-                openRound={
-                  open
-                    ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
-                    : null
-                }
-              />
-            )}
-
-            {reviewIsClosed(app.state) && (
-              <InspectionPanel
-                applicationId={app.id}
-                officeName={app.bstiOffice?.nameEn ?? null}
-                plan={
-                  plan
-                    ? {
-                        scheduledOn: plan.scheduledOn.toISOString().slice(0, 10),
-                        note: plan.note,
-                        proposedBy: plan.proposedBy.nameEn,
-                        proposedAt: stamp(plan.proposedAt),
-                        approvedBy: plan.approvedBy?.nameEn ?? null,
-                        approvedAt: plan.approvedAt ? stamp(plan.approvedAt) : null,
-                        orderNo: plan.orderNo,
-                        members: plan.members.map((m) => ({
-                          employeeId: m.employeeId,
-                          name: m.employee.nameEn,
-                          designation: m.employee.designationEn ?? m.employee.designationBn,
-                          role: m.role,
-                        })),
-                      }
-                    : null
-                }
-                candidates={team.candidates}
-                candidatesAreSectionOnly={team.scopedToSection}
-                proposerEmployeeId={actor.employeeId}
-                approver={approver}
-                canEdit={isHolder && !plan?.approvedAt}
-                // Approval is the proposer's senior, not the office head
-                // (D83). The service re-checks the seniority; this only decides
-                // whether to draw the button.
-                canApprove={
-                  isHolder &&
-                  !!plan &&
-                  !plan.approvedAt &&
-                  plan.proposedByEmployeeId !== actor.employeeId
-                }
-              />
-            )}
-
-            {plan?.approvedAt && isVisitingOfficer && (
-              <FoundAtFactoryPanel
-                applicationId={app.id}
-                sealed={(sampling?.committed?.consignments.length ?? 0) > 0}
-                declared={app.subProducts.map((sp) => ({
-                  applicationSubProductId: sp.id,
-                  name: sp.subProduct.nameEn,
-                  byFdo: sp.declaredBy === "fdo",
-                  struckOut: sp.notInProductionAt !== null,
-                  skus: sp.skus.map((k) => ({
-                    id: k.id,
-                    label: [
-                      k.brandName,
-                      k.variant,
-                      k.sizeValue !== null ? `${k.sizeValue} ${k.sizeUnit.code}` : k.sizeUnit.code,
-                    ]
-                      .filter(Boolean)
-                      .join(" · "),
-                    byFdo: k.declaredBy === "fdo",
-                    struckOut: k.notInProductionAt !== null,
-                  })),
-                }))}
-                choices={unclaimed.map((c) => ({
-                  id: c.id,
-                  nameEn: c.nameEn,
-                  parameterCount: c.parameterCount,
-                  testFeeTaka: (c.testFeePoisha / 100).toLocaleString("en-BD"),
-                }))}
-                sizeTypes={sizeTypes.map((t) => ({
-                  id: t.id,
-                  nameEn: t.nameEn,
-                  kind: String(t.kind),
-                  units: t.units,
-                }))}
-              />
+            {/* **Latest first** (the client, 2026-09-17). The panels used to
+                run in roughly the order the work happens, which put the only
+                thing still moving — testing — below four panels describing
+                acts that finished days ago, and the officer scrolled past his
+                own history to reach his present. Each panel renders only once
+                its stage is reached, so newest-first also means the top of the
+                page is always the live one. Read down and the file tells its
+                story backwards, which is how somebody picking a file up asks
+                about it: what is happening, then how it got here. */}
+            {/* **Where the samples are, on the page the officer works from**
+                (D147). It sits directly after the letters because that is the
+                act that starts testing, and it renders itself away until a box
+                exists — `LabProgress` returns null with no destinations, so a
+                file that has not been sampled shows nothing rather than an
+                empty tracker. Not gated on `isVisitingOfficer`: reading where a
+                sample is, is not doing the visit's work, and every desk with
+                standing on the file is asked about it. */}
+            {lab.destinations.length > 0 && (
+              <LabProgress applicationId={app.id} {...lab} />
             )}
 
             {letters && seesInspectionWork && (
@@ -349,6 +277,7 @@ export default async function ProcessPage({
                   // office's testing whether it runs on its own bench or goes
                   // out (D116, D130). `l.lab` is the pre-D130 fallback.
                   labName: l.office?.nameEn ?? l.lab?.nameEn ?? null,
+                  officeId: l.office?.id ?? null,
                   to: l.addressedTo?.nameEn ?? l.office?.nameEn ?? null,
                   at: stamp(l.issuedAt),
                 }))}
@@ -366,32 +295,6 @@ export default async function ProcessPage({
                     : null
                 }
                 wasUrgent={app.isUrgent}
-              />
-            )}
-
-            {/* The sampling *screen* is the officer's working tool — estimating
-                counts, generating tokens, sealing boxes. A senior desk reads
-                the sampling *report* instead (D96); leaving the tool on every
-                desk was what made it look like everyone's job. */}
-            {sampling && isVisitingOfficer && (
-              <SamplingPanel
-                applicationId={app.id}
-                cells={sampling.cells}
-                boxes={sampling.boxes}
-                problems={sampling.problems}
-                committed={sampling.committed}
-                declarable={declarable.map((d) => ({
-                  applicationSubProductId: d.applicationSubProductId,
-                  subProductName: d.subProductName,
-                  parameterId: d.parameterId,
-                  subParameterId: d.subParameterId,
-                  label: d.label,
-                  discipline: d.discipline,
-                  limitText: d.limitText,
-                  declaredValue: d.declaredValue,
-                  declaredByName: d.declaredByName,
-                }))}
-                canEdit={isHolder && isVisitingOfficer}
               />
             )}
 
@@ -457,6 +360,134 @@ export default async function ProcessPage({
                 }
                 approverName={approver?.name ?? null}
                 hasSamples={!!sampling?.committed?.consignments.length}
+              />
+            )}
+
+            {/* The sampling *screen* is the officer's working tool — estimating
+                counts, generating tokens, sealing boxes. A senior desk reads
+                the sampling *report* instead (D96); leaving the tool on every
+                desk was what made it look like everyone's job. */}
+            {sampling && isVisitingOfficer && (
+              <SamplingPanel
+                applicationId={app.id}
+                cells={sampling.cells}
+                boxes={sampling.boxes}
+                problems={sampling.problems}
+                committed={sampling.committed}
+                declarable={declarable.map((d) => ({
+                  applicationSubProductId: d.applicationSubProductId,
+                  subProductName: d.subProductName,
+                  parameterId: d.parameterId,
+                  subParameterId: d.subParameterId,
+                  label: d.label,
+                  discipline: d.discipline,
+                  limitText: d.limitText,
+                  declaredValue: d.declaredValue,
+                  declaredByName: d.declaredByName,
+                }))}
+                canEdit={isHolder && isVisitingOfficer}
+              />
+            )}
+
+            {plan?.approvedAt && isVisitingOfficer && (
+              <FoundAtFactoryPanel
+                applicationId={app.id}
+                sealed={(sampling?.committed?.consignments.length ?? 0) > 0}
+                declared={app.subProducts.map((sp) => ({
+                  applicationSubProductId: sp.id,
+                  name: sp.subProduct.nameEn,
+                  byFdo: sp.declaredBy === "fdo",
+                  struckOut: sp.notInProductionAt !== null,
+                  skus: sp.skus.map((k) => ({
+                    id: k.id,
+                    label: [
+                      k.brandName,
+                      k.variant,
+                      k.sizeValue !== null ? `${k.sizeValue} ${k.sizeUnit.code}` : k.sizeUnit.code,
+                    ]
+                      .filter(Boolean)
+                      .join(" · "),
+                    byFdo: k.declaredBy === "fdo",
+                    struckOut: k.notInProductionAt !== null,
+                  })),
+                }))}
+                choices={unclaimed.map((c) => ({
+                  id: c.id,
+                  nameEn: c.nameEn,
+                  parameterCount: c.parameterCount,
+                  testFeeTaka: (c.testFeePoisha / 100).toLocaleString("en-BD"),
+                }))}
+                sizeTypes={sizeTypes.map((t) => ({
+                  id: t.id,
+                  nameEn: t.nameEn,
+                  kind: String(t.kind),
+                  units: t.units,
+                }))}
+              />
+            )}
+
+            {reviewIsClosed(app.state) && (
+              <InspectionPanel
+                applicationId={app.id}
+                officeName={app.bstiOffice?.nameEn ?? null}
+                plan={
+                  plan
+                    ? {
+                        scheduledOn: plan.scheduledOn.toISOString().slice(0, 10),
+                        note: plan.note,
+                        proposedBy: plan.proposedBy.nameEn,
+                        proposedAt: stamp(plan.proposedAt),
+                        approvedBy: plan.approvedBy?.nameEn ?? null,
+                        approvedAt: plan.approvedAt ? stamp(plan.approvedAt) : null,
+                        orderNo: plan.orderNo,
+                        members: plan.members.map((m) => ({
+                          employeeId: m.employeeId,
+                          name: m.employee.nameEn,
+                          designation: m.employee.designationEn ?? m.employee.designationBn,
+                          role: m.role,
+                        })),
+                      }
+                    : null
+                }
+                candidates={team.candidates}
+                candidatesAreSectionOnly={team.scopedToSection}
+                proposerEmployeeId={actor.employeeId}
+                approver={approver}
+                canEdit={isHolder && !plan?.approvedAt}
+                // Approval is the proposer's senior, not the office head
+                // (D83). The service re-checks the seniority; this only decides
+                // whether to draw the button.
+                canApprove={
+                  isHolder &&
+                  !!plan &&
+                  !plan.approvedAt &&
+                  plan.proposedByEmployeeId !== actor.employeeId
+                }
+              />
+            )}
+
+            {/* The review closes when the file is marked ready: no shortfall
+                may follow, so the panel that raises one goes away rather than
+                offering a button the service would refuse (D82). */}
+            {isHolder && !reviewIsClosed(app.state) && (
+              <ReviewPanel
+                applicationId={app.id}
+                targets={[
+                  ...allShortfallTargets().map((t) => ({ ...t, step: t.step })),
+                  // Artwork is per variant (D53), so the officer picks the jar
+                  // rather than reopening every wrapper on the licence.
+                  ...artworkTargets.map((a) => ({
+                    target: a.target,
+                    label: `Artwork — ${a.label}`,
+                    hint: `${a.subProduct}. ${a.hasArtwork ? "A label is on file." : "No label has been provided."}`,
+                    step: 2 as const,
+                  })),
+                ]}
+                openRound={
+                  open
+                    ? { roundNo: open.roundNo, raisedAt: stamp(open.raisedAt), itemCount: open.items.length }
+                    : null
+                }
               />
             )}
 

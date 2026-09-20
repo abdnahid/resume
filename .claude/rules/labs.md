@@ -649,6 +649,27 @@ on orders whose box was still at the counter, and the refusal arrived on the
 click. It now carries `awaitingBoxes` — the same read `receiveByWing()` refuses
 on — and the screen names the box instead of offering a dead button.
 
+**A report going up is routed by the rung, not by who sent it** (D146).
+`sendUpTo()` prefers, in order: the desk this order was **delegated through** at
+the receiving rung, then any desk **in the sender's own wing**, then anybody at
+the rung.
+
+- **Ask the rung, never "who handed this to me".** `returnReport()` records a
+  send-back as a `down` — correctly, the draft really does go to a more junior
+  desk — so after a correction round the sender's delegator is the *wing head*,
+  who is not at the rung the resubmission is going to. The preference then
+  misses silently and the fallback picks a stranger. A pass-down that skipped a
+  rung (D142) breaks it the same way.
+- **Only `down` movements count.** An `up` is where a misrouted report already
+  landed; reading those makes one wrong delivery teach the next to repeat it.
+- **The wing filter is D142 applied upward**, and keeps its asymmetry — the
+  sender's wing, and only where the office has wings, so a branch is left
+  unfiltered. Unscoped, the fallback is a lottery: head office has **43
+  Assistant Directors, 8 of them in a testing wing**, and the deputy-director
+  fallback lands in the Standards Wing.
+- **A recorded delegation beats the wing**, because it is a fact about this
+  file rather than an inference about it.
+
 
 ## The work order left `/labs` (D137)
 

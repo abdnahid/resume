@@ -452,6 +452,9 @@ npm run fix:orphaned-files      # files held by someone no longer serving → th
 npm run fix:rewind-letters      # DEV ONLY — rewind a CM file to an earlier moment in its
                                 # visit: --to=letters (default) | report | sampling.
                                 # Reports by default; --yes writes. Delete before go-live.
+npm run fix:rewind-report       # DEV ONLY — undo a test report's submission and every
+                                # signature above it, back to the testing officer's bench.
+                                # Reports by default; --yes writes. Delete before go-live.
 npm run fix:sample-letters      # letters issued before D128/D129/D130 brought up to the rule (--dry)
 
 npm run import:test-parameters # every .xlsx parameter file → the catalogue (--dry, --only=<key>)

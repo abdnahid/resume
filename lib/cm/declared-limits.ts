@@ -14,13 +14,15 @@
  * One query for the whole order, whatever its size.
  */
 import { prisma } from "@/lib/prisma";
+import { declaredKey } from "@/lib/labs/limits";
 
 /** `parameterId:subParameterId|self` → what the applicant stated. */
 export type DeclaredLimits = Map<string, string>;
 
-export function declaredKey(parameterId: number, subParameterId: number | null) {
-  return `${parameterId}:${subParameterId ?? "self"}`;
-}
+// The key format is shared with the bench that reads the map, so it lives with
+// the rest of the limit rules rather than here. Re-exported because collecting
+// the value and keying it are the same act at every call site on this side.
+export { declaredKey };
 
 export async function declaredLimitsForOrder(orderId: number): Promise<DeclaredLimits> {
   const out: DeclaredLimits = new Map();

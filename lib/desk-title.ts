@@ -28,7 +28,14 @@
 /** Ordered most senior first. The first pattern that matches wins. */
 const RANK_TABLE: { label: string; order: number; patterns: string[] }[] = [
   { label: "Head of Office", order: 0, patterns: ["head of office", "অফিস প্রধান"] },
-  { label: "Director", order: 10, patterns: ["director (physics)", "director (chemistry)"] },
+  // **Deputy before Director, and no special row for the wings' Directors.**
+  // There used to be one — `["director (physics)", "director (chemistry)"]` at
+  // this position — carrying the *same* label and order as the generic Director
+  // row below, so it decided nothing it did not also break: "Deputy Director
+  // (Chemistry)" contains "director (chemistry)", so it matched here and two
+  // Deputy Directors of the testing wings ranked as **Directors**. In the
+  // laboratory ladder that is the wing_head rung (D143) — the desk that
+  // approves a test report — reached by a title that says deputy on its face.
   { label: "Deputy Director", order: 20, patterns: ["deputy director", "উপপরিচালক"] },
   { label: "Assistant Director", order: 30, patterns: ["assistant director", "সহকারী পরিচালক"] },
   { label: "Director", order: 10, patterns: ["director", "পরিচালক"] },

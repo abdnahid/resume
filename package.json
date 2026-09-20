@@ -29,6 +29,7 @@
     "fix:sample-letters": "tsx prisma/import/backfill-sample-letters.ts",
     "fix:orphaned-files": "tsx prisma/import/reassign-orphaned-files.ts",
     "fix:rewind-letters": "tsx prisma/import/rewind-visit.ts",
+    "fix:rewind-report": "tsx prisma/import/rewind-report.ts",
     "seed:labs": "tsx prisma/seed-labs.ts",
     "labs:operational": "tsx prisma/import/operational-labs.ts",
     "db:migration": "tsx prisma/new-migration.ts",

@@ -264,11 +264,7 @@ export default async function WorkflowFilePage({
               </ul>
             </Card>
 
-            <LabProgress
-              destinations={lab.destinations}
-              stage={lab.stage}
-              verdict={lab.verdict}
-            />
+            <LabProgress applicationId={app.id} {...lab} />
 
             <Card title="Fees">
               <div className="space-y-3">

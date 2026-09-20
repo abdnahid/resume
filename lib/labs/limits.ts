@@ -13,6 +13,21 @@
  */
 
 /**
+ * `parameterId:subParameterId|self` — the key both sides use to line a declared
+ * value up with the leaf it belongs to.
+ *
+ * **Here rather than on the CM side**, because it is the shape of the
+ * agreement rather than either party's half of it: the collector writes the map
+ * and the bench reads it, and a key format living with one of them is one
+ * rename away from a silent miss — `limitForReport()` would simply see no
+ * declared value and print the catalogue's instruction, which reads like a
+ * parameter nobody was asked about. Prisma-free, like the rest of this file.
+ */
+export function declaredKey(parameterId: number, subParameterId: number | null) {
+  return `${parameterId}:${subParameterId ?? "self"}`;
+}
+
+/**
  * Does this leaf need the applicant to state a value?
  *
  * **Two signals, because the catalogue holds both.** `limitKind = declared` is

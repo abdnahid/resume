@@ -2,6 +2,8 @@
 
 import { Download, Printer } from "lucide-react";
 
+import type { ReportView } from "@/lib/labs/report-view";
+
 /**
  * The test report, in the wing's own printed format (D145).
  *
@@ -24,48 +26,6 @@ import { Download, Printer } from "lucide-react";
  * Screen and PDF are the same page; the toolbar is `print:hidden`.
  */
 
-export type ReportView = {
-  orderCode: string;
-  state: string;
-  isDraft: boolean;
-  reportNo: string | null;
-  labRegNo: string;
-  labReferenceNo: string;
-  wingTitle: string;
-  officeName: string;
-  officeAddress: string;
-  officePhone: string | null;
-  packageName: string;
-  productName: string;
-  specification: string | null;
-  receivedOn: string | null;
-  testingFrom: string | null;
-  testingTo: string | null;
-  urgent: boolean;
-  condition: string;
-  specimens: { labCode: string; specimenNo: number }[];
-  referrals: { referralNo: string; labName: string }[];
-  rows: {
-    sl: number;
-    description: string;
-    standardLimit: string | null;
-    isDeclared: boolean;
-    result: string | null;
-    verdict: string;
-    method: string | null;
-  }[];
-  remark: string;
-  remarks: string | null;
-  seals: {
-    label: string;
-    name: string;
-    designation: string | null;
-    wing: string | null;
-    office: string;
-    at: string | null;
-  }[];
-};
-
 const NOTES = [
   "The results reported above pertain only to the sample supplied to & tested in the Laboratories.",
   "The report when required to be quoted or reproduced, has to be reproduced or quoted in full.",
@@ -73,6 +33,8 @@ const NOTES = [
   "Any complaint about test report should be reported within a month.",
   "The unspent portion of the samples may be auctioned/disposed off after three months from the date of issue of said report.",
 ];
+
+export type { ReportView };
 
 export default function ReportDocument({
   report,

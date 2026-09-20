@@ -131,9 +131,25 @@ export default async function WorkflowPage() {
     orderNo: planOf.get(a.id)?.orderNo ?? null,
     // The button says what is actually waiting, so the holder does not have to
     // learn which page plans an inspection.
+    //
+    // **It names work, never a document.** It read "Office order" once the plan
+    // was approved, and that was the odd one out twice over: every other label
+    // here names something to do, and the office order is the one thing on the
+    // process page that cannot be done — it is read-only from approval onwards,
+    // and it has its own route at `/workflow/cm/[id]/order`. So the button
+    // promised a document, delivered a work screen, and the document it named
+    // was a click away somewhere else. Past approval the office order is the
+    // *authority* for the work rather than the work, so the label says what the
+    // order authorises: the visit, and everything the visit produces.
     processLabel: (() => {
       const p = planOf.get(a.id);
-      if (p?.approvedAt) return "Office order";
+      if (p?.approvedAt) {
+        return a.state === "inspection_approved" ||
+          a.state === "inspection_scheduled" ||
+          a.state === "inspection_in_progress"
+          ? "Record the visit"
+          : "Continue the visit";
+      }
       if (p) return "Inspection plan";
       if (a.state === "review_passed") return "Plan inspection";
       if (a.state === "shortfall_issued") return "Awaiting corrections";

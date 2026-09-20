@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, Mail, Send, Zap } from "lucide-react";
+import { AlertTriangle, ChevronRight, Loader2, Mail, Send, Zap } from "lucide-react";
 
 /**
  * The letters that follow an approved visit (D95).
@@ -35,7 +35,15 @@ export default function LettersPanel({
 }: {
   applicationId: number;
   planned: { kind: string; labName: string | null; to: string | null }[];
-  issued: { id: number; kind: string; letterNo: string; labName: string | null; to: string | null; at: string }[];
+  issued: {
+    id: number;
+    kind: string;
+    letterNo: string;
+    labName: string | null;
+    officeId: number | null;
+    to: string | null;
+    at: string;
+  }[];
   blockedBy: string[];
   canIssue: boolean;
   /** Both totals and both turnarounds, so the choice is made with the price in view. */
@@ -59,9 +67,51 @@ export default function LettersPanel({
     k === "wing_head" ? "Testing wing" : k === "applicant" ? "Applicant" : "One Stop counter";
 
   if (issued.length > 0) {
+    /**
+     * **Three groups, all collapsed** — the client's design, 2026-09-17:
+     * *"Those boxes are just text information for FDO to see."* Nine stacked
+     * cards pushed the testing panel — the only thing still moving — below the
+     * fold, to say something that has not changed since the day they went out.
+     *
+     * **The serial range is in the collapsed row**, which is the one addition
+     * worth making. Letters are numbered consecutively across a single dispatch
+     * precisely so that a gap means a letter that never went (D95), and that is
+     * a fact the officer can only use if he can see it. Printed here, he
+     * verifies a complete dispatch without opening anything; buried inside the
+     * groups, the guarantee is decorative.
+     *
+     * `<details>` rather than a state hook: it is keyboard-accessible, it
+     * survives with no JavaScript, and open/closed is browser state rather than
+     * something this component has to own.
+     */
+    const groups = [
+      { kind: "wing_head", title: "Laboratory letters", short: "laboratory", hint: "to each testing wing head" },
+      { kind: "applicant", title: "Applicant letters", short: "applicant", hint: "one per destination (D128)" },
+      { kind: "one_stop", title: "One Stop letters", short: "One Stop", hint: "to each receiving counter" },
+    ]
+      .map((g) => ({ ...g, rows: issued.filter((l) => l.kind === g.kind) }))
+      .filter((g) => g.rows.length > 0);
+
+    // The serial is the digits before the year; the whole number is Bengali.
+    const serialOf = (letterNo: string) => letterNo.split("/").slice(-2)[0] ?? "";
+    const rangeOf = (rows: typeof issued) => {
+      if (!rows.length) return null;
+      const first = serialOf(rows[0].letterNo);
+      const last = serialOf(rows[rows.length - 1].letterNo);
+      return first === last ? first : `${first}–${last}`;
+    };
+    const dates = [...new Set(issued.map((l) => l.at))];
+
+    // A wing head's and a counter's letters are internal documents; the
+    // applicant's lives on the client surface (D98) and is chosen by office.
+    const hrefOf = (l: (typeof issued)[number]) =>
+      l.kind === "applicant"
+        ? `/public/applications/${applicationId}/letter${l.officeId ? `?office=${l.officeId}` : ""}`
+        : `/workflow/letters/${l.id}`;
+
     return (
       <section className="rounded-2xl border border-primary/30 bg-primary/5 p-5">
-        <h2 className="flex items-center gap-2 font-display text-lg font-medium text-foreground">
+        <h2 className="flex flex-wrap items-center gap-2 font-display text-lg font-medium text-foreground">
           <Mail className="h-4 w-4 text-primary" strokeWidth={2} />
           Letters issued ({issued.length})
           {wasUrgent && (
@@ -72,24 +122,58 @@ export default function LettersPanel({
           )}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Testing was demanded on {wasUrgent ? "an urgent" : "the normal"} basis
-          and the fee charged at that rate. Changing it now means fresh letters
-          with their own numbers.
-        </p>
-        <ul className="mt-3 space-y-2">
-          {issued.map((l) => (
-            <li key={l.id} className="rounded-xl border border-border bg-card p-3">
-              <p className="text-sm font-medium text-foreground">
-                {label(l.kind)}
-                {l.labName && <span className="text-muted-foreground"> · {l.labName}</span>}
-              </p>
-              <p className="mt-0.5 font-mono text-xs text-muted-foreground">{l.letterNo}</p>
-              <p className="text-xs text-muted-foreground">
-                {l.to ?? "—"} · {l.at}
-              </p>
-            </li>
+          {issued.length} {issued.length === 1 ? "letter" : "letters"} went out in your name on{" "}
+          {dates.join(" and ")} —{" "}
+          {groups.map((g, i) => (
+            <span key={g.kind}>
+              {i > 0 && (i === groups.length - 1 ? " and " : ", ")}
+              <span className="text-foreground">
+                {g.rows.length} {g.short}
+              </span>
+            </span>
           ))}
-        </ul>
+          . Testing was demanded on {wasUrgent ? "an urgent" : "the normal"} basis and the fee
+          charged at that rate; changing it now means fresh letters with their own numbers.
+        </p>
+
+        <div className="mt-3 divide-y divide-primary/20 overflow-hidden rounded-xl border border-primary/20 bg-card">
+          {groups.map((g) => (
+            <details key={g.kind} className="group">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm transition-colors hover:bg-primary/5">
+                <ChevronRight
+                  className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+                  strokeWidth={2}
+                />
+                <span className="font-medium text-foreground">{g.title}</span>
+                <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+                  {g.rows.length}
+                </span>
+                <span className="ml-auto font-mono text-xs text-muted-foreground">
+                  {rangeOf(g.rows)}
+                </span>
+              </summary>
+              <ul className="space-y-1 border-t border-primary/15 bg-muted/30 px-3 py-2">
+                <li className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                  {g.hint}
+                </li>
+                {g.rows.map((l) => (
+                  <li key={l.id}>
+                    <a
+                      href={hrefOf(l)}
+                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-primary/10"
+                    >
+                      <span className="text-foreground">{l.labName ?? "—"}</span>
+                      {l.to && l.to !== l.labName && (
+                        <span className="text-xs text-muted-foreground">{l.to}</span>
+                      )}
+                      <span className="ml-auto font-mono text-xs text-primary">{l.letterNo}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
       </section>
     );
   }

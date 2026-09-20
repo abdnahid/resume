@@ -267,7 +267,10 @@ export async function plannedLettersFor(applicationId: number) {
               // The office is what a letter is about, for all three kinds
               // (D130). `lab` is still read for the rows issued before that,
               // which carry an office id in a column pointing at `Lab`.
-              office: { select: { nameEn: true } },
+              // The id as well as the name: the applicant's letter is chosen
+              // by office (D128), so linking to the copy this letter *is*
+              // needs it.
+              office: { select: { id: true, nameEn: true } },
               lab: { select: { nameEn: true } } },
     orderBy: { id: "asc" },
   });

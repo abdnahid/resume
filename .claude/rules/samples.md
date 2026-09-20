@@ -100,6 +100,35 @@ travels through several hands and is treated as public.
 - **`sample_received` is the last box, not the first** (D73);
   `sample_partially_received` covers the rest. Receipt is several events with
   several dates, and testing at one lab starts independently of another.
+- **The file's stage is the least advanced destination, and that hides finished
+  work — so the count is shown beside it** (D147). D73's rule is right and it
+  misled: application 26 read *Awaiting sample submission* while Dhaka's report
+  was approved and numbered, because two boxes had not been carried in. The
+  panel leads with *N of M reports approved · awaiting <offices>* — **named, not
+  counted**, because the offices are who the officer telephones — and each
+  destination lists its orders, an approved one as a link.
+- **An approved test report crosses back to the file; a draft does not** (D147).
+  The FDO is accountable for the file and the report is about his sample, so he
+  reads it at `/workflow/cm/[id]/test-report/[orderId]`. **Not by widening
+  `canViewOrder()`** — that would put an application join inside `lib/labs/`,
+  which is blind by construction. The CM route asks two questions instead:
+  standing on the file (D80), then the order belonging to *this* file through
+  `applicationIdForOrder()`. **Both, always** — without the second the route is
+  an oracle and one officer walks every report in the database. A draft stays
+  the wing's (D90's rule across the cut), and its stored verdict is the testing
+  officer's conclusion rather than the wing's.
+- **The consolidated report is where the blinding ends, on purpose** (D147,
+  A§8). `lib/cm/consolidated-report.ts` names the applicant, the factory and the
+  standard, because its reader is deciding a licence. The cut exists to stop the
+  *bench* learning whose sample it holds — never to stop the file learning what
+  the bench found. It is **generated, never typed**, compiled from
+  `buildReportView()` rather than from `TestResult` so a line in the grid and
+  the same line on the wing's paper cannot differ, and it **exists only once
+  every report is in**: a determination over a partial set is the one thing it
+  must not be, so an early request is `notFound()`.
+- **The document is assembled once, in `lib/labs/report-view.ts`.** Both sides
+  read the same paper and two assemblies would drift. It stays blind because the
+  declared limits are **passed in** by the caller rather than fetched (D144).
 - **Removing a variant or sub-product is refused once specimens exist.**
   Otherwise sealed jars in the applicant's custody lose the row that says whose
   they are.

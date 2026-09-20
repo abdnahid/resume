@@ -184,10 +184,29 @@ can reuse them.
   checking a declared capacity should not scroll past the control that issues an
   office order. **Not tabs** — a tab bar on the preview reads as "the process
   lives inside the preview" when it does not. The board's Process button is
-  **named for the work waiting there** (*Plan inspection*, *Inspection plan*,
-  *Office order*, *Review*) for whoever holds the file, so nobody has to learn
-  which page plans a visit. `FileShell.tsx` holds the shared header and the
-  `Card`/`Row`/`Empty` helpers so the two pages cannot drift apart.
+  **named for the work waiting there** (*Review*, *Plan inspection*,
+  *Inspection plan*, *Record the visit*, *Continue the visit*) for whoever holds
+  the file, so nobody has to learn which page plans a visit. **It never names a
+  document** (D146): it read *Office order* once the plan was approved, while
+  the card already carried a chip linking to the office order itself — two
+  controls with one name going to different places — and the office order is the
+  one thing on the process page that cannot be acted on.
+  `FileShell.tsx` holds the shared header and the `Card`/`Row`/`Empty` helpers
+  so the two pages cannot drift apart.
+- **The process page runs newest first** (D148): testing · letters · reports ·
+  sampling · found at factory · inspection · review. Each panel renders only
+  once its stage is reached, so newest-first puts the live one at the top at
+  every stage with no per-state logic, and the file reads backwards the way
+  somebody picking it up asks about it — what is happening, then how it got
+  here. Add a new panel at the position its stage *ends*, not where it starts.
+- **A finished dispatch collapses** (D148). `LettersPanel`'s issued view is
+  three closed `<details>` groups — laboratory, applicant, One Stop — with the
+  count and the **serial range** on each closed row: consecutive numbering
+  across one dispatch (D95) only helps if the officer can see the range without
+  opening anything. Nine cards that never change again had been burying the one
+  panel that does. The rows are links — `/workflow/letters/[id]` for a wing
+  head's and a counter's, `/public/applications/[id]/letter?office=` for the
+  applicant's own copy (D98, D128).
 - **`/workflow/[id]` is the whole file, read-only** (D80) — the application
   preview, the attachments and the fees, for every officer on its flow.
   `canViewApplication()` is the named rule and it is the same standing that puts

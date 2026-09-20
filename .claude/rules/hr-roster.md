@@ -305,3 +305,49 @@ which picked a post without checking capacity. `import:desks` never adds to
 one: it only fills a seat that is free, and only ever fills a null `orgPostId`,
 so a re-run cannot move anyone placed by hand.
 
+
+
+## Designations and desks — the two halves (D149)
+
+**The organogram is the client's own instrument and is not rebuilt here.** His
+line, 2026-09-20: *"Organogram is the desk. I can create/delete/edit organogram
+desk in the manage structure menu."* Posts live at `/hr/organogram/manage`. The
+two things that screen cannot do are:
+
+| Screen | What it owns |
+|---|---|
+| `/hr/listing/designations` | the employee's **recorded title** — merge, rename, per-person edit |
+| `/hr/listing/desks/assign` | **bulk seating** — propose, review, apply |
+| `/hr/listing/desks` | one person's seat, by hand (D131) — unchanged |
+
+- **A designation is load-bearing, not a label.** `deskRank()` reads it to place
+  somebody in a picker, `displayDesignation()` falls back to it wherever a desk
+  is a guess, and the laboratory ladder turns it into a rung that decides who
+  may sign a test report (D143). Renaming one moves files, so the service
+  returns the rank change and the screen shows it before writing.
+- **The naming problem is upstream of the seating problem.** 285 employees are
+  designated something the chart holds no post of — 97 Examiners against zero
+  Examiner posts — so no correct seat exists and `import:desks` matched on grade
+  alone. That is where the 322 guessed seats came from. Fix the catalogue, then
+  seat.
+- **Group on the rank, split on the parenthetical.** `deskRank()` ignores
+  `(CM)` and `(Metrology)` on purpose — they are one rank on a picker — but a
+  *merge* keyed on rank alone sweeps *Deputy Director (CM)* into plain *Deputy
+  Director* and loses the wing. A rank is what somebody is; a parenthetical is
+  where.
+- **Proposing never writes, and every applied placement goes through
+  `setDesk()`.** A batch with its own path would be a second set of rules free
+  to disagree. Vacancies decrement as the run proposes, or two people at one
+  rank are offered the same seat. Partial success is reported rather than rolled
+  back.
+- **`Deputy Director (Chemistry)` used to rank as `Director`.** `RANK_TABLE`
+  carried a row for `["director (physics)", "director (chemistry)"]` with the
+  *same* label and order as the generic Director row below it, so it decided
+  nothing it did not also break: "deputy director (chemistry)" contains
+  "director (chemistry)". In the lab ladder that is the `wing_head` rung — the
+  desk that approves a test report — reached by a title that says deputy on its
+  face. The row is gone; Khalilur still heads the Chemical wing through his
+  **acting** charge (D74), which is the correct route.
+- **No audit table exists for employee facts**, so a rename leaves no history —
+  the same standing as `import:hr-corrections`. It is reviewed before it runs
+  and reports exactly whom it touched. Worth closing before go-live.
