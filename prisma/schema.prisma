@@ -284,8 +284,54 @@ model OrgUnit {
   posts    OrgPost[]
 }
 
+/// The one vocabulary of job titles, shared by a desk and a designation (D152).
+///
+/// **The organogram's post titles are the baseline**, because they are the
+/// sanctioned ones — derived from the Bengali chart by `postNameEn()` (D150) —
+/// and the roster's free-text designations were normalised onto them. 81
+/// distinct designations over 729 people against 130 post titles, overlapping
+/// in only 35: the rest are the same ranks written differently, or bare ranks
+/// (*Assistant Director*) beside their qualified posts (*Assistant Director
+/// (CM)*), which is a real distinction and is kept.
+///
+/// **Two references, one table.** `OrgPost.titleId` is what a desk is called;
+/// `Employee.designationTitleId` is what a person is called. They are allowed
+/// to differ and often should — an Inspector (Metrology) sitting on an Examiner
+/// (Chemical) desk because he knows chemistry (D124) — and before this there
+/// was no way to say that without the two drifting into different vocabularies.
+model JobTitle {
+  id Int @id @default(autoincrement())
+
+  /// The canonical English title. Unique, case-insensitively, by convention —
+  /// `titleKey` is what actually enforces it.
+  titleEn String
+  titleBn String?
+
+  /// Case- and punctuation-folded `titleEn`, so "Office assistant" and "Office
+  /// Assistant" cannot both exist. The same `rankKey()` rule the matching uses.
+  titleKey String @unique
+
+  /// Which rank this groups under in a picker — `deskRank()`'s label, stored so
+  /// a list can be grouped and sorted without recomputing it per row.
+  rankLabel String
+  rankOrder Int    @default(800)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  posts     OrgPost[]
+  employees Employee[] @relation("EmployeeDesignation")
+
+  @@index([rankOrder])
+}
+
 model OrgPost {
   id              Int      @id @default(autoincrement())
+  /// Kept as the transcribed text. `titleId` is the authority for what this
+  /// desk is *called*; these remain what the chart was read as, the same way
+  /// `Employee.designationEn` remains what the HR export said.
   nameEn          String
   nameBn          String
   grade           String?
@@ -294,6 +340,10 @@ model OrgPost {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  /// What this desk is called, from the shared catalogue (D152).
+  titleId Int?
+  title   JobTitle? @relation(fields: [titleId], references: [id])
 
   unitId    Int
   unit      OrgUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -608,6 +658,19 @@ model Employee {
   /// somebody has confirmed the seat, and falls back to the recorded
   /// designation while it is still inferred — because a rank disagreement
   /// nobody has looked at is more likely to be the matching than the truth.
+  /// What this person is called, from the shared catalogue (D152).
+  ///
+  /// **The authority; `designationEn`/`designationBn` are the import record.**
+  /// The export writes free text and 81 spellings of 40-odd jobs came out of
+  /// it; this is the normalised one. Null while nobody has matched them —
+  /// `designationOf()` falls back to the text so no screen goes blank.
+  designationTitleId Int?
+  designationTitle   JobTitle? @relation("EmployeeDesignation", fields: [designationTitleId], references: [id])
+
+  /// True while the designation title was matched by script rather than chosen.
+  /// The same discipline as `orgPostIsInferred`: a guess that says it is one.
+  designationIsInferred Boolean @default(true)
+
   orgPostIsInferred Boolean   @default(false)
   postings          Posting[]
 

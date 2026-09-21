@@ -2,28 +2,31 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/auth-guard";
 import { hasRole } from "@/lib/roles";
-import { deskRank, displayDesignation } from "@/lib/workflow/chain";
-import { postsForOffice } from "@/lib/desk-service";
-import DeskManager, { type DeskRow, type PostChoice } from "./_components/DeskManager";
+import { deskOptions, staffOfOffice, titleOptions } from "@/lib/job-titles";
+import StaffTitleManager from "./_components/StaffTitleManager";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Correcting who sits on which organogram post.
+ * Desks and designations, managed together (D152, superseding D131's screen).
  *
- * **The screen CLAUDE.md kept pointing at.** Every desk was assigned by a
- * script and 322 of them are guesses `import:desks` cannot revisit — it only
- * ever fills a *null* `orgPostId`. Until this existed a wrong seat was
- * permanent, and a wrong seat is not cosmetic: the desk decides which section a
- * file routes to (D58) and which title the person is shown (D124).
+ * **One screen because it is one decision.** It was two — a per-person desk
+ * picker here and a designation catalogue next door — and an administrator
+ * looking at a person wants to set both at once. The client's own shape:
+ * *"Each employee should have two pick side by side. One for desk select and
+ * other for designation select."*
+ *
+ * **Both titles now come from one catalogue** (`JobTitle`), taking the
+ * organogram's post titles as the baseline. The desk itself is still an
+ * `OrgPost` and not merely a title, because the post carries the unit and the
+ * unit is what routes a file to a section (D58).
+ *
+ * **Posts are loaded per office.** A post outside the employee's own office
+ * subtree is refused by `setDesk()` anyway, so offering them would be offering
+ * a choice the save rejects.
  *
  * Superadmin only. The organogram is institution-wide, and an officeadmin who
  * could reseat their own staff could put somebody on the office head's desk.
- *
- * **Posts are loaded per office, not all at once.** 842 posts against 23
- * offices, and a post outside the employee's own office subtree is refused by
- * `setDesk()` anyway — so offering them would be offering a choice the save
- * rejects.
  */
 export default async function DesksPage({
   searchParams,
@@ -50,92 +53,19 @@ export default async function DesksPage({
   // arrives here about somebody, and that somebody is usually local.
   const officeId = Number(office) || me?.officeId || offices[0]?.id;
 
-  const [employees, posts] = await Promise.all([
-    prisma.employee.findMany({
-      where: { officeId, status: { not: "retired" } },
-      select: {
-        id: true,
-        nameEn: true,
-        nameBn: true,
-        designationEn: true,
-        designationBn: true,
-        grade: true,
-        category: true,
-        status: true,
-        orgPostIsInferred: true,
-        orgPost: {
-          select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } },
-        },
-        actingOrgPost: {
-          select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } },
-        },
-      },
-      orderBy: { id: "asc" },
-    }),
-    postsForOffice(officeId),
+  const [rows, titles, desks] = await Promise.all([
+    staffOfOffice(officeId),
+    titleOptions(),
+    deskOptions(officeId),
   ]);
 
-  const rows: DeskRow[] = employees.map((e) => {
-    const recorded = e.designationEn ?? e.designationBn;
-    const postTitle = e.orgPost?.nameEn ?? null;
-    // The same comparison `displayDesignation()` makes, surfaced as a column:
-    // a rank disagreement on a guessed seat is the signal the guess was wrong,
-    // and it is the whole correction list.
-    const rankDisagrees =
-      !!recorded && !!postTitle && deskRank(recorded).label !== deskRank(postTitle).label;
-    return {
-      id: e.id,
-      nameEn: e.nameEn,
-      nameBn: e.nameBn,
-      recordedEn: e.designationEn,
-      recordedBn: e.designationBn,
-      grade: e.grade,
-      category: e.category,
-      status: e.status,
-      inferred: e.orgPostIsInferred,
-      rankDisagrees,
-      shownEn:
-        displayDesignation(
-          e.designationEn,
-          (e.actingOrgPost ?? e.orgPost)?.nameEn ?? null,
-          e.actingOrgPost !== null,
-          e.actingOrgPost === null && e.orgPostIsInferred,
-        ) ?? null,
-      post: e.orgPost
-        ? {
-            id: e.orgPost.id,
-            nameEn: e.orgPost.nameEn,
-            grade: e.orgPost.grade,
-            unitEn: e.orgPost.unit.nameEn,
-          }
-        : null,
-      acting: e.actingOrgPost
-        ? {
-            id: e.actingOrgPost.id,
-            nameEn: e.actingOrgPost.nameEn,
-            grade: e.actingOrgPost.grade,
-            unitEn: e.actingOrgPost.unit.nameEn,
-          }
-        : null,
-    };
-  });
-
-  const choices: PostChoice[] = posts.map((p) => ({
-    id: p.id,
-    nameEn: p.nameEn,
-    grade: p.grade,
-    unitEn: p.unitEn,
-    sanctioned: p.sanctioned,
-    held: p.held,
-    holders: p.holders,
-  }));
-
   return (
-    <DeskManager
+    <StaffTitleManager
       offices={offices}
       officeId={officeId}
       rows={rows}
-      posts={choices}
+      titles={titles}
+      desks={desks}
     />
   );
 }

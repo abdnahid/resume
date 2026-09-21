@@ -100,17 +100,17 @@ const DIR_CM_POST = 662;
 const RETIRED = "19953010019";
 const ACTING = "19953010017";
 
-/** Director (Physics), Executive (Physical Testing Wing). */
+/** Director (Physical), Executive (Physical Testing Wing). */
 const DIR_PHYSICS_POST = 682;
-/** Director (Chemistry), Executive (Chemical Testing Wing). */
+/** Director (Chemical), Executive (Chemical Testing Wing). */
 const DIR_CHEMISTRY_POST = 728;
 
 const PHYSICS_RETIRED = "19984010027"; // Md Shahadat Hossain
 const PHYSICS_DIRECTOR = "19984010029"; // Mobin Ul Islam
 const CHEMISTRY_DIRECTOR = "19945010033"; // Gazi Md. Nurul Islam — has since left the post
-/** Deputy Director (Chemistry), unit "Organic Chemistry". */
+/** Deputy Director (Chemical), unit "Organic Chemistry". */
 const DD_CHEM_ORGANIC_POST = 732;
-/** Md. Khalilur Rahman — DD (Chemistry), acting Director (Chemistry). */
+/** Md. Khalilur Rahman — DD (Chemical), acting Director (Chemical). */
 const CHEMISTRY_ACTING = "19985010039";
 /** Kawser Ahmed Khan → the CM Dhaka DD seat. */
 const DD_CM_DHAKA = "20063010031";
@@ -159,7 +159,10 @@ async function main() {
   });
   const phys = wingPosts.find((p) => p.id === DIR_PHYSICS_POST);
   const chem = wingPosts.find((p) => p.id === DIR_CHEMISTRY_POST);
-  if (phys?.nameEn !== "Director (Physics)" || chem?.nameEn !== "Director (Chemistry)") {
+  // **These titles are derived from the Bengali** (D150) and were renamed
+  // 2026-09-21 — Physics → Physical, Chemistry → Chemical. The guard is on
+  // the id; the name is the assertion that the id still means what it did.
+  if (phys?.nameEn !== "Director (Physical)" || chem?.nameEn !== "Director (Chemical)") {
     throw new Error(
       `posts ${DIR_PHYSICS_POST}/${DIR_CHEMISTRY_POST} are not the testing wing Director posts`,
     );
@@ -169,9 +172,9 @@ async function main() {
     where: { id: DD_CHEM_ORGANIC_POST },
     select: { id: true, nameEn: true, grade: true, unit: { select: { nameEn: true } } },
   });
-  if (organic?.nameEn !== "Deputy Director (Chemistry)" || organic.unit.nameEn !== "Organic Chemistry") {
+  if (organic?.nameEn !== "Deputy Director (Chemical)" || organic.unit.nameEn !== "Organic Chemistry") {
     throw new Error(
-      `post ${DD_CHEM_ORGANIC_POST} is not Deputy Director (Chemistry) in Organic Chemistry: ${JSON.stringify(organic)}`,
+      `post ${DD_CHEM_ORGANIC_POST} is not Deputy Director (Chemical) in Organic Chemistry: ${JSON.stringify(organic)}`,
     );
   }
 

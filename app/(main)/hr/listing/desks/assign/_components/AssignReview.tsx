@@ -170,9 +170,9 @@ export default function AssignReview({
               <a href="/hr/organogram/manage" className="text-primary hover:underline">
                 Manage Structure
               </a>
-              , or merge the designation into one the chart already carries under{" "}
-              <a href="/hr/listing/designations" className="text-primary hover:underline">
-                Designations
+              , or give the person a designation the chart already carries under{" "}
+              <a href="/hr/listing/desks" className="text-primary hover:underline">
+                Desks &amp; Designations
               </a>
               .
             </p>

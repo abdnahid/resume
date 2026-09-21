@@ -46,6 +46,23 @@ const RANK_TABLE: { label: string; order: number; patterns: string[] }[] = [
   { label: "Inspector", order: 61, patterns: ["inspector", "পরিদর্শক"] },
 ];
 
+/**
+ * A rank label reduced to something two sources can be compared on.
+ *
+ * **Case is not a rank.** For a title the table recognises, `deskRank()`
+ * returns a canonical label and case never varies. For one it does not — a
+ * Cleaner, a Turner, an Office Assistant — it hands the title back with only
+ * the first letter capitalised, so the roster's *"Office assistant"* and the
+ * organogram's *"Office Assistant"* answer with two different labels and read
+ * as two unrelated desks. 38 people sat behind exactly that.
+ *
+ * Use this wherever a *designation* is being matched against a *post*; use the
+ * label itself for display and grouping.
+ */
+export function rankKey(label: string): string {
+  return label.toLowerCase().replace(/[\s._\-]+/g, " ").trim();
+}
+
 export type DeskRank = { label: string; order: number };
 
 export function deskRank(designation: string | null): DeskRank {

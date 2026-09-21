@@ -111,7 +111,8 @@ The HR screens, all under `/hr/listing` unless noted:
 | `/hr/listing/cases` | court cases and verdicts | superadmin, case_officer |
 | `/hr/listing/offices` | office contact, zone and bank details | superadmin; own office for officeadmin |
 | `/hr/listing/roles` | who holds which role | superadmin |
-| `/hr/listing/desks` | which organogram post each person holds (D131) | superadmin |
+| `/hr/listing/desks` | desk **and** designation per person, both from one title catalogue (D152) | superadmin |
+| `/hr/listing/desks/assign` | bulk seating — propose, review, apply (D149) | superadmin |
 | `/hr/organogram` | the chart, and `/manage` to edit it | staff; superadmin to manage |
 
 `lib/salary/` is the payroll core — `compute.ts` and `dates.ts` are Prisma-free
@@ -446,6 +447,10 @@ npm run import:retire    # remove employees the export does not contain (dry run
 npm run import:products  # the 315 mandatory products (--dry to report without writing)
 npm run import:desks     # place employees on organogram posts (--dry to report without writing)
 npm run import:office-head-desks # seat each office head on their office's Executive desk (--dry)
+npm run seed:job-titles         # build the shared title catalogue from the organogram's post
+                                # titles + the roster's designations, and link both (--yes writes)
+npm run fix:post-names          # regenerate every organogram post's English name from its
+                                # Bengali one (D150). Reports by default; --yes writes.
 npm run import:hr-corrections   # roster facts the HR export cannot supply (--dry)
                                 # desks are otherwise corrected at /hr/listing/desks (D131)
 npm run fix:orphaned-files      # files held by someone no longer serving → the office head (--dry)

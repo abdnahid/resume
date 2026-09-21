@@ -22,7 +22,7 @@
  * of that rank at all. Only `exact` is ticked by default.
  */
 import { prisma } from "@/lib/prisma";
-import { deskRank } from "@/lib/desk-title";
+import { deskRank, rankKey } from "@/lib/desk-title";
 import { officeRoots } from "@/lib/desk-service";
 
 export type ProposalConfidence = "exact" | "rank" | "ambiguous" | "none";
@@ -104,6 +104,9 @@ export async function proposeDesks(officeId?: number): Promise<ProposalSummary> 
   for (const e of employees) {
     const recorded = e.designationEn ?? e.designationBn;
     const rank = deskRank(recorded).label;
+    // Compared case-insensitively — see `rankKey()`. The roster and the
+    // organogram capitalise the same desk differently.
+    const rankK = rankKey(rank);
     const currentRank = e.orgPost ? deskRank(e.orgPost.nameEn).label : null;
 
     // Only two populations need a proposal: nobody is being moved off a seat
@@ -111,14 +114,14 @@ export async function proposeDesks(officeId?: number): Promise<ProposalSummary> 
     // and is never second-guessed by a batch.
     const problem: DeskProposal["problem"] | null = !e.orgPostId
       ? "unseated"
-      : e.orgPostIsInferred && currentRank !== rank
+      : e.orgPostIsInferred && (currentRank === null || rankKey(currentRank) !== rankK)
         ? "rank_disagrees"
         : null;
     if (!problem) continue;
 
     const candidates = posts.filter(
       (p) =>
-        deskRank(p.nameEn).label === rank &&
+        rankKey(deskRank(p.nameEn).label) === rankK &&
         unitBelongsToOffice(p.unitId, e.officeId) &&
         (vacancy.get(p.id) ?? 0) > 0,
     );
@@ -138,7 +141,7 @@ export async function proposeDesks(officeId?: number): Promise<ProposalSummary> 
     if (!candidates.length) {
       // Distinguish "the chart has no such post anywhere" from "this office's
       // are all full" — they are different problems with different fixes.
-      const anywhere = posts.some((p) => deskRank(p.nameEn).label === rank);
+      const anywhere = posts.some((p) => rankKey(deskRank(p.nameEn).label) === rankK);
       confidence = "none";
       reason = anywhere
         ? `Every ${rank} post in ${e.office?.nameEn ?? "this office"} is at its sanctioned count.`

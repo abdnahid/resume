@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth-guard";
 import { hasRole } from "@/lib/roles";
-import { setDesignation } from "@/lib/designation-service";
+import { setDesignationTitle } from "@/lib/job-titles";
 
 /**
- * Change one employee's recorded designation. Superadmin only.
+ * Set one employee's designation from the shared title catalogue (D152).
+ * Superadmin only, like the desk it sits beside.
  *
- * Keyed on the **employee id**, like `/api/employees/[id]/desk` and
- * `/api/roles/[id]` — that is what an administrator knows.
- *
- * Body: `{ designationEn?, designationBn? }`. An absent key is left alone; an
- * empty string clears that language. The service refuses to leave somebody with
- * neither.
+ * Body: `{ titleId }` — a `JobTitle` id, or null to unset.
  */
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer();
@@ -32,17 +28,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const read = (key: string) =>
-    key in body ? (typeof body[key] === "string" ? (body[key] as string) : null) : undefined;
+  const raw = body.titleId;
+  const titleId = raw === null || raw === "" ? null : Number(raw);
+  if (titleId !== null && !Number.isInteger(titleId))
+    return NextResponse.json({ error: "titleId must be a job title id." }, { status: 400 });
 
   try {
-    return NextResponse.json(
-      await setDesignation({
-        employeeId: id,
-        designationEn: read("designationEn"),
-        designationBn: read("designationBn"),
-      }),
-    );
+    return NextResponse.json(await setDesignationTitle({ employeeId: id, titleId }));
   } catch (e) {
     const message = (e as Error).message;
     return NextResponse.json(

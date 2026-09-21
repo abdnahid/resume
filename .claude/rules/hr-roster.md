@@ -268,9 +268,14 @@ all. Grade 9 alone has **495 posts for 333 staff**.
 
 *Designations the organogram has no post for:*
 
+> **Superseded 2026-09-21 by D150.** The Examiner and Senior Inspector rows
+> below were both symptoms of one mistranslation, not of a real gap — see
+> "Post names are derived from the Bengali" at the end of this file. There are
+> 65 Examiner and 22 Senior Examiner posts, and 0 Senior Inspector ones.
+
 | Designation | Staff | Grade | Posts at that grade |
 |---|---|---|---|
-| Examiner | 40 | 10 | **none anywhere** |
+| ~~Examiner~~ | ~~40~~ | ~~10~~ | **Fixed 2026-09-21 (D150)** — পরীক্ষক was rendered *Inspector*; the posts existed under the wrong English word. |
 | ~~Director~~ | ~~9~~ | ~~4~~ | **Fixed 2026-09-05** — the nine Director posts moved from grade 5 to 4, which is where all nine serving Directors are. |
 | Chief Assistant | 6 | 12 | **none anywhere** |
 
@@ -351,3 +356,116 @@ two things that screen cannot do are:
 - **No audit table exists for employee facts**, so a rename leaves no history —
   the same standing as `import:hr-corrections`. It is reviewed before it runs
   and reports exactly whom it touched. Worth closing before go-live.
+
+
+## Post names are derived from the Bengali (D150)
+
+**The chart is a Bengali document.** BSTI's 1983 sanctioned organogram names
+every post in Bengali; the English column was written beside it by hand and
+drifted. `lib/org-names.ts` is now the one rule, called by both
+`npm run fix:post-names` and `seed-organogram.ts` — they used to hold separate
+English strings, so correcting one left the other to reinstate it.
+
+**Two words were swapped, and it cost the whole seating model:**
+
+| Bengali | was | is | meaning |
+|---|---|---|---|
+| পরীক্ষক | Inspector | **Examiner** | examines a sample at a bench |
+| পরিদর্শক | Field Inspector | **Inspector** | inspects a factory in the field |
+
+- **This is why the notes said there was no Examiner post.** There were 65, all
+  labelled *Inspector*. 97 employees are designated Examiner, could not be
+  matched, and `import:desks` fell back to grade — which is where every guessed
+  seat came from. Do not re-add a claim that BSTI has no Examiner post.
+- **"Field Inspector" is not a BSTI rank.** It appears nowhere in the Bengali.
+- **Bengali is never rewritten** — it is the record. Only the derived column is.
+- **A fragment no dictionary covers is skipped and reported**, never guessed: a
+  post title is what somebody's job is called on their own screen. Add the term
+  to `HEAD` or `QUALIFIER` and re-run.
+- **A bare serial is dropped.** *পরিদর্শক (মেট্রোলজি) (২)* is the second post
+  of that title in that section; `sanctionedCount` already carries the number.
+- **`rankKey()`, not the label, compares a designation to a post.** `deskRank()`
+  returns an unrecognised title with only its first letter capitalised, so
+  *"Office assistant"* and *"Office Assistant"* read as two unrelated desks —
+  38 people were stuck behind that alone. Use the label for display and
+  grouping; use `rankKey()` for matching.
+- **Batch by target name, never one `update` per row.** 126 updates inside one
+  `$transaction` hit Prisma's 5s interactive cap exactly as CLAUDE.md warns;
+  one `updateMany` per distinct title is ~30 round trips instead of 126.
+
+**The client's vocabulary, settled 2026-09-21 (D151).** Corrections to the
+dictionary, not to individual rows — change `lib/org-names.ts` and re-run:
+
+| Bengali | English | not |
+|---|---|---|
+| রসায়ন | **Chemical** | Chemistry |
+| পদার্থ / ভৌত | **Physical** | Materials |
+| পুরকৌশল | **Civil** | |
+| ই এন্ড ই | **E & E** | |
+| মান | **Standards** | |
+
+- **A bare rank takes its section's implied qualifier.** `পরিদর্শক` alone is
+  always *Inspector (Metrology)* and `ফিল্ড অফিসার` alone *Field Officer (CM)* —
+  those posts exist only in those sections, so the Bengali does not repeat what
+  the unit says, but the English is read far from the chart. An explicit
+  qualifier always wins.
+- **A branch office's E&E posts are named for the bench they sit on** —
+  *(E & E, Physical)*, because a branch has one physical lab rather than a
+  section per discipline. That is the chart's own idiom, not an invention:
+  Khulna's Bengali reads *ই এন্ড ই, পদার্থ*. Head office keeps the full
+  *Electrical & Electronics*, where it is a section under the Physical Testing
+  Wing. `contextualQualifier()` decides, on the unit name.
+- **A comma-joined qualifier is translated part by part.** Matching the pair as
+  one string let the longest substring key win and dropped the rest — *(রসায়ন,
+  মান)* became plain *Chemical* and the Standards Wing disappeared from four
+  titles. Splitting also means pairs need not be enumerated: *পুরকৌশল* +
+  *পদার্থ* compose to *Civil, Physical*.
+- **Bengali serials are stripped** — *(১)*, *(২)* — the one thing that edits the
+  Bengali, on the client's instruction. `sanctionedCount` already carries the
+  number and the organogram renders the Bengali.
+- **Unit names are not renamed with the posts.** `lib/labs/` matches
+  `"Testing Wing"` on unit names and 46 `Lab` rows were seeded from them, so
+  *Chemistry Lab, Chittagong* stays inconsistent with *Examiner (Chemical)*
+  until somebody decides to migrate both together.
+- **`import:hr-corrections` asserts post names literally.** Its guards check
+  that an id still means what it did; renaming a post breaks them, and they must
+  be updated in the same change.
+
+
+## One title catalogue for both (D152)
+
+```
+JobTitle ──titleId──> OrgPost ──unitId──> OrgUnit     the desk: a seat in a section
+    ^
+    └──designationTitleId── Employee                   the designation: a word
+```
+
+**`/hr/listing/desks` sets both, per person, two pickers side by side.** It
+replaced D149's separate designation screen, which edited `designationEn`
+directly and would now desync it from the catalogue.
+
+- **A desk is an `OrgPost`, never just a title.** The post carries the unit and
+  the unit routes a file to a section (D58). Normalising the label must not
+  dissolve the routing model — so the catalogue holds the *titles* and the desk
+  still points at a seat.
+- **They are allowed to differ** (D124), and a rank difference is flagged, not
+  refused: an Inspector (Metrology) on an Examiner (Chemical) desk because he
+  knows chemistry is deliberate.
+- **A bare rank and a qualified post are both real titles.** *Assistant
+  Director* (what HR records) and *Assistant Director (CM)* (what the chart
+  sanctions) are not a spelling mistake, and merging them would lose the
+  section. Only same-job-different-spelling folds, on `rankKey()`.
+- **Everything the seeder matched is `designationIsInferred: true`** and it
+  never clears the flag. Choosing a value on the screen is what clears it — the
+  same act as confirming a seat. 731 of 731 are inferred until a human touches
+  them.
+- **`designationEn`/`Bn` are kept in step with the chosen title.** They are the
+  import record and the title is the authority, but every screen not yet
+  migrated still reads the text, and two columns describing one fact must not
+  disagree while both are live. `setDesignationTitle()` writes both.
+- **`seed:job-titles` upserts on `titleKey`**, so re-running adds new titles
+  without renumbering: a designation corrected by hand points at an id, and a
+  catalogue rebuilt from scratch would silently repoint it at another job.
+- **A Bengali designation the rank table does not recognise becomes its own
+  title** rather than being guessed into an English one — it shows in the
+  picker for somebody to reassign.

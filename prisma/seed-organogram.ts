@@ -1,6 +1,7 @@
 import { PrismaClient } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
+import { postNameEn } from "../lib/org-names";
 import {
   WINGS,
   DIVISIONAL_OFFICES,
@@ -33,7 +34,11 @@ async function seedUnit(
   if (entry.posts?.length) {
     await prisma.orgPost.createMany({
       data: entry.posts.map((p, i) => ({
-        nameEn: p.nameEn,
+        // **Derived from the Bengali, not copied from `data.ts`.** The English
+        // column there was written by hand and carries the paricharak/parikshak
+        // swap this seed used to reinstate on every run; `postNameEn()` is the
+        // one rule, shared with `fix:post-names`.
+        nameEn: postNameEn(p.nameBn, { unitNameEn: entry.nameEn }).nameEn,
         nameBn: p.nameBn,
         sanctionedCount: p.count,
         sortOrder: i,
