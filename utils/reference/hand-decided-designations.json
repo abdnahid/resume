@@ -1,0 +1,22 @@
+[
+  {
+    "id": "20226010105",
+    "nameEn": "ABDULLAH AL NAHID",
+    "designationEn": "Inspector (Metrology)",
+    "designationBn": "পরিদর্শক (মেট্রোলজি)",
+    "designationTitle": {
+      "titleEn": "Inspector (Metrology)",
+      "titleKey": "inspector (metrology)"
+    }
+  },
+  {
+    "id": "20006010038",
+    "nameEn": "MD. ABDULLAH AL MAMUN",
+    "designationEn": "Deputy Director (Metrology)",
+    "designationBn": "উপপরিচালক (মেট্রোলজি)",
+    "designationTitle": {
+      "titleEn": "Deputy Director (Metrology)",
+      "titleKey": "deputy director (metrology)"
+    }
+  }
+]

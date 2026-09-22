@@ -226,6 +226,8 @@ function PostFormModal({
 // ─── Tree rows ────────────────────────────────────────────────────────────────
 
 function UnitRow({
+  onAddTempUnit,
+  onAddTempPost,
   unit,
   depth,
   allUnits,
@@ -245,6 +247,8 @@ function UnitRow({
   onDelete: (u: UnitNode) => void;
   onEditPost: (p: PostNode, unitId: number) => void;
   onDeletePost: (p: PostNode) => void;
+  onAddTempUnit: (u: UnitNode) => void;
+  onAddTempPost: (u: UnitNode) => void;
 }) {
   const [open, setOpen] = useState(depth < 2);
   const total = sumSanctioned(unit);
@@ -266,6 +270,14 @@ function UnitRow({
         <div className="flex-1 min-w-0">
           <span className="font-semibold text-sm text-foreground">{unit.nameEn}</span>
           <span className="ml-2 text-xs text-muted-foreground font-bn-serif">{unit.nameBn}</span>
+          {!unit.isSanctioned && (
+            <span
+              title={unit.createdReason ?? undefined}
+              className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/50 dark:text-sky-300"
+            >
+              outside organogram
+            </span>
+          )}
         </div>
 
         {total > 0 && (
@@ -278,6 +290,16 @@ function UnitRow({
         <div className="hidden group-hover:flex items-center gap-1 shrink-0">
           <Btn title="Add child unit" onClick={() => onAddChild(unit)}>+Unit</Btn>
           <Btn title="Add post" onClick={() => onAddPost(unit)}>+Post</Btn>
+          {/* **Structure outside the establishment is created here** (D157),
+              not on the assignment screen. A desk has to hang somewhere, and
+              the unit is what routes a file — so the section is the part that
+              must be creatable, and this is the page that owns sections. */}
+          <Btn title="Add a section outside the organogram" onClick={() => onAddTempUnit(unit)}>
+            +Temp unit
+          </Btn>
+          <Btn title="Add a desk outside the organogram" onClick={() => onAddTempPost(unit)}>
+            +Temp post
+          </Btn>
           <Btn title="Edit unit" onClick={() => onEdit(unit)}>Edit</Btn>
           <Btn
             title={unit.children.length > 0 ? "Remove children first" : "Delete unit"}
@@ -307,9 +329,21 @@ function UnitRow({
                 <span className="ml-2 text-xs text-muted-foreground">{post.nameEn}</span>
               </div>
 
-              <span className="shrink-0 text-xs font-bold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
-                {post.sanctionedCount}×
-              </span>
+              {post.isSanctioned ? (
+                <span className="shrink-0 text-xs font-bold text-blue-700 bg-blue-100 rounded-full px-2 py-0.5">
+                  {post.sanctionedCount}×
+                </span>
+              ) : (
+                /* **Not sanctioned, so not a count.** Printing "0×" beside the
+                   real posts reads as a post with no seats rather than as a
+                   desk the establishment does not contain (D155). */
+                <span
+                  title={post.createdReason ?? undefined}
+                  className="shrink-0 text-xs font-medium text-sky-700 bg-sky-100 rounded-full px-2 py-0.5 dark:bg-sky-950/50 dark:text-sky-300"
+                >
+                  outside organogram
+                </span>
+              )}
               {post.employeeCount > 0 && (
                 <span className="shrink-0 text-xs text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
                   {post.employeeCount} posted
@@ -342,6 +376,8 @@ function UnitRow({
               onDelete={onDelete}
               onEditPost={onEditPost}
               onDeletePost={onDeletePost}
+              onAddTempUnit={onAddTempUnit}
+              onAddTempPost={onAddTempPost}
             />
           ))}
         </div>
@@ -356,6 +392,10 @@ export default function ManageClient({ initialTree }: { initialTree: UnitNode[] 
   const router = useRouter();
   const [unitModal, setUnitModal] = useState<UnitModal | null>(null);
   const [postModal, setPostModal] = useState<PostModal | null>(null);
+  /** Creating structure outside the approved establishment (D155, D157). */
+  const [tempModal, setTempModal] = useState<
+    { kind: "unit" | "post"; unitId: number; unitName: string } | null
+  >(null);
   const [deleting, setDeleting] = useState(false);
 
   const refresh = useCallback(() => router.refresh(), [router]);
@@ -447,6 +487,8 @@ export default function ManageClient({ initialTree }: { initialTree: UnitNode[] 
                 onDelete={deleteUnit}
                 onEditPost={(p, uid) => setPostModal({ mode: "edit", post: p, unitId: uid })}
                 onDeletePost={deletePost}
+                onAddTempUnit={(u) => setTempModal({ kind: "unit", unitId: u.id, unitName: u.nameEn })}
+                onAddTempPost={(u) => setTempModal({ kind: "post", unitId: u.id, unitName: u.nameEn })}
               />
             ))}
           </section>
@@ -454,6 +496,19 @@ export default function ManageClient({ initialTree }: { initialTree: UnitNode[] 
       })}
 
       {/* Modals */}
+      {tempModal && (
+        <TempStructureModal
+          kind={tempModal.kind}
+          unitId={tempModal.unitId}
+          unitName={tempModal.unitName}
+          onClose={() => setTempModal(null)}
+          onDone={() => {
+            setTempModal(null);
+            router.refresh();
+          }}
+        />
+      )}
+
       {unitModal && (
         <UnitFormModal
           modal={unitModal}
@@ -516,6 +571,145 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
     >
       <div className="bg-card rounded-xl border border-border shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {children}
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Creating a section or a desk outside the approved organogram (D155, D157).
+ *
+ * **Here rather than on the assignment screen**, which is the client's own
+ * correction: *"Isn't it better to create desk in the manage structure page so
+ * that the temporary desk latches onto the organogram as 0 sanctioned post and
+ * assigned one employee later?"* It is — structure is created where structure
+ * lives, and assignment stays a separate act. The assignment screen could only
+ * ever offer *existing* sections anyway, so it could not solve the case that
+ * prompted this: Faridpur runs no physical testing, so the section had to be
+ * creatable before the desk could hang anywhere meaningful.
+ *
+ * **The reason is required** for both, and it is not ceremony: structure
+ * outside the approved establishment is the first thing an auditor asks about.
+ */
+function TempStructureModal({
+  kind,
+  unitId,
+  unitName,
+  onClose,
+  onDone,
+}: {
+  kind: "unit" | "post";
+  unitId: number;
+  unitName: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [nameEn, setNameEn] = useState("");
+  const [nameBn, setNameBn] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isUnit = kind === "unit";
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(isUnit ? "/api/org/units/temporary" : "/api/org/posts/temporary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isUnit
+            ? { parentId: unitId, nameEn, nameBn, reason }
+            : { unitId, nameEn, nameBn, reason },
+        ),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not create it.");
+      onDone();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field =
+    "w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <h2 className="font-display text-lg font-medium text-foreground">
+          {isUnit ? "A section outside the organogram" : "A desk outside the organogram"}
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isUnit ? "Inside" : "Under"}{" "}
+          <span className="font-medium text-foreground">{unitName}</span>. It behaves exactly like
+          the approved ones — files route to it and work stays on it — but it carries{" "}
+          <strong>no sanctioned seat</strong> and shows as an exception in the manpower report until
+          the government approves it. Nobody is seated by this; assign somebody afterwards under{" "}
+          <a href="/hr/listing/desks" className="text-primary hover:underline">
+            Desks &amp; designations
+          </a>
+          .
+        </p>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Name (English)</label>
+            <input
+              autoFocus
+              value={nameEn}
+              onChange={(e) => setNameEn(e.target.value)}
+              placeholder={isUnit ? "Physical Lab, Faridpur" : "Assistant Director (Civil, Physical)"}
+              className={`${field} mt-1`}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground">Name (Bangla)</label>
+            <input
+              value={nameBn}
+              onChange={(e) => setNameBn(e.target.value)}
+              className={`${field} mt-1 font-bn-serif`}
+            />
+          </div>
+        </div>
+
+        <label className="mt-3 block text-xs font-medium text-muted-foreground">
+          Why is this needed? — kept on the record
+        </label>
+        <textarea
+          rows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. No physical testing section is sanctioned at this office; created pending sanction."
+          className={`${field} mt-1`}
+        />
+
+        {error && (
+          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy || !nameEn.trim() || !nameBn.trim() || !reason.trim()}
+            onClick={submit}
+            className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm font-medium text-primary disabled:opacity-50"
+          >
+            {busy ? "Creating…" : isUnit ? "Create section" : "Create desk"}
+          </button>
+        </div>
       </div>
     </div>
   );

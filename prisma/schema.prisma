@@ -275,6 +275,22 @@ model OrgUnit {
   parentId  Int?
   sortOrder Int         @default(0)
   isActive  Boolean     @default(true)
+
+  /// ── Outside the approved establishment (D157) ───────────────────────────
+  ///
+  /// **A section can be an exception too, not just a desk.** Faridpur runs no
+  /// physical testing, so the chart has no Physical Lab there — and an officer
+  /// designated *Assistant Director (Civil, Physical)* has nowhere to sit that
+  /// means anything. Creating the desk alone would have hung it under
+  /// Administration or CM, and the unit is what routes a file (D58), so the
+  /// section is the part that had to be creatable.
+  ///
+  /// Same discipline as `OrgPost.isSanctioned` (D155): marked, reasoned, and
+  /// regularised by a flag flip when the approval arrives, so nothing moves.
+  isSanctioned      Boolean   @default(true)
+  createdReason     String?
+  regularisedAt     DateTime?
+  regularisedMemoNo String?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -284,71 +300,181 @@ model OrgUnit {
   posts    OrgPost[]
 }
 
-/// The one vocabulary of job titles, shared by a desk and a designation (D152).
+/// The designation catalogue — what a person is called (D153).
 ///
-/// **The organogram's post titles are the baseline**, because they are the
-/// sanctioned ones — derived from the Bengali chart by `postNameEn()` (D150) —
-/// and the roster's free-text designations were normalised onto them. 81
-/// distinct designations over 729 people against 130 post titles, overlapping
-/// in only 35: the rest are the same ranks written differently, or bare ranks
-/// (*Assistant Director*) beside their qualified posts (*Assistant Director
-/// (CM)*), which is a real distinction and is kept.
+/// **Separate from the desk, on the client's rule:** *"A desk named Assistant
+/// Director (Chemical) can be from Khulna office and Rajshahi Office... All of
+/// those should be identified differently. But as designation we don't need to
+/// keep multiple similar titled entry because designations are unique and an
+/// employee carries that with his name."* A desk is an `OrgPost` — one row per
+/// seat per section, so three offices' Assistant Director (Chemical) desks are
+/// three rows. A designation is one row, held by everybody of that rank.
 ///
-/// **Two references, one table.** `OrgPost.titleId` is what a desk is called;
-/// `Employee.designationTitleId` is what a person is called. They are allowed
-/// to differ and often should — an Inspector (Metrology) sitting on an Examiner
-/// (Chemical) desk because he knows chemistry (D124) — and before this there
-/// was no way to say that without the two drifting into different vocabularies.
-model JobTitle {
+/// **Only titles the organogram sanctions.** The chart is the authority, so
+/// where the roster carried both *Inspector* and *Inspector (Metrology)* and
+/// only the second is a real post, the first is merged away. That is what makes
+/// a designation and a desk title comparable at all.
+model Designation {
   id Int @id @default(autoincrement())
 
-  /// The canonical English title. Unique, case-insensitively, by convention —
-  /// `titleKey` is what actually enforces it.
   titleEn String
   titleBn String?
 
-  /// Case- and punctuation-folded `titleEn`, so "Office assistant" and "Office
-  /// Assistant" cannot both exist. The same `rankKey()` rule the matching uses.
+  /// Case- and punctuation-folded `titleEn` — the uniqueness this table exists
+  /// for. `rankKey()` is the rule.
   titleKey String @unique
 
-  /// Which rank this groups under in a picker — `deskRank()`'s label, stored so
-  /// a list can be grouped and sorted without recomputing it per row.
   rankLabel String
   rankOrder Int    @default(800)
+
+  /// Grades 1–9. Officers are grouped by wing in the picker; everyone else is
+  /// one group called Staff (the client's rule, 2026-09-21).
+  isOfficer Boolean @default(false)
+
+  /// The wing this designation belongs to, for officers. Derived from the
+  /// organogram: the wing-category ancestor of the posts carrying this title,
+  /// with the title's own qualifier breaking a tie. Null for staff.
+  wing String?
 
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 
-  posts     OrgPost[]
   employees Employee[] @relation("EmployeeDesignation")
 
   @@index([rankOrder])
+  @@index([wing])
+}
+
+/// A desk somebody holds — one row per (employee, post), so a person may hold
+/// several (D153).
+///
+/// **One primary, any number of additional charges.** The client's rule:
+/// *"An employee has one designation but can have multiple desk. If he has
+/// multiple desk one is his primary desk and others are additional charge."*
+/// `Employee.actingOrgPostId` could hold exactly one, which was D74's model and
+/// is now the special case of this one.
+///
+/// **`Employee.orgPostId` and `actingOrgPostId` are kept in step as mirrors**,
+/// because 51 call sites across the workflow, the laboratories and the auth
+/// guards still read them. This table is the authority; `setDesks()` writes
+/// both. Migrating those readers is separate work.
+/// How somebody came to be at a desk (D156).
+enum DeskTenureKind {
+  /// Their own post — the one they are substantively appointed to.
+  substantive
+  /// A post held *in addition* to their own, usually because it is vacant (D74).
+  additional_charge
+  /// Working at this desk while belonging elsewhere — an officer of another
+  /// wing attached to it. The desk's own seat may still be vacant.
+  attachment
+}
+
+/// One person's tenure at one desk — **history, not current state** (D156).
+///
+/// **Rows are never deleted.** Releasing somebody stamps `releasedAt`; the row
+/// stays, because "who has served at this desk, and when" is the question the
+/// unpacked establishment exists to answer. Before this, reassigning somebody
+/// deleted the old row and the previous tenure was simply lost.
+///
+/// The current holder of a desk is the row with `releasedAt: null`. There is no
+/// unique index saying only one may be open — a partial unique is not
+/// expressible here — so `setDesks()` enforces it, and the same person may hold
+/// the same desk twice over a career, which is why the old
+/// `@@unique([employeeId, orgPostId])` had to go.
+model EmployeeDesk {
+  id Int @id @default(autoincrement())
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  orgPostId Int
+  orgPost   OrgPost @relation(fields: [orgPostId], references: [id], onDelete: Cascade)
+
+  kind DeskTenureKind @default(substantive)
+
+  /// Why the charge or attachment was given.
+  note String?
+
+  assignedAt DateTime  @default(now())
+  releasedAt DateTime?
+  /// Why the tenure ended — transferred, promoted, post regularised, corrected.
+  releaseReason String?
+
+  @@index([orgPostId, releasedAt])
+  @@index([employeeId, releasedAt])
 }
 
 model OrgPost {
   id              Int      @id @default(autoincrement())
+  /// Which seat of this title in this unit — 1, 2, 3 … (D156).
+  ///
+  /// **The establishment is unpacked: one row per seat.** A post sanctioned for
+  /// two Field Officers used to be one row with `sanctionedCount: 2`, which
+  /// made "this desk" ambiguous — you cannot hand over seat 1 of a pool, and
+  /// "who has served here" has no answer. Each seat is now its own row with its
+  /// own id, its own holder and its own service history.
+  ///
+  /// BSTI's sanctioned posts carry no official post numbers, so these are
+  /// simply sequential within (unit, title).
+  seatNo          Int      @default(1)
   /// Kept as the transcribed text. `titleId` is the authority for what this
   /// desk is *called*; these remain what the chart was read as, the same way
   /// `Employee.designationEn` remains what the HR export said.
   nameEn          String
   nameBn          String
   grade           String?
+  /// **1 for a sanctioned seat, 0 for a desk outside the organogram** (D155).
+  /// Since D156 unpacked the establishment it is never more than 1 — it says
+  /// whether this row counts toward sanctioned strength, not how many people
+  /// fit on it.
   sanctionedCount Int      @default(1)
   sortOrder       Int      @default(0)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  /// What this desk is called, from the shared catalogue (D152).
-  titleId Int?
-  title   JobTitle? @relation(fields: [titleId], references: [id])
-
   unitId    Int
   unit      OrgUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
   employees Employee[]
   postings  Posting[]
+  /// Who holds this desk — primary or in additional charge (D153).
+  holders   EmployeeDesk[]
+
+  /// ── Outside the approved establishment (D155) ───────────────────────────
+  ///
+  /// **The organogram is a legal document; a desk is where somebody works.**
+  /// BSTI's sanctioned posts are approved by a rigorous government process, so
+  /// a post that does not exist yet cannot simply be created — but somebody has
+  /// to be seated *now*, and a desk is what files and work orders attach to, so
+  /// a person with no desk cannot be given work at all.
+  ///
+  /// **A temporary desk is still an `OrgPost`, deliberately.** Everything
+  /// downstream — routing (D58), the pass-down chain, the laboratory ladder,
+  /// work-order custody — reads this table, and a desk in a second table could
+  /// not hold work. It also makes regularisation a flag flip rather than a
+  /// migration: when the approval comes through, the post becomes sanctioned
+  /// and **the files stay exactly where they are**.
+  ///
+  /// A temporary post carries `sanctionedCount: 0`, so every count already in
+  /// the system reads correctly — *held 1/0* is precisely "one person, no
+  /// sanctioned seat" — and the over-strength arithmetic includes it for free.
+  isSanctioned Boolean @default(true)
+
+  /// Why this desk was created outside the organogram. **Required in the
+  /// service for a temporary post**, because a post outside the approved
+  /// establishment is the first thing an auditor asks about and "the system
+  /// let me" is not an answer.
+  createdReason String?
+
+  createdByEmployeeId String?
+  createdBy           Employee? @relation("OrgPostCreatedBy", fields: [createdByEmployeeId], references: [id])
+
+  /// Set when the government approves the post and it joins the establishment.
+  regularisedAt      DateTime?
+  /// The memo that approved it — the evidence for the flag above.
+  regularisedMemoNo  String?
 
   /// Officers holding this post in addition to their own — see
   /// `Employee.actingOrgPostId`. Not counted against `sanctionedCount`: the
@@ -658,14 +784,20 @@ model Employee {
   /// somebody has confirmed the seat, and falls back to the recorded
   /// designation while it is still inferred — because a rank disagreement
   /// nobody has looked at is more likely to be the matching than the truth.
-  /// What this person is called, from the shared catalogue (D152).
+  /// What this person is called, from the designation catalogue (D153).
   ///
   /// **The authority; `designationEn`/`designationBn` are the import record.**
   /// The export writes free text and 81 spellings of 40-odd jobs came out of
-  /// it; this is the normalised one. Null while nobody has matched them —
-  /// `designationOf()` falls back to the text so no screen goes blank.
-  designationTitleId Int?
-  designationTitle   JobTitle? @relation("EmployeeDesignation", fields: [designationTitleId], references: [id])
+  /// it; this is the normalised one, and only titles the organogram sanctions
+  /// are in it.
+  designationId Int?
+  designation   Designation? @relation("EmployeeDesignation", fields: [designationId], references: [id])
+
+  /// Every desk held — one primary, the rest additional charges (D153).
+  desks EmployeeDesk[]
+
+  /// Temporary desks this person created outside the organogram (D155).
+  orgPostsCreated OrgPost[] @relation("OrgPostCreatedBy")
 
   /// True while the designation title was matched by script rather than chosen.
   /// The same discipline as `orgPostIsInferred`: a guess that says it is one.

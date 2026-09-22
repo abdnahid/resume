@@ -143,7 +143,10 @@ export type SetDeskArgs = {
   orgPostId?: number | null;
   /** `undefined` leaves it alone; `null` ends the additional charge. */
   actingOrgPostId?: number | null;
-  /** Seat them even though the post is at or over its sanctioned count. */
+  /**
+   * @deprecated Over strength is never refused, so this gates nothing. Kept so
+   * existing callers do not break; remove once they have dropped it.
+   */
   allowOverfill?: boolean;
 };
 
@@ -165,11 +168,10 @@ export type SetDeskResult = {
  * trusts the post outright and the person's title becomes their desk's — which
  * is the rule that desks and designations share one naming system.
  *
- * **Over-capacity is refused by name, not by count** — the same discipline as
- * `setRouting()`. The fix for a full post is to move whoever is on it, and a
- * number does not say who that is. It can be overridden deliberately, because
- * 54 posts are already over their sanctioned count and those rows must stay
- * editable.
+ * **Over strength is a warning, not a refusal.** BSTI posts more people to a
+ * desk than it sanctions as a matter of course, so the count is an
+ * establishment figure rather than a door; the warning names who else is there,
+ * which is the part an administrator actually needs.
  */
 export async function setDesk(args: SetDeskArgs): Promise<SetDeskResult> {
   const e = await prisma.employee.findUnique({
@@ -227,16 +229,28 @@ export async function setDesk(args: SetDeskArgs): Promise<SetDeskResult> {
       postId = null;
     } else {
       const p = await load(args.orgPostId);
+      /**
+       * **Over strength is reported, never refused** (the client, 2026-09-21):
+       * *"we might have 2 available seat for a desk but can assign 4 person if
+       * we want. In that case it will just show that we have more people
+       * here."*
+       *
+       * It used to throw, and that was the bug behind "it will not take my
+       * choice": a desk already at its sanctioned count rejected the write and
+       * the select snapped back to its old value, with the refusal rendered
+       * where the reader was not looking. Posting more people than a post
+       * sanctions is an ordinary act in this organisation — the sanctioned
+       * count is an establishment figure, not a door.
+       */
       const over = p.employees.length + 1 > p.sanctionedCount;
-      if (over && !args.allowOverfill) {
-        throw new Error(
-          `${p.nameEn} in ${p.unit.nameEn} is sanctioned for ${p.sanctionedCount} and is held by ` +
-            `${p.employees.map((h) => `${h.nameEn} (${h.id})`).join(", ")}. ` +
-            `Move them first, or seat this person anyway.`,
-        );
-      }
       if (over) {
-        warnings.push(`${p.nameEn} is now over its sanctioned count of ${p.sanctionedCount}.`);
+        warnings.push(
+          `${p.nameEn} in ${p.unit.nameEn} is sanctioned for ${p.sanctionedCount} and will now be ` +
+            `held by ${p.employees.length + 1}` +
+            (p.employees.length
+              ? ` — with ${p.employees.map((h) => h.nameEn).join(", ")}.`
+              : "."),
+        );
       }
       if (e.grade && p.grade && e.grade !== p.grade) {
         // Not an error: seniority follows the *person*, and a real placement
@@ -271,6 +285,57 @@ export async function setDesk(args: SetDeskArgs): Promise<SetDeskResult> {
       actingId = p.id;
     }
   }
+
+  /**
+   * **`EmployeeDesk` is the authority, and it is history** (D153, D156).
+   *
+   * This function predates the table and two live callers still use it. It used
+   * to delete and recreate the rows, which destroyed the previous tenure every
+   * time somebody was reassigned — the data loss D156 exists to repair. Open
+   * tenures are now *closed*, never removed, and only a genuinely new placement
+   * opens a row.
+   */
+  const open = await prisma.employeeDesk.findMany({
+    where: { employeeId: args.employeeId, releasedAt: null },
+    select: { id: true, orgPostId: true, kind: true },
+  });
+  const wanted: { orgPostId: number; kind: "substantive" | "additional_charge" }[] = [
+    ...(postId ? [{ orgPostId: postId, kind: "substantive" as const }] : []),
+    ...(actingId && actingId !== postId
+      ? [{ orgPostId: actingId, kind: "additional_charge" as const }]
+      : []),
+  ];
+
+  const keep = new Set(
+    open.filter((o) => wanted.some((w) => w.orgPostId === o.orgPostId && w.kind === o.kind)).map((o) => o.id),
+  );
+  const closing = open.filter((o) => !keep.has(o.id));
+  const opening = wanted.filter(
+    (w) => !open.some((o) => o.orgPostId === w.orgPostId && o.kind === w.kind && keep.has(o.id)),
+  );
+
+  await prisma.$transaction([
+    ...(closing.length
+      ? [
+          prisma.employeeDesk.updateMany({
+            where: { id: { in: closing.map((c) => c.id) } },
+            data: { releasedAt: new Date(), releaseReason: "Desk reassigned." },
+          }),
+        ]
+      : []),
+    ...(opening.length
+      ? [
+          prisma.employeeDesk.createMany({
+            data: opening.map((w) => ({
+              employeeId: args.employeeId,
+              orgPostId: w.orgPostId,
+              kind: w.kind,
+              ...(w.kind === "additional_charge" ? { note: "Additional charge" } : {}),
+            })),
+          }),
+        ]
+      : []),
+  ]);
 
   const updated = await prisma.employee.update({
     where: { id: args.employeeId },

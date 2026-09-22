@@ -2,28 +2,29 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getViewer } from "@/lib/auth-guard";
 import { hasRole } from "@/lib/roles";
-import { deskOptions, staffOfOffice, titleOptions } from "@/lib/job-titles";
+import { cachedDesignations, cachedDesks, cachedStaff } from "@/lib/hr-cache";
+import QueryProvider from "@/components/QueryProvider";
 import StaffTitleManager from "./_components/StaffTitleManager";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Desks and designations, managed together (D152, superseding D131's screen).
+ * Desks and designations, managed together (D153/D154, superseding D152).
  *
- * **One screen because it is one decision.** It was two — a per-person desk
- * picker here and a designation catalogue next door — and an administrator
- * looking at a person wants to set both at once. The client's own shape:
- * *"Each employee should have two pick side by side. One for desk select and
- * other for designation select."*
+ * **One designation, many desks.** A designation is one row from the sanctioned
+ * catalogue — unique titles, taken from the organogram — and a desk is an
+ * `OrgPost`, one per seat per section, so three offices' Assistant Director
+ * (Chemical) desks are three different desks. A person holds one designation
+ * and any number of desks, one primary and the rest additional charges.
  *
- * **Both titles now come from one catalogue** (`JobTitle`), taking the
- * organogram's post titles as the baseline. The desk itself is still an
- * `OrgPost` and not merely a title, because the post carries the unit and the
- * unit is what routes a file to a section (D58).
+ * **The desk list is this office's organogram and nothing else**, which is both
+ * what the client asked for and what `setDesks()` enforces: a post outside the
+ * employee's own office subtree makes them unreachable by that office's routing.
  *
- * **Posts are loaded per office.** A post outside the employee's own office
- * subtree is refused by `setDesk()` anyway, so offering them would be offering
- * a choice the save rejects.
+ * **The reads go straight to the database.** They were cached per office and
+ * the cache outlived a write — see `lib/hr-cache.ts` for why it went. The
+ * client still caches (D154), which is where the responsiveness anybody
+ * notices actually comes from.
  *
  * Superadmin only. The organogram is institution-wide, and an officeadmin who
  * could reseat their own staff could put somebody on the office head's desk.
@@ -53,19 +54,21 @@ export default async function DesksPage({
   // arrives here about somebody, and that somebody is usually local.
   const officeId = Number(office) || me?.officeId || offices[0]?.id;
 
-  const [rows, titles, desks] = await Promise.all([
-    staffOfOffice(officeId),
-    titleOptions(),
-    deskOptions(officeId),
+  // Read through the tagged server cache (D154) — the same entries the
+  // client's refetch is served from, so a correction invalidates one thing.
+  const [rows, desks, designations] = await Promise.all([
+    cachedStaff(officeId),
+    cachedDesks(officeId),
+    cachedDesignations(),
   ]);
 
   return (
-    <StaffTitleManager
-      offices={offices}
-      officeId={officeId}
-      rows={rows}
-      titles={titles}
-      desks={desks}
-    />
+    <QueryProvider>
+      <StaffTitleManager
+        offices={offices}
+        officeId={officeId}
+        initial={{ rows, desks, designations }}
+      />
+    </QueryProvider>
   );
 }

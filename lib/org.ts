@@ -109,6 +109,8 @@ export async function getOrgTree(): Promise<UnitNode[]> {
         parentId: u.parentId,
         sortOrder: u.sortOrder,
         isActive: u.isActive,
+        isSanctioned: u.isSanctioned,
+        createdReason: u.createdReason,
         posts: u.posts.map((p) => ({
           id: p.id,
           nameEn: p.nameEn,
@@ -117,6 +119,8 @@ export async function getOrgTree(): Promise<UnitNode[]> {
           sortOrder: p.sortOrder,
           isActive: p.isActive,
           employeeCount: p._count.employees,
+          isSanctioned: p.isSanctioned,
+          createdReason: p.createdReason,
         })),
         children: nest(u.id),
       }));

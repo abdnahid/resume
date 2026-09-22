@@ -53,6 +53,7 @@ const NAV: NavGroup[] = [
       { label: "Manage Structure",  href: "/hr/organogram/manage",  icon: GitFork, roles: ["superadmin"] },
       { label: "Desks & Designations", href: "/hr/listing/desks",  icon: Armchair, roles: ["superadmin"] },
       { label: "Bulk Seating",      href: "/hr/listing/desks/assign", icon: Users, roles: ["superadmin"] },
+      { label: "Manpower",          href: "/hr/listing/manpower", icon: Users, roles: ["superadmin", "officeadmin"] },
       { label: "Director General",  href: "/hr/listing/director-general", icon: Stamp, roles: ["superadmin"] },
       { label: "Office Setup",      href: "/hr/listing/offices",   icon: Building2, roles: ["superadmin", "officeadmin"] },
       { label: "Roles",             href: "/hr/listing/roles",     icon: ShieldCheck, roles: ["superadmin"] },

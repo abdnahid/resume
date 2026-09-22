@@ -432,7 +432,50 @@ dictionary, not to individual rows — change `lib/org-names.ts` and re-run:
   be updated in the same change.
 
 
+## Desks and designations — two tables (D153), cached both ways (D154)
+
+```
+Designation ──designationId──> Employee ──EmployeeDesk──> OrgPost ──> OrgUnit
+  130 unique titles              one              many (1 primary)     the section
+```
+
+- **A desk is per section; a designation is not.** Three offices' *Assistant
+  Director (Chemical)* desks are three `OrgPost` rows — the seat carries the
+  unit that routes a file (D58) — while the designation is one row held by
+  everybody of that rank. That is why one shared table could not do both.
+- **The catalogue is exactly the organogram's titles**, 130 of them. A roster
+  designation that is not one of them is merged onto one, and the rule that
+  does most of the work is **their own desk's title where it agrees in rank**
+  (200 of 489). 242 are left unmatched on purpose: *Assistant Director* with 19
+  candidates is a real choice.
+- **One designation, many desks — one primary, the rest additional charges.**
+  D74's single `actingOrgPostId` is now the special case. Exactly one primary is
+  enforced in `setDesks()`, not by the database: a partial unique index is not
+  expressible in the schema.
+- **Desks are replaced, never diffed.** A list merged row by row leaves somebody
+  on a desk because nobody remembered to take them off it.
+- **`orgPostId`/`actingOrgPostId` are mirrors, not the authority.** 51 call
+  sites still read them, so `setDesks()` *and* the older `setDesk()` both keep
+  them in step. If you add a writer, write the table and the mirrors together —
+  a desk assigned through only one of them is invisible on the other screen.
+- **Officers group by wing, everybody else under one Staff heading.** Grades
+  1–9 are the officer cadre where the wing is the distinction that matters among
+  88 titles; 10–20 are clerical and trade desks where it means nothing.
+  `Designation.wing` is derived from the posts' wing ancestor, with the title's
+  own qualifier breaking a tie and filling the gap for branch-only titles.
+- **The desk picker is one office's organogram and nothing else** — what the
+  client asked for, and what `setDesks()` enforces anyway.
+- **Cached on both sides, tagged per office** (D154). `lib/hr-cache.ts` holds
+  the `unstable_cache` entries; every write calls `revalidateOffice()`. Never
+  revalidate globally: correcting one Faridpur row must not drop head office's
+  391-row payload. `QueryProvider` is scoped to the screen, not the root layout.
+
 ## One title catalogue for both (D152)
+
+> **Superseded by D153** — `JobTitle` was split into `Designation` and
+> `EmployeeDesk`. Kept for the reasoning about the catalogue's contents, which
+> still holds.
+
 
 ```
 JobTitle ──titleId──> OrgPost ──unitId──> OrgUnit     the desk: a seat in a section
@@ -469,3 +512,117 @@ directly and would now desync it from the catalogue.
 - **A Bengali designation the rank table does not recognise becomes its own
   title** rather than being guessed into an English one — it shows in the
   picker for somebody to reassign.
+
+
+## Desks outside the organogram (D155)
+
+**A temporary desk is an `OrgPost` with `isSanctioned: false` and
+`sanctionedCount: 0`.** Never a second table: files route to a desk, work orders
+sit on one, the lab ladder ranks by one — a desk in a parallel table could not
+hold any of it, and regularising would become a migration instead of a flag
+flip. When the sanction arrives the post joins the establishment and **nothing
+moves**; the holders and the work keep the same post id.
+
+- **`sanctionedCount: 0` is the trick.** *held 1/0* already reads as "one
+  person, no sanctioned seat", and over strength is `posted − sanctioned`, so
+  the exception shows up in arithmetic that already existed.
+- **The reason is required, the creator is recorded, and `regularisedMemoNo` is
+  the evidence afterwards.** An establishment exception is the first thing an
+  auditor asks about.
+- **The unit is the decision, not the title** — it is what routes the file. The
+  form asks for it first and says why.
+- **Superadmin only**, unlike ordinary post creation which an officeadmin may
+  do: an office that could mint desks could grow its own sanctioned strength.
+- **No script creates one.** `import:desks` and `fix:seat-by-designation` fill
+  sanctioned posts only.
+- **`/hr/listing/manpower`** reports sanctioned · posted · over strength ·
+  outside organogram, and lists every temporary desk with its reason. Reporting
+  only the first two would hide the thing the exception exists to make visible.
+
+**Over strength is a warning, never a refusal** (same decision). BSTI posts more
+people to a desk than it sanctions as a matter of course. `setDesk()` used to
+throw, which is what made a select appear to "snap back" to its old value — the
+write was rejected and the refusal rendered off-screen. It now warns, naming who
+else is on the desk, on the row.
+
+
+## One row per seat, and tenure is history (D156)
+
+**557 posts became 854 seats.** `OrgPost.seatNo` numbers them within (unit,
+title); existing rows kept their ids and became seat 1, which is why
+`hr-corrections.ts`'s hardcoded ids and every file in flight survived.
+`sanctionedCount` is now only ever **1** (a sanctioned seat) or **0** (outside
+the organogram) — it says whether the row counts toward strength, not how many
+people fit on it.
+
+- **`EmployeeDesk` is a tenure, not a current state.** Rows are **closed** with
+  `releasedAt` + `releaseReason`, never deleted. The current holder is the open
+  row. Before this, reassigning somebody deleted the old row and the previous
+  tenure was lost — a data-loss bug, not a missing feature.
+- **`kind`**: `substantive` (their own post, what files route to) ·
+  `additional_charge` (D74) · `attachment` (working here, belongs elsewhere).
+  `isPrimary` is gone; `kind === "substantive"` replaces it.
+- **No unique index on (employee, post)** — a person may return to a desk across
+  a career, and a partial unique on "one open tenure per seat" is not
+  expressible here. `setDesks()`/`setDesk()` enforce it.
+- **Any new writer must close, not delete**, and must keep
+  `Employee.orgPostId`/`actingOrgPostId` in step — they are still read by 51
+  unmigrated call sites.
+- **`fix:unpack-seats` runs create → spread → exile, in that order.** The first
+  version computed the excess up front against the old `sanctionedCount` and
+  exiled 139 people who had a vacant seat waiting. Each phase must read the
+  state it actually runs against. It is idempotent.
+- **A seat is labelled by its occupant**, not a held count: two rows share a
+  title now, so `vacant` / `held by <name>` is what distinguishes them.
+
+**Unpack the organogram, never the seating** (D156, corrected 2026-09-21). The
+854 seats come from `sanctionedCount` and are right. What was wrong was the
+exile step: manufacturing a post for every holder with no seat **built structure
+out of a guess** — six Coordination Officer desks were created for six people
+`import:desks` had wrongly seated there, not one of them designated Coordination
+Officer. `fix:withdraw-unpack-desks` undid it. Whoever has no seat is left
+**unseated and named**; a temporary desk (D155) is created by hand when somebody
+decides one is needed, never by a script reading who happens to be sitting where.
+
+**Seed an occupancy map from the database, not from the run.**
+`fix:seat-by-designation` counted only the placements it made itself, so a seat
+held by somebody it was not moving read as vacant and was given to a second
+person — 27 double-held seats. Anyone the run *is* moving is excluded, because
+they are about to leave.
+
+**No server-side cache on `/hr/listing/desks`** (D154, amended 2026-09-21).
+`unstable_cache` was removed after it served a stale payload through a reload:
+`/api/employees/[id]/desk` never called `revalidateTag`, so a saved desk was
+invisible for five minutes. **If you add caching back, do not key it on a tag
+every write path must remember** — cache behind the service, on the rows it
+reads. The client cache (TanStack Query) stays; it is invalidated by the
+mutation itself and refetches with `refetchType: "all"`.
+
+**Structure outside the organogram is created in Manage Structure** (D157), not
+on the assignment screen. `+Temp unit` and `+Temp post` on any unit row;
+assignment stays at `/hr/listing/desks`, which keeps a pointer rather than a
+second creation path — two ways to make one kind of thing is how they drift.
+
+- **A section can be an exception too.** `OrgUnit.isSanctioned` mirrors
+  `OrgPost`'s. The unit is what routes a file, so where an office runs no
+  section of that discipline the *section* is the part that must be creatable —
+  hanging the desk under Administration instead would send the officer's work to
+  the wrong place rather than to none.
+- **`sumSanctioned()` counts sanctioned seats only**, so an exception never
+  inflates a unit's strength; a temporary post renders as *outside organogram*,
+  never as `0×`.
+- A temporary desk may sit vacant, exactly like a sanctioned one — creation and
+  assignment are separate acts.
+
+**The desks roster groups by the organogram's own sections, ordered by grade**
+(D158). `staffSection()` decides the heading: officers (grade 1–9) by the
+**unit their desk sits in**, grades 10–20 under one *Staff* heading, and
+*No desk yet* for anyone unseated — the worklist, kept together whatever their
+grade.
+
+- **Sections follow the chart, read depth-first** (`chartOrder()`), never
+  `OrgUnit.sortOrder` directly: that column is per *parent*, so comparing it
+  across wings put head office's *Document Control* above the Director
+  General's own section.
+- **Rows move between headings as desks are assigned, and that is wanted** —
+  somebody jumping into their section confirms the assignment took.
