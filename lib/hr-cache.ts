@@ -31,6 +31,12 @@
  * If these queries ever become slow enough to want caching back, cache them
  * behind the *service*, keyed on the rows they actually read, rather than
  * behind a tag every caller has to remember.
+ *
+ * **They did become slow, and they were made fast instead** (D159, 2026-09-23).
+ * Head office's three reads took about 2.7 seconds, which is nine round trips
+ * to Neon — Prisma loads each relation level as its own query. They are now one
+ * round trip each and take about 0.2 seconds together, so there is still
+ * nothing here worth the risk of a stale write.
  */
 import { deskOptions, designationOptions, staffOfOffice } from "@/lib/desks-designations";
 import type { DesignationOption, DeskOption, StaffRow } from "@/lib/desks-view";

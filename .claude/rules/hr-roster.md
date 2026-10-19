@@ -626,3 +626,61 @@ grade.
   General's own section.
 - **Rows move between headings as desks are assigned, and that is wanted** —
   somebody jumping into their section confirms the assignment took.
+
+## The desks screen is built for 391 rows (D159)
+
+**Two things made it slow, and they were independent.** Measured 2026-09-23 on
+head office, which is the only office where it bites: 391 employees, 130
+designations, 393 desks.
+
+**The table rendered 359,156 `<option>` elements — 31 MB of HTML.** Every row
+carried three pickers, each holding the whole catalogue: `391 × (130 + 393 +
+393)`. The browser parsed it, hydrated it, and **reconciled it on every
+keystroke in the search box**, which is why searching felt worse than loading.
+
+- **A closed picker holds its placeholder and the one option it is currently
+  showing.** `LazySelect` builds the real list on approach. 1,633 options for
+  the whole table instead of 359,156.
+- **The row arms its own pickers**, on `onMouseEnter` / `onFocusCapture` /
+  `onTouchStart` — a pointer cannot reach a select without crossing its row and
+  focus cannot land on one without entering it, so the list is built while
+  somebody is still moving towards it rather than in the instant they press.
+  The select keeps its own `onMouseDown`/`onFocus` handlers as a backstop for a
+  press that skips both.
+- **Never prefill every row "when idle".** It would undo the whole thing: the
+  search box's job is to unmount 390 rows, and filled rows are 900 option nodes
+  each to tear down.
+- **The row is `memo`'d and every prop into it is stable** — the choice lists
+  are memoised, `onSave` is a `useCallback`, and the save state is narrowed to
+  *this* row's message, so a save on row 300 does not re-render row 1.
+- **`deskLabel()` is computed once per desk, not once per cell.** It was called
+  391 × 393 × 2 times per render.
+
+**The server made nine round trips to Neon, at roughly half a second each.**
+Prisma loads each relation level as its own query, so the roster was five and
+the desk list four.
+
+- **`staffOfOffice()` and `deskOptions()` are one `$queryRaw` each**, with the
+  desks aggregated by `json_agg`. Same discipline as `lib/labs/mapping.ts`.
+- **`chartOrder()` runs beside the roster query, not in front of it.**
+- **`deskOptions()` scopes to the office's units in SQL.** It read all 855
+  posts and filtered in JS, which is twice what head office needs and thirty
+  times what a regional office does.
+- **A seat with two open tenures names its substantive holder.** Three posts
+  carry one, somebody on the post and somebody acting in it (D74), and the
+  aggregate orders on `kind`. The old code took `holders[0]` with no ordering
+  and got the right name by accident of row order — so this was a latent bug,
+  not a behaviour change.
+
+**Verified against the previous implementation across all 23 offices**, row for
+row and field for field, before and after. Do that again if you touch either
+query: they are the only two reads on a screen whose whole purpose is to be
+trusted with the establishment.
+
+| | before | after |
+|---|---|---|
+| page HTML | 31,054,616 B | 1,196,470 B |
+| `<option>` elements | 359,156 | 1,633 |
+| page request (dev) | 4.26 s | 0.80 s |
+| the three reads | ~2.7 s | ~0.2 s |
+| `/api/hr/desks` (refetched after every save) | ~2.7 s | ~0.3 s |

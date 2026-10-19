@@ -63,42 +63,58 @@ export async function designationOptions(): Promise<DesignationOption[]> {
  */
 export async function deskOptions(officeId: number): Promise<DeskOption[]> {
   const { officeRoots } = await import("@/lib/desk-service");
-  const { unitBelongsToOffice } = await officeRoots();
+  const { units, unitBelongsToOffice } = await officeRoots();
 
-  const posts = await prisma.orgPost.findMany({
-    where: { isActive: true },
-    select: {
-      id: true,
-      nameEn: true,
-      grade: true,
-      sanctionedCount: true,
-      isSanctioned: true,
-      seatNo: true,
-      unitId: true,
-      unit: { select: { nameEn: true } },
-      holders: {
-        where: { releasedAt: null },
-        select: { id: true, employee: { select: { nameEn: true } } },
-      },
-    },
-    orderBy: [{ unitId: "asc" }, { nameEn: "asc" }, { seatNo: "asc" }],
-  });
+  // **Scope in SQL, not afterwards.** This used to read all 855 posts with
+  // their holders and filter in JS, which fetched twice the rows head office
+  // needs and every other office's thirty times over.
+  const unitIds = units.filter((u) => unitBelongsToOffice(u.id, officeId)).map((u) => u.id);
+  if (!unitIds.length) return [];
 
-  return posts
-    .filter((p) => unitBelongsToOffice(p.unitId, officeId))
-    .map((p) => ({
-      id: p.id,
-      titleEn: p.nameEn,
-      unitEn: p.unit.nameEn,
-      unitId: p.unitId,
-      grade: p.grade,
-      sanctioned: p.sanctionedCount,
-      held: p.holders.length,
-      rankLabel: deskRank(p.nameEn).label,
-      isSanctioned: p.isSanctioned,
-      seatNo: p.seatNo,
-      heldBy: p.holders[0]?.employee.nameEn ?? null,
-    }));
+  // **One round trip.** Prisma loads each relation level as its own query, so
+  // `include: { unit, holders: { employee } }` was four trips to Neon at about
+  // half a second each. The join does it once — same discipline as
+  // `lib/labs/mapping.ts`.
+  //
+  // **`heldBy` is the substantive holder, not whoever is first in the table.**
+  // Three seats carry two open tenures — somebody on the post and somebody
+  // acting in it (D74) — and the label is about who sits there, so the
+  // aggregate orders on `kind`, which puts `substantive` first. The previous
+  // code took `holders[0]` with no ordering at all and got the right name by
+  // accident of row order.
+  const posts = await prisma.$queryRaw<
+    {
+      id: number;
+      titleEn: string;
+      unitEn: string;
+      unitId: number;
+      grade: string | null;
+      sanctioned: number;
+      isSanctioned: boolean;
+      seatNo: number;
+      held: number;
+      heldBy: string | null;
+    }[]
+  >`
+    SELECT p.id,
+           p."nameEn"          AS "titleEn",
+           u."nameEn"          AS "unitEn",
+           p."unitId"          AS "unitId",
+           p.grade,
+           p."sanctionedCount" AS sanctioned,
+           p."isSanctioned"    AS "isSanctioned",
+           p."seatNo"          AS "seatNo",
+           COUNT(h.id)::int    AS held,
+           (ARRAY_AGG(e."nameEn" ORDER BY h.kind, h.id))[1] AS "heldBy"
+      FROM "OrgPost" p
+      JOIN "OrgUnit" u ON u.id = p."unitId"
+      LEFT JOIN "EmployeeDesk" h ON h."orgPostId" = p.id AND h."releasedAt" IS NULL
+      LEFT JOIN "Employee" e ON e.id = h."employeeId"
+     WHERE p."isActive" AND p."unitId" = ANY(${unitIds}::int[])
+     GROUP BY p.id, u."nameEn"
+     ORDER BY p."unitId", p."nameEn", p."seatNo"`;
+
+  return posts.map((p) => ({ ...p, rankLabel: deskRank(p.titleEn).label }));
 }
 
 /**
@@ -135,57 +151,88 @@ async function chartOrder(): Promise<Map<number, number>> {
 }
 
 export async function staffOfOffice(officeId: number): Promise<StaffRow[]> {
-  const chart = await chartOrder();
-  const people = await prisma.employee.findMany({
-    where: { officeId, status: { not: "retired" } },
-    select: {
-      id: true,
-      nameEn: true,
-      nameBn: true,
-      grade: true,
-      officeId: true,
-      designationId: true,
-      designationEn: true,
-      designationBn: true,
-      designationIsInferred: true,
-      orgPostIsInferred: true,
-      designation: { select: { rankLabel: true, isOfficer: true, wing: true } },
-      desks: {
-        // Open tenures only — a released one is history, not a desk they hold.
-        where: { releasedAt: null },
-        select: {
-          orgPostId: true,
-          kind: true,
-          note: true,
-          orgPost: {
-            select: {
-              nameEn: true,
-              unitId: true,
-              unit: { select: { nameEn: true } },
-            },
-          },
-        },
-        orderBy: [{ kind: "asc" }, { id: "asc" }],
-      },
-    },
-    orderBy: { id: "asc" },
-  });
+  type Row = {
+    id: string;
+    nameEn: string;
+    nameBn: string | null;
+    grade: string | null;
+    officeId: number | null;
+    designationId: number | null;
+    designationEn: string | null;
+    designationBn: string | null;
+    designationIsInferred: boolean;
+    orgPostIsInferred: boolean;
+    desigRankLabel: string | null;
+    desigIsOfficer: boolean | null;
+    desigWing: string | null;
+    desks: {
+      orgPostId: number;
+      kind: HeldDesk["kind"];
+      note: string | null;
+      titleEn: string;
+      unitId: number;
+      unitEn: string;
+    }[];
+  };
+
+  // **The chart runs alongside, not before.** It was awaited first, which put
+  // a whole round trip to Neon in front of the query that does the work.
+  //
+  // **And the roster is one round trip.** Prisma reads each relation level
+  // separately — employee, designation, desks, post, unit was five — so the
+  // desks are aggregated into JSON here instead.
+  const [chart, people] = await Promise.all([
+    chartOrder(),
+    prisma.$queryRaw<Row[]>`
+      SELECT e.id,
+             e."nameEn",
+             e."nameBn",
+             e.grade,
+             e."officeId",
+             e."designationId",
+             e."designationEn",
+             e."designationBn",
+             e."designationIsInferred",
+             e."orgPostIsInferred",
+             d."rankLabel" AS "desigRankLabel",
+             d."isOfficer" AS "desigIsOfficer",
+             d.wing       AS "desigWing",
+             COALESCE(
+               (SELECT json_agg(
+                         json_build_object(
+                           'orgPostId', ed."orgPostId",
+                           'kind',      ed.kind,
+                           'note',      ed.note,
+                           'titleEn',   p."nameEn",
+                           'unitId',    p."unitId",
+                           'unitEn',    u."nameEn")
+                         ORDER BY ed.kind, ed.id)
+                  FROM "EmployeeDesk" ed
+                  JOIN "OrgPost" p ON p.id = ed."orgPostId"
+                  JOIN "OrgUnit" u ON u.id = p."unitId"
+                 WHERE ed."employeeId" = e.id AND ed."releasedAt" IS NULL),
+               '[]'::json) AS desks
+        FROM "Employee" e
+        LEFT JOIN "Designation" d ON d.id = e."designationId"
+       WHERE e."officeId" = ${officeId} AND e.status::text <> 'retired'
+       ORDER BY e.id`,
+  ]);
 
   return people.map((e) => {
     const desks: HeldDesk[] = e.desks.map((d) => ({
       orgPostId: d.orgPostId,
-      titleEn: d.orgPost.nameEn,
-      unitEn: d.orgPost.unit.nameEn,
+      titleEn: d.titleEn,
+      unitEn: d.unitEn,
       kind: d.kind,
       isPrimary: d.kind === "substantive",
       note: d.note,
     }));
     const primary = desks.find((d) => d.isPrimary) ?? null;
-    const primaryUnitId = e.desks.find((d) => d.kind === "substantive")?.orgPost.unitId;
+    const primaryUnitId = e.desks.find((d) => d.kind === "substantive")?.unitId;
     const primaryUnitOrder =
       primaryUnitId !== undefined ? (chart.get(primaryUnitId) ?? 9999) : 9999;
     const desigRank =
-      e.designation?.rankLabel ?? deskRank(e.designationEn ?? e.designationBn).label;
+      e.desigRankLabel ?? deskRank(e.designationEn ?? e.designationBn).label;
     return {
       id: e.id,
       nameEn: e.nameEn,
@@ -197,8 +244,8 @@ export async function staffOfOffice(officeId: number): Promise<StaffRow[]> {
       designationIsInferred: e.designationIsInferred,
       // **Grade decides the band, the designation decides the wing.** A person
       // with no designation set falls to the grade, so the roster still sorts.
-      isOfficer: e.designation?.isOfficer ?? (e.grade ? Number(e.grade) <= 9 : false),
-      wing: e.designation?.wing ?? null,
+      isOfficer: e.desigIsOfficer ?? (e.grade ? Number(e.grade) <= 9 : false),
+      wing: e.desigWing ?? null,
       // The section is the organogram's, taken from the desk they hold (D158a).
       sectionEn: primary?.unitEn ?? null,
       sectionOrder: primaryUnitOrder,

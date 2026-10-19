@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, memo, useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Armchair, Check, Loader2, Search, Sparkles } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
+import LazySelect, { type ChoiceGroup } from "./LazySelect";
 // **The Prisma-free half.** Importing these from `lib/desks-designations.ts`
 // would pull `pg` into the browser bundle — see `lib/desks-view.ts`.
 import {
@@ -19,6 +20,9 @@ import {
 
 type Payload = { rows: StaffRow[]; desks: DeskOption[]; designations: DesignationOption[] };
 
+const SELECT_CLASS =
+  "w-full rounded-lg border bg-card px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none disabled:opacity-60";
+
 /**
  * How one seat reads in the picker.
  *
@@ -27,6 +31,10 @@ type Payload = { rows: StaffRow[]; desks: DeskOption[]; designations: Designatio
  * held* twice told you nothing about which one was free. A seat is named by its
  * number and, above all, by **who is sitting on it**: that is the fact somebody
  * choosing a desk actually needs.
+ *
+ * **Computed once per desk, not once per cell.** It used to be called inside
+ * every option of every row — 391 rows × 393 desks × 2 pickers is 307,000 calls
+ * per render.
  */
 function deskLabel(d: DeskOption): string {
   const seat = `${d.titleEn}${d.seatNo > 1 ? ` #${d.seatNo}` : ""}`;
@@ -34,6 +42,181 @@ function deskLabel(d: DeskOption): string {
   const grade = d.grade ? ` · g${d.grade}` : "";
   return `${seat} — ${who}${grade}${d.isSanctioned === false ? " · outside organogram" : ""}`;
 }
+
+/**
+ * One person's row — **memoised, because the search box re-renders the table on
+ * every keystroke.**
+ *
+ * Head office is 391 rows. Typing a letter changes `q`, which recomputes the
+ * filter and re-renders the parent; without this the whole table reconciles for
+ * a change that concerns at most a handful of rows. Every prop here is either a
+ * value or an identity that is stable across renders — the choice lists are
+ * memoised, `onSave` is a `useCallback`, and the per-row save state is narrowed
+ * to this row's own message so that a save on row 300 does not invalidate row 1.
+ */
+const StaffRowView = memo(function StaffRowView({
+  row,
+  designationChoices,
+  deskChoices,
+  designationLabelOf,
+  deskLabelOf,
+  primaryDeskIsTemporary,
+  busy,
+  failedMessage,
+  noteMessages,
+  onSave,
+}: {
+  row: StaffRow;
+  designationChoices: ChoiceGroup[];
+  deskChoices: ChoiceGroup[];
+  designationLabelOf: (id: number) => string | null;
+  deskLabelOf: (id: number) => string | null;
+  primaryDeskIsTemporary: boolean;
+  busy: boolean;
+  failedMessage: string | null;
+  noteMessages: string[] | null;
+  onSave: (url: string, body: unknown) => void;
+}) {
+  const r = row;
+  const primary = r.desks.find((d) => d.isPrimary) ?? null;
+  const charge = r.desks.find((d) => !d.isPrimary) ?? null;
+  const num = (v: string) => (v === "" ? null : Number(v));
+
+  /**
+   * **The row arms its own pickers** (`LazySelect`), because it is the thing
+   * you cannot reach one without crossing. A pointer travelling to a select
+   * enters the row first; focus tabbing into one raises a capture here before
+   * the select sees it. So the option lists are built while somebody is still
+   * moving towards them, rather than in the instant they click.
+   */
+  const [armed, setArmed] = useState(false);
+  const arm = () => setArmed(true);
+
+  return (
+    <tr
+      className={r.rankDiffers ? "bg-amber-500/5" : undefined}
+      onMouseEnter={arm}
+      onFocusCapture={arm}
+      onTouchStart={arm}
+    >
+      <td className="px-3 py-2 align-top">
+        <span className="font-medium text-foreground">{r.nameEn}</span>
+        <span className="block font-mono text-[11px] text-muted-foreground">
+          {r.id} · grade {r.grade ?? "—"}
+        </span>
+        <span className="block text-[11px] text-muted-foreground">
+          recorded: {r.recordedEn ?? "—"}
+        </span>
+        {busy && <Loader2 className="mt-1 h-3 w-3 animate-spin text-primary" strokeWidth={2} />}
+        {failedMessage && (
+          <span className="mt-1 block text-[11px] text-destructive">{failedMessage}</span>
+        )}
+        {noteMessages?.map((m) => (
+          <span key={m} className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400">
+            {m}
+          </span>
+        ))}
+      </td>
+
+      <td className="px-3 py-2 align-top">
+        <LazySelect
+          armed={armed}
+          disabled={busy}
+          value={r.designationId ? String(r.designationId) : ""}
+          selectedLabel={r.designationId ? designationLabelOf(r.designationId) : null}
+          placeholder="— none —"
+          groups={designationChoices}
+          onChange={(v) =>
+            onSave(`/api/employees/${r.id}/designation`, { designationId: num(v) })
+          }
+          className={`${SELECT_CLASS} ${
+            r.designationIsInferred ? "border-amber-500/40" : "border-border"
+          }`}
+        />
+        {r.designationIsInferred && r.designationId && (
+          <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+            <Sparkles className="h-2.5 w-2.5" strokeWidth={2} /> guessed
+          </span>
+        )}
+        {r.rankDiffers && (
+          <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-400">
+            different rank from the primary desk
+          </span>
+        )}
+      </td>
+
+      {/* **A plain select, exactly like the designation beside it.** It was a
+          list with an *add* picker and a *make primary* button, which made
+          setting somebody's desk a three-step dance — add, promote, remove the
+          old one — when the client's model was always "two picks side by side".
+          Both now save on change through the same route the previous screen
+          used. */}
+      <td className="px-3 py-2 align-top">
+        <LazySelect
+          armed={armed}
+          disabled={busy}
+          value={r.primaryPostId ? String(r.primaryPostId) : ""}
+          selectedLabel={r.primaryPostId ? deskLabelOf(r.primaryPostId) : null}
+          placeholder="— no desk —"
+          groups={deskChoices}
+          onChange={(v) => onSave(`/api/employees/${r.id}/desk`, { orgPostId: num(v) })}
+          className={`${SELECT_CLASS} ${
+            r.deskIsInferred && r.primaryPostId ? "border-amber-500/40" : "border-border"
+          }`}
+        />
+        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          {primary ? primary.unitEn : "no section — no file can reach them"}
+          {primaryDeskIsTemporary && (
+            <span className="ml-1 font-medium text-sky-700 dark:text-sky-400">
+              · outside organogram
+            </span>
+          )}
+          {r.deskIsInferred && r.primaryPostId && (
+            <span className="ml-1 inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
+              <Sparkles className="h-2.5 w-2.5" strokeWidth={2} /> guessed
+            </span>
+          )}
+        </span>
+      </td>
+
+      {/* A post held *in addition* to their own (D74/D153). */}
+      <td className="px-3 py-2 align-top">
+        <LazySelect
+          armed={armed}
+          disabled={busy}
+          value={charge?.orgPostId ? String(charge.orgPostId) : ""}
+          selectedLabel={charge?.orgPostId ? deskLabelOf(charge.orgPostId) : null}
+          placeholder="— none —"
+          groups={deskChoices}
+          exclude={r.primaryPostId ? String(r.primaryPostId) : undefined}
+          onChange={(v) => onSave(`/api/employees/${r.id}/desk`, { actingOrgPostId: num(v) })}
+          className={`${SELECT_CLASS} border-border`}
+        />
+        {charge && (
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">{charge.unitEn}</span>
+        )}
+        {!r.primaryPostId && (
+          /* **Structure is created in Manage Structure** (D157), not here. This
+             screen could only ever offer sections that already exist, so it
+             could not solve the case that matters — an office with no section
+             of that discipline at all. Assignment stays here; creation lives
+             where the chart does. */
+          <a
+            href="/hr/organogram/manage"
+            className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-dashed border-sky-500/50 px-2 py-1 text-[11px] font-medium text-sky-700 transition-colors hover:bg-sky-500/5 dark:text-sky-400"
+          >
+            no suitable desk — create one in Manage Structure
+          </a>
+        )}
+        {r.desks.filter((d) => !d.isPrimary).length > 1 && (
+          <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-400">
+            holds {r.desks.filter((d) => !d.isPrimary).length} charges; only the first is shown
+          </span>
+        )}
+      </td>
+    </tr>
+  );
+});
 
 /**
  * Desks and designations, one row per person (D153/D154).
@@ -56,6 +239,10 @@ function deskLabel(d: DeskOption): string {
  * served a stale payload through a reload — see `lib/hr-cache.ts`; on a screen
  * whose purpose is correcting data, a write that appears not to have happened
  * costs more than three queries save.
+ *
+ * **The option lists are built on approach, not up front** (`LazySelect`), and
+ * every row is memoised. Head office would otherwise render 358,156 `<option>`
+ * elements, which is what made this screen slow to load and slow to search.
  */
 export default function StaffTitleManager({
   offices,
@@ -131,27 +318,64 @@ export default function StaffTitleManager({
     },
   });
 
+  // `mutate.mutate` is stable across renders; the wrapper keeps every row's
+  // `onSave` identity stable too, which is what lets `memo` hold.
+  const mutateFn = mutate.mutate;
+  const onSave = useCallback(
+    (url: string, body: unknown) => mutateFn({ url, method: "PATCH", body }),
+    [mutateFn],
+  );
+
   /** Designations grouped by wing, with Staff last — the client's ordering. */
-  const designationGroups = useMemo(() => {
+  const designationChoices = useMemo<ChoiceGroup[]>(() => {
     const m = new Map<string, DesignationOption[]>();
     for (const d of designations) {
       if (!m.has(d.group)) m.set(d.group, []);
       m.get(d.group)!.push(d);
     }
-    return [...m.entries()].sort((a, b) =>
-      a[0] === STAFF_GROUP ? 1 : b[0] === STAFF_GROUP ? -1 : a[0].localeCompare(b[0]),
-    );
+    return [...m.entries()]
+      .sort((a, b) =>
+        a[0] === STAFF_GROUP ? 1 : b[0] === STAFF_GROUP ? -1 : a[0].localeCompare(b[0]),
+      )
+      .map(([label, list]) => ({
+        label,
+        options: list.map((d) => ({ value: String(d.id), label: d.titleEn })),
+      }));
   }, [designations]);
 
   /** Desks grouped by their unit — the section is what the choice is about. */
-  const deskGroups = useMemo(() => {
+  const deskChoices = useMemo<ChoiceGroup[]>(() => {
     const m = new Map<string, DeskOption[]>();
     for (const d of desks) {
       if (!m.has(d.unitEn)) m.set(d.unitEn, []);
       m.get(d.unitEn)!.push(d);
     }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    return [...m.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, list]) => ({
+        label,
+        options: list.map((d) => ({ value: String(d.id), label: deskLabel(d) })),
+      }));
   }, [desks]);
+
+  // Lookups, so a row never scans the desk list. `desks.find(...)` per row was
+  // 391 × 393 comparisons on every render.
+  const deskById = useMemo(() => new Map(desks.map((d) => [d.id, d])), [desks]);
+  const designationById = useMemo(
+    () => new Map(designations.map((d) => [d.id, d])),
+    [designations],
+  );
+  const deskLabelOf = useCallback(
+    (id: number) => {
+      const d = deskById.get(id);
+      return d ? deskLabel(d) : null;
+    },
+    [deskById],
+  );
+  const designationLabelOf = useCallback(
+    (id: number) => designationById.get(id)?.titleEn ?? null,
+    [designationById],
+  );
 
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -219,8 +443,7 @@ export default function StaffTitleManager({
     [rows],
   );
 
-  const select =
-    "w-full rounded-lg border bg-card px-2 py-1.5 text-sm text-foreground focus:border-primary/40 focus:outline-none disabled:opacity-60";
+  const busyId = mutate.isPending ? (mutate.variables?.url.split("/")[3] ?? null) : null;
 
   return (
     <PageContainer>
@@ -245,7 +468,7 @@ export default function StaffTitleManager({
           <select
             value={officeId}
             onChange={(e) => router.push(`/hr/listing/desks?office=${e.target.value}`)}
-            className={`${select} w-auto border-border`}
+            className={`${SELECT_CLASS} w-auto border-border`}
           >
             {offices.map((o) => (
               <option key={o.id} value={o.id}>
@@ -334,184 +557,23 @@ export default function StaffTitleManager({
                       </span>
                     </td>
                   </tr>
-                  {section.list.map((r) => {
-                const busy = mutate.isPending && mutate.variables?.url.includes(r.id);
-                const primary = r.desks.find((d) => d.isPrimary) ?? null;
-                const charge = r.desks.find((d) => !d.isPrimary) ?? null;
-                const primaryDesk = r.primaryPostId ? desks.find((d) => d.id === r.primaryPostId) : null;
-                return (
-                  <tr key={r.id} className={r.rankDiffers ? "bg-amber-500/5" : undefined}>
-                    <td className="px-3 py-2 align-top">
-                      <span className="font-medium text-foreground">{r.nameEn}</span>
-                      <span className="block font-mono text-[11px] text-muted-foreground">
-                        {r.id} · grade {r.grade ?? "—"}
-                      </span>
-                      <span className="block text-[11px] text-muted-foreground">
-                        recorded: {r.recordedEn ?? "—"}
-                      </span>
-                      {busy && <Loader2 className="mt-1 h-3 w-3 animate-spin text-primary" strokeWidth={2} />}
-                      {failed?.id === r.id && (
-                        <span className="mt-1 block text-[11px] text-destructive">
-                          {failed.message}
-                        </span>
-                      )}
-                      {notes?.id === r.id &&
-                        notes.messages.map((m) => (
-                          <span
-                            key={m}
-                            className="mt-1 block text-[11px] text-amber-700 dark:text-amber-400"
-                          >
-                            {m}
-                          </span>
-                        ))}
-                    </td>
-
-                    <td className="px-3 py-2 align-top">
-                      <select
-                        disabled={busy}
-                        value={r.designationId ?? ""}
-                        onChange={(e) =>
-                          mutate.mutate({
-                            url: `/api/employees/${r.id}/designation`,
-                            method: "PATCH",
-                            body: {
-                              designationId: e.target.value === "" ? null : Number(e.target.value),
-                            },
-                          })
-                        }
-                        className={`${select} ${
-                          r.designationIsInferred ? "border-amber-500/40" : "border-border"
-                        }`}
-                      >
-                        <option value="">— none —</option>
-                        {designationGroups.map(([group, list]) => (
-                          <optgroup key={group} label={group}>
-                            {list.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.titleEn}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      {r.designationIsInferred && r.designationId && (
-                        <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-amber-700 dark:text-amber-400">
-                          <Sparkles className="h-2.5 w-2.5" strokeWidth={2} /> guessed
-                        </span>
-                      )}
-                      {r.rankDiffers && (
-                        <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-400">
-                          different rank from the primary desk
-                        </span>
-                      )}
-                    </td>
-
-                    {/* **A plain select, exactly like the designation beside
-                        it.** It was a list with an *add* picker and a *make
-                        primary* button, which made setting somebody's desk a
-                        three-step dance — add, promote, remove the old one —
-                        when the client's model was always "two picks side by
-                        side". Both now save on change through the same route
-                        the previous screen used. */}
-                    <td className="px-3 py-2 align-top">
-                      <select
-                        disabled={busy}
-                        value={r.primaryPostId ?? ""}
-                        onChange={(e) =>
-                          mutate.mutate({
-                            url: `/api/employees/${r.id}/desk`,
-                            method: "PATCH",
-                            body: { orgPostId: e.target.value === "" ? null : Number(e.target.value) },
-                          })
-                        }
-                        className={`${select} ${
-                          r.deskIsInferred && r.primaryPostId ? "border-amber-500/40" : "border-border"
-                        }`}
-                      >
-                        <option value="">— no desk —</option>
-                        {deskGroups.map(([unit, list]) => (
-                          <optgroup key={unit} label={unit}>
-                            {list.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {deskLabel(d)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                        {primary ? primary.unitEn : "no section — no file can reach them"}
-                        {primaryDesk?.isSanctioned === false && (
-                          <span className="ml-1 font-medium text-sky-700 dark:text-sky-400">
-                            · outside organogram
-                          </span>
-                        )}
-                        {r.deskIsInferred && r.primaryPostId && (
-                          <span className="ml-1 inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
-                            <Sparkles className="h-2.5 w-2.5" strokeWidth={2} /> guessed
-                          </span>
-                        )}
-                      </span>
-                    </td>
-
-                    {/* A post held *in addition* to their own (D74/D153). */}
-                    <td className="px-3 py-2 align-top">
-                      <select
-                        disabled={busy}
-                        value={charge?.orgPostId ?? ""}
-                        onChange={(e) =>
-                          mutate.mutate({
-                            url: `/api/employees/${r.id}/desk`,
-                            method: "PATCH",
-                            body: {
-                              actingOrgPostId: e.target.value === "" ? null : Number(e.target.value),
-                            },
-                          })
-                        }
-                        className={`${select} border-border`}
-                      >
-                        <option value="">— none —</option>
-                        {deskGroups.map(([unit, list]) => (
-                          <optgroup key={unit} label={unit}>
-                            {list
-                              .filter((d) => d.id !== r.primaryPostId)
-                              .map((d) => (
-                                <option key={d.id} value={d.id}>
-                                  {deskLabel(d)}
-                                </option>
-                              ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      {charge && (
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                          {charge.unitEn}
-                        </span>
-                      )}
-                      {!r.primaryPostId && (
-                        /* **Structure is created in Manage Structure** (D157),
-                           not here. This screen could only ever offer sections
-                           that already exist, so it could not solve the case
-                           that matters — an office with no section of that
-                           discipline at all. Assignment stays here; creation
-                           lives where the chart does. */
-                        <a
-                          href="/hr/organogram/manage"
-                          className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-dashed border-sky-500/50 px-2 py-1 text-[11px] font-medium text-sky-700 transition-colors hover:bg-sky-500/5 dark:text-sky-400"
-                        >
-                          no suitable desk — create one in Manage Structure
-                        </a>
-                      )}
-                      {r.desks.filter((d) => !d.isPrimary).length > 1 && (
-                        <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-400">
-                          holds {r.desks.filter((d) => !d.isPrimary).length} charges; only the first
-                          is shown
-                        </span>
-                      )}
-                    </td>
-                    </tr>
-                  );
-                  })}
+                  {section.list.map((r) => (
+                    <StaffRowView
+                      key={r.id}
+                      row={r}
+                      designationChoices={designationChoices}
+                      deskChoices={deskChoices}
+                      designationLabelOf={designationLabelOf}
+                      deskLabelOf={deskLabelOf}
+                      primaryDeskIsTemporary={
+                        r.primaryPostId ? deskById.get(r.primaryPostId)?.isSanctioned === false : false
+                      }
+                      busy={busyId === r.id}
+                      failedMessage={failed?.id === r.id ? failed.message : null}
+                      noteMessages={notes?.id === r.id ? notes.messages : null}
+                      onSave={onSave}
+                    />
+                  ))}
                 </Fragment>
               ))}
               {shown.length === 0 && (
